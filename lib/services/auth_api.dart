@@ -82,6 +82,26 @@ class AuthApi {
     throw AuthException('Sesión expirada. Inicia sesión de nuevo.');
   }
 
+  Future<void> logout({
+    required String refreshToken,
+    String? accessToken,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.logoutPath}');
+
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (accessToken != null && accessToken.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $accessToken';
+    }
+
+    try {
+      await _client
+          .post(uri, headers: headers, body: jsonEncode({'refreshToken': refreshToken}))
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+    }
+  }
+
+
   Future<void> register({
     required String accessToken,
     required String email,

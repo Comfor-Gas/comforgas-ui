@@ -61,7 +61,6 @@ class AuthProvider extends ChangeNotifier {
       _user = result.user;
       _status = AuthStatus.authenticated;
     } catch (_) {
-      // Refresh invalido o expirado, limpia y vuelve a pedir loguearse
       await _storage.clear();
       _accessToken = null;
       _user = null;
@@ -147,6 +146,10 @@ class AuthProvider extends ChangeNotifier {
 
 
   Future<void> logout() async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await _api.logout(refreshToken: refreshToken, accessToken: _accessToken);
+    }
     await _storage.clear();
     _accessToken = null;
     _user = null;

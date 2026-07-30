@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../widgets/app_alert.dart';
 import '../widgets/fingerprint_button.dart';
 import '../widgets/footer_decoration.dart';
 import '../widgets/forgot_password_link.dart';
@@ -66,7 +67,8 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusScope.of(context).unfocus();
 
     if (!_validateInputs()) {
-      await _showAlert(
+      await showAppAlert(
+        context: context,
         title: 'Revisa los datos',
         message: 'Corrige los campos marcados antes de continuar.',
       );
@@ -85,36 +87,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = false);
 
     if (!success) {
-      await _showAlert(
+      await showAppAlert(
+        context: context,
         title: 'No se pudo iniciar sesión',
         message: auth.errorMessage ??
             'Ocurrió un error inesperado. Intenta de nuevo.',
       );
     }
-  }
-
-  Future<void> _showAlert({
-    required String title,
-    required String message,
-  }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: AppTextStyles.title),
-        content: Text(message, style: AppTextStyles.input),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(
-              'Entendido',
-              style: AppTextStyles.button.copyWith(color: AppColors.orange),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override

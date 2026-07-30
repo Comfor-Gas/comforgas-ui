@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../router/role_router.dart';
@@ -19,8 +20,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final AuthProvider _auth = AuthProvider();
-
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -77,7 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _submitting = true);
 
-    final success = await _auth.login(
+    final auth = context.read<AuthProvider>();
+    final success = await auth.login(
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
@@ -86,11 +86,11 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = false);
 
     if (success) {
-      RoleRouter.goToRoleHome(context, _auth.role);
+      RoleRouter.goToRoleHome(context, auth.role);
     } else {
       await _showAlert(
         title: 'No se pudo iniciar sesión',
-        message: _auth.errorMessage ??
+        message: auth.errorMessage ??
             'Ocurrió un error inesperado. Intenta de nuevo.',
       );
     }

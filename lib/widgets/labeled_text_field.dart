@@ -8,6 +8,12 @@ class LabeledTextField extends StatefulWidget {
   final IconData icon;
   final bool obscure;
   final String? errorText;
+  final TextEditingController? controller;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   const LabeledTextField({
     super.key,
@@ -16,6 +22,12 @@ class LabeledTextField extends StatefulWidget {
     required this.icon,
     this.obscure = false,
     this.errorText,
+    this.controller,
+    this.keyboardType,
+    this.textInputAction,
+    this.onSubmitted,
+    this.onChanged,
+    this.enabled = true,
   });
 
   @override
@@ -61,8 +73,14 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
             ),
           ),
           child: TextField(
+            controller: widget.controller,
             focusNode: _focusNode,
             obscureText: _obscured,
+            enabled: widget.enabled,
+            keyboardType: widget.keyboardType,
+            textInputAction: widget.textInputAction,
+            onSubmitted: widget.onSubmitted,
+            onChanged: widget.onChanged,
             style: AppTextStyles.input,
             cursorColor: AppColors.steelBlue,
             decoration: InputDecoration(

@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/auth_user.dart';
 import '../models/user_role.dart';
 import '../services/auth_api.dart';
+import '../services/auth_http_client.dart';
 import '../services/secure_storage_service.dart';
 
 enum AuthStatus { unknown, unauthenticated, authenticating, authenticated }
@@ -14,6 +16,15 @@ class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthApi? api, SecureStorageService? storage})
       : _api = api ?? AuthApi(),
         _storage = storage ?? SecureStorageService();
+
+  late final AuthHttpClient _apiClient = AuthHttpClient(
+    storage: _storage,
+    onSessionExpired: _handleSessionExpired,
+  );
+  http.Client get apiClient => _apiClient;
+  Future<void> _handleSessionExpired() async {
+    await logout();
+  }
 
   AuthStatus _status = AuthStatus.unknown;
   AuthUser? _user;
@@ -50,6 +61,7 @@ class AuthProvider extends ChangeNotifier {
       _user = result.user;
       _status = AuthStatus.authenticated;
     } catch (_) {
+      // Refresh invalido o expirado, limpia y vuelve a pedir loguearse
       await _storage.clear();
       _accessToken = null;
       _user = null;
@@ -90,7 +102,6 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
   }
-
 
   Future<bool> register({
     required String email,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
-import '../router/role_router.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/fingerprint_button.dart';
@@ -85,9 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _submitting = false);
 
-    if (success) {
-      RoleRouter.goToRoleHome(context, auth.role);
-    } else {
+    if (!success) {
       await _showAlert(
         title: 'No se pudo iniciar sesión',
         message: auth.errorMessage ??

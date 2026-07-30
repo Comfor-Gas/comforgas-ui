@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
-import '../login_screen.dart';
+
 
 enum VendedorSection {
   ventas('Ventas', Icons.point_of_sale_outlined),
@@ -36,11 +36,6 @@ class _PosVendedorScreenState extends State<PosVendedorScreen> {
     final auth = context.read<AuthProvider>();
     Navigator.of(context).pop();
     await auth.logout();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
   }
 
   @override
@@ -119,10 +114,17 @@ class _VendedorDrawer extends StatelessWidget {
                             Text(
                               auth.user?.fullName?.isNotEmpty == true
                                   ? auth.user!.fullName!
-                                  : 'Vendedor Comforgas',
+                                  : 'Vendedor Local',
                               style: AppTextStyles.title.copyWith(
                                 color: AppColors.white,
                                 fontSize: 17,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Vendedor Local',
+                              style: AppTextStyles.footer.copyWith(
+                                color: AppColors.white.withOpacity(0.8),
                               ),
                             ),
                           ],

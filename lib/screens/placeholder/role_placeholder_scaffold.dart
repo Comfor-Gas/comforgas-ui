@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
-import '../login_screen.dart';
 
 class RolePlaceholderScaffold extends StatelessWidget {
   final String title;
@@ -116,12 +115,6 @@ class RolePlaceholderScaffold extends StatelessWidget {
               OutlinedButton(
                 onPressed: () async {
                   await context.read<AuthProvider>().logout();
-                  if (context.mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      (route) => false,
-                    );
-                  }
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.steelBlue,

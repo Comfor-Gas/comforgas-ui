@@ -55,4 +55,80 @@ class AuthApi {
 
     throw AuthException('Error del servidor (${response.statusCode}). Intenta más tarde.');
   }
+  Future<AuthResult> refresh({required String refreshToken}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.refreshPath}');
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw AuthException('No se pudo conectar con el servidor. Revisa tu conexión.');
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw AuthException('Respuesta inesperada del servidor.');
+      }
+      return AuthResult.fromJson(decoded);
+    }
+
+    throw AuthException('Sesión expirada. Inicia sesión de nuevo.');
+  }
+
+  Future<void> register({
+    required String accessToken,
+    required String email,
+    required String password,
+    required String fullName,
+    required String rol,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.registerPath}');
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+              'fullName': fullName,
+              'rol': rol,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw AuthException('No se pudo conectar con el servidor. Revisa tu conexión.');
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return;
+    }
+
+    if (response.statusCode == 400) {
+      throw AuthException('Datos inválidos. Revisa los campos.');
+    }
+    if (response.statusCode == 401) {
+      throw AuthException('Sesión expirada. Inicia sesión de nuevo.');
+    }
+    if (response.statusCode == 403) {
+      throw AuthException('No tenés permisos para registrar usuarios.');
+    }
+    if (response.statusCode == 409) {
+      throw AuthException('Ya existe un usuario con ese correo.');
+    }
+
+    throw AuthException('Error del servidor (${response.statusCode}). Intenta más tarde.');
+  }
 }

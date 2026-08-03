@@ -50,4 +50,37 @@ class AppTextStyles {
     fontWeight: FontWeight.w400,
     color: AppColors.footerText,
   );
+
+
+  static const TextStyle panelTitle = TextStyle(
+    fontSize: 36,
+    fontWeight: FontWeight.w700,
+    color: AppColors.white,
+    height: 1.15,
+  );
+
+  static const TextStyle panelBody = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w400,
+    color: Color(0xFFE3E9EF),
+    height: 1.5,
+  );
+
+  static const TextStyle desktopTitle = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    color: AppColors.steelBlue,
+  );
+
+  static const TextStyle desktopSubtitle = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: AppColors.graphiteGray,
+  );
+
+  static const TextStyle footerLink = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    color: AppColors.graphiteGray,
+  );
 }

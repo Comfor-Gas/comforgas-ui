@@ -4,8 +4,13 @@ import '../theme/app_text_styles.dart';
 
 class ForgotPasswordLink extends StatefulWidget {
   final VoidCallback? onTap;
+  final String text;
 
-  const ForgotPasswordLink({super.key, this.onTap});
+  const ForgotPasswordLink({
+    super.key,
+    this.onTap,
+    this.text = '¿Olvidé mi contraseña?',
+  });
 
   @override
   State<ForgotPasswordLink> createState() => _ForgotPasswordLinkState();
@@ -26,7 +31,7 @@ class _ForgotPasswordLinkState extends State<ForgotPasswordLink> {
         onEnter: (_) => setState(() => _active = true),
         onExit: (_) => setState(() => _active = false),
         child: Text(
-          '¿Olvidé mi contraseña?',
+          widget.text,
           style: AppTextStyles.link.copyWith(
             color: AppColors.graphiteGray,
             decoration:

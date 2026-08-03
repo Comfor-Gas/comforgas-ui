@@ -49,10 +49,17 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
     }
   }
 
+  void _clearError() {
+    if (_localError != null) setState(() => _localError = null);
+    context.read<AuthProvider>().clearError();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final errorMessage = _localError ?? auth.errorMessage;
+    final isLoading = context.select<AuthProvider, bool>((a) => a.isLoading);
+    final providerError =
+        context.select<AuthProvider, String?>((a) => a.errorMessage);
+    final errorMessage = _localError ?? providerError;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -96,15 +103,18 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
                               ),
                               const SizedBox(height: 32),
                               LabeledTextField(
+                                key: const ValueKey('desktop_email_field'),
                                 label: 'Correo Electrónico',
                                 hint: 'administrador@gmail.com',
                                 icon: Icons.mail_outline,
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
+                                onChanged: (_) => _clearError(),
                               ),
                               const SizedBox(height: 18),
                               LabeledTextField(
+                                key: const ValueKey('desktop_password_field'),
                                 label: 'Contraseña',
                                 hint: '••••••••••',
                                 icon: Icons.lock_outline,
@@ -112,6 +122,7 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
                                 controller: _passwordController,
                                 textInputAction: TextInputAction.done,
                                 onSubmitted: _submit,
+                                onChanged: (_) => _clearError(),
                               ),
                               if (errorMessage != null) ...[
                                 const SizedBox(height: 14),
@@ -124,7 +135,7 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
                               const SizedBox(height: 28),
                               PrimaryButton(
                                 text: 'Ingresar al panel',
-                                isLoading: auth.isLoading,
+                                isLoading: isLoading,
                                 onPressed: _submit,
                               ),
                               const SizedBox(height: 18),

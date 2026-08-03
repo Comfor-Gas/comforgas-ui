@@ -50,10 +50,17 @@ class _MobileLoginViewState extends State<MobileLoginView> {
     }
   }
 
+  void _clearError() {
+    if (_localError != null) setState(() => _localError = null);
+    context.read<AuthProvider>().clearError();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final errorMessage = _localError ?? auth.errorMessage;
+    final isLoading = context.select<AuthProvider, bool>((a) => a.isLoading);
+    final providerError =
+        context.select<AuthProvider, String?>((a) => a.errorMessage);
+    final errorMessage = _localError ?? providerError;
 
     return SafeArea(
       top: true,
@@ -94,14 +101,17 @@ class _MobileLoginViewState extends State<MobileLoginView> {
                         ),
                         const SizedBox(height: 28),
                         LabeledTextField(
+                          key: const ValueKey('mobile_user_field'),
                           label: 'Usuario',
                           hint: 'Nombre de usuario',
                           icon: Icons.person_outline,
                           controller: _userController,
                           textInputAction: TextInputAction.next,
+                          onChanged: (_) => _clearError(),
                         ),
                         const SizedBox(height: 18),
                         LabeledTextField(
+                          key: const ValueKey('mobile_password_field'),
                           label: 'Contraseña',
                           hint: '••••••••',
                           icon: Icons.lock_outline,
@@ -109,6 +119,7 @@ class _MobileLoginViewState extends State<MobileLoginView> {
                           controller: _passwordController,
                           textInputAction: TextInputAction.done,
                           onSubmitted: _submit,
+                          onChanged: (_) => _clearError(),
                         ),
                         if (errorMessage != null) ...[
                           const SizedBox(height: 12),
@@ -123,7 +134,7 @@ class _MobileLoginViewState extends State<MobileLoginView> {
                         const SizedBox(height: 5),
                         PrimaryButton(
                           text: 'Ingresar al sistema',
-                          isLoading: auth.isLoading,
+                          isLoading: isLoading,
                           onPressed: _submit,
                         ),
                         const SizedBox(height: 18),

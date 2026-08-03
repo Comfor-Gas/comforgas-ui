@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'theme/app_colors.dart';
+import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 
 void main() {
@@ -11,14 +13,17 @@ class ComforGasApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Comfor Gas',
-      theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.background,
-        useMaterial3: true,
+    return ChangeNotifierProvider(
+      create: (_) => AuthProvider()..restoreSession(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Comfor Gas',
+        theme: ThemeData(
+          scaffoldBackgroundColor: AppColors.background,
+          useMaterial3: true,
+        ),
+        home: const LoginScreen(),
       ),
-      home: const LoginScreen(),
     );
   }
 }

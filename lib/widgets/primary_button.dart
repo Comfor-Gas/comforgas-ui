@@ -5,11 +5,13 @@ import '../theme/app_text_styles.dart';
 class PrimaryButton extends StatefulWidget {
   final String text;
   final VoidCallback? onPressed;
+  final bool isLoading;
 
   const PrimaryButton({
     super.key,
     required this.text,
     this.onPressed,
+    this.isLoading = false,
   });
 
   @override
@@ -21,17 +23,21 @@ class _PrimaryButtonState extends State<PrimaryButton> {
 
   @override
   Widget build(BuildContext context) {
+    final bool disabled = widget.isLoading || widget.onPressed == null;
+
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onPressed,
+      onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
+      onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
+      onTapCancel: disabled ? null : () => setState(() => _pressed = false),
+      onTap: disabled ? null : widget.onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         width: double.infinity,
         height: 56,
         decoration: BoxDecoration(
-          color: _pressed ? const Color(0xFFD8611A) : AppColors.orange,
+          color: _pressed
+              ? const Color(0xFFD8611A)
+              : AppColors.orange.withOpacity(widget.isLoading ? 0.7 : 1),
           borderRadius: BorderRadius.circular(12),
           boxShadow: _pressed
               ? []
@@ -43,14 +49,25 @@ class _PrimaryButtonState extends State<PrimaryButton> {
                   ),
                 ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(widget.text.toUpperCase(), style: AppTextStyles.button),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: AppColors.white, size: 20),
-          ],
-        ),
+        child: widget.isLoading
+            ? const Center(
+                child: SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation(AppColors.white),
+                  ),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(widget.text.toUpperCase(), style: AppTextStyles.button),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.chevron_right, color: AppColors.white, size: 20),
+                ],
+              ),
       ),
     );
   }

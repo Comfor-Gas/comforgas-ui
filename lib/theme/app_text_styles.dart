@@ -51,6 +51,7 @@ class AppTextStyles {
     color: AppColors.footerText,
   );
 
+  // ---- Desktop / Admin (Panel de Control) ----
 
   static const TextStyle panelTitle = TextStyle(
     fontSize: 36,

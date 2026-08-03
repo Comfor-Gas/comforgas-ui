@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../providers/auth_provider.dart';
+import '../../router/role_router.dart';
 import '../../widgets/logo_header.dart';
 import '../../widgets/labeled_text_field.dart';
 import '../../widgets/fingerprint_button.dart';
@@ -8,11 +11,50 @@ import '../../widgets/primary_button.dart';
 import '../../widgets/forgot_password_link.dart';
 import '../../widgets/footer_decoration.dart';
 
-class MobileLoginView extends StatelessWidget {
+class MobileLoginView extends StatefulWidget {
   const MobileLoginView({super.key});
 
   @override
+  State<MobileLoginView> createState() => _MobileLoginViewState();
+}
+
+class _MobileLoginViewState extends State<MobileLoginView> {
+  final _userController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String? _localError;
+
+  @override
+  void dispose() {
+    _userController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final user = _userController.text.trim();
+    final password = _passwordController.text;
+
+    if (user.isEmpty || password.isEmpty) {
+      setState(() => _localError = 'Completá usuario y contraseña.');
+      return;
+    }
+
+    setState(() => _localError = null);
+
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.login(email: user, password: password);
+
+    if (!mounted) return;
+    if (ok) {
+      RoleRouter.goToRoleHome(context, auth.role);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final errorMessage = _localError ?? auth.errorMessage;
+
     return SafeArea(
       top: true,
       bottom: false,
@@ -51,22 +93,39 @@ class MobileLoginView extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 28),
-                        const LabeledTextField(
+                        LabeledTextField(
                           label: 'Usuario',
                           hint: 'Nombre de usuario',
                           icon: Icons.person_outline,
+                          controller: _userController,
+                          textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 18),
-                        const LabeledTextField(
+                        LabeledTextField(
                           label: 'Contraseña',
                           hint: '••••••••',
                           icon: Icons.lock_outline,
                           obscure: true,
+                          controller: _passwordController,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: _submit,
                         ),
+                        if (errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            errorMessage,
+                            style: AppTextStyles.errorText,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         const Center(child: FingerprintButton()),
                         const SizedBox(height: 5),
-                        const PrimaryButton(text: 'Ingresar al sistema'),
+                        PrimaryButton(
+                          text: 'Ingresar al sistema',
+                          isLoading: auth.isLoading,
+                          onPressed: _submit,
+                        ),
                         const SizedBox(height: 18),
                         const Center(child: ForgotPasswordLink()),
                       ],

@@ -1,4 +1,4 @@
-enum VisitaEstado {pendiente,enCurso,completada,cancelada,noAsistio,unknown}
+enum VisitaEstado {pendiente,enCurso,completada,cancelada,noAsistio,inactivo,unknown}
 
 class VisitaEstadoMapper {
   VisitaEstadoMapper._();
@@ -18,6 +18,8 @@ class VisitaEstadoMapper {
         return VisitaEstado.cancelada;
       case 'NO_ASISTIO':
         return VisitaEstado.noAsistio;
+      case 'INACTIVO':
+        return VisitaEstado.inactivo;
       default:
         return VisitaEstado.unknown;
     }
@@ -35,6 +37,8 @@ class VisitaEstadoMapper {
         return 'CANCELADA';
       case VisitaEstado.noAsistio:
         return 'NO_ASISTIO';
+      case VisitaEstado.inactivo:
+        return 'INACTIVO';
       case VisitaEstado.unknown:
         return 'PENDIENTE';
     }

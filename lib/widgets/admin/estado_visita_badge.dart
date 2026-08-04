@@ -45,6 +45,8 @@ class EstadoVisitaBadge extends StatelessWidget {
         return (AppColors.badgeRed, 'Cancelada');
       case VisitaEstado.noAsistio:
         return (AppColors.badgeRed, 'No asistió');
+      case VisitaEstado.inactivo:
+        return (AppColors.badgeGray, 'Inactivo');
       case VisitaEstado.unknown:
         return (AppColors.badgeGray, 'Desconocido');
     }

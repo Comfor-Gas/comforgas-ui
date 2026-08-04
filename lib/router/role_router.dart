@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_role.dart';
 import '../screens/admin/admin_home_screen.dart';
-import '../screens/placeholder/home_chofer_screen.dart';
+import '../screens/chofer/chofer_home_screen.dart';
 import '../screens/placeholder/pos_vendedor_screen.dart';
 import '../screens/placeholder/under_construction_screen.dart';
 import '../screens/placeholder/unknown_role_screen.dart';
@@ -11,7 +11,7 @@ class RoleRouter {
   static Widget destinationFor(UserRole role) {
     switch (role) {
       case UserRole.chofer:
-        return const HomeChoferScreen();
+        return const ChoferHomeScreen();
       case UserRole.vendedor:
         return const PosVendedorScreen();
       case UserRole.admin:

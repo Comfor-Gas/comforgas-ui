@@ -1,52 +1,24 @@
 import 'visita_estado.dart';
 import '../utils/json_parsing.dart';
 
-/// Visita de un chofer a una sucursal, dentro de una ruta planificada.
-///
-/// Modelo compartido entre la Web (Admin, que crea/gestiona visitas vía
-/// `POST /api/admin/visitas`) y la app Móvil (Chofer, que consulta su
-/// agenda vía `GET /api/visitas/{idUsuario}/{fecha}`).
-///
-/// OJO con `fecha`: el backend tiene dos respuestas distintas para "una
-/// visita" según el endpoint:
-///  - `VisitaResponse` (admin, CRUD completo) SÍ incluye `fecha`.
-///  - `VisitaFechaResponse` (agenda del chofer) NO la incluye, porque ya
-///    viene implícita en el path param de la consulta.
-/// Por eso `fecha` es nullable acá. `VisitaRepository.getVisitasPorUsuarioYFecha`
-/// completa `fecha` automáticamente con el valor consultado, así el
-/// modelo queda siempre completo del lado del cliente.
-///
-/// Las evidencias fotográficas NO viajan dentro de este JSON — son un
-/// recurso aparte (`GET /api/evidenciasfotograficas?idVisita={id}`).
+
 class VisitaModel {
   final int? idVisita;
-
-  /// UUID del chofer (coincide con el id del usuario autenticado).
   final String idUsuario;
   final String? nombreUsuario;
-
   final int idSucursal;
   final int idRuta;
-
-  /// Snapshot inmutable de la sucursal al momento de crear la visita.
   final Map<String, dynamic> sucursalSnapshot;
-
-  /// Snapshot inmutable de la ruta al momento de crear la visita.
   final Map<String, dynamic> rutaSnapshot;
-
   final int ordenVisita;
   final VisitaEstado estadoVisita;
-
   final DateTime? fecha;
   final String? observaciones;
-
   final DateTime? timestampInicio;
   final DateTime? timestampFin;
-
   final double? latitudInicio;
   final double? longitudInicio;
   final bool geolocalizacionValida;
-
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -71,8 +43,6 @@ class VisitaModel {
     this.updatedAt,
   });
 
-  /// Sirve tanto para `VisitaResponse` (admin) como `VisitaFechaResponse`
-  /// (agenda chofer) — esta última simplemente no trae `fecha`.
   factory VisitaModel.fromJson(Map<String, dynamic> json) {
     return VisitaModel(
       idVisita: parseInt(json['idVisita']),
@@ -100,9 +70,6 @@ class VisitaModel {
     );
   }
 
-  /// Body para `POST /api/admin/visitas` (forma de `VisitaRequest`).
-  /// No incluye `idVisita`/`nombreUsuario`/`createdAt`/`updatedAt`: esos
-  /// los asigna el backend, no se envían.
   Map<String, dynamic> toJson() {
     return {
       'idUsuario': idUsuario,

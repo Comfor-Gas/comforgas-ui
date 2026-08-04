@@ -1,0 +1,100 @@
+import 'package:flutter/material.dart';
+import '../../core/responsive.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/admin/admin_sidebar.dart';
+import '../../widgets/admin/admin_topbar.dart';
+import 'placeholder_admin_section.dart';
+import 'planificacion_visitas_screen.dart';
+
+class AdminHomeScreen extends StatefulWidget {
+  const AdminHomeScreen({super.key});
+
+  @override
+  State<AdminHomeScreen> createState() => _AdminHomeScreenState();
+}
+
+class _AdminHomeScreenState extends State<AdminHomeScreen> {
+  int _selectedIndex = 1;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  Widget get _body {
+    switch (_selectedIndex) {
+      case 1:
+        return const PlanificacionVisitasScreen();
+      case 0:
+        return const PlaceholderAdminSection(
+          title: 'Dashboard',
+          icon: Icons.dashboard_outlined,
+        );
+      case 2:
+        return const PlaceholderAdminSection(
+          title: 'Clientes',
+          icon: Icons.groups_outlined,
+        );
+      case 3:
+        return const PlaceholderAdminSection(
+          title: 'Rutas',
+          icon: Icons.alt_route_outlined,
+        );
+      default:
+        return const PlaceholderAdminSection(
+          title: 'Configuración',
+          icon: Icons.settings_outlined,
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = Responsive.isDesktop(constraints);
+
+        if (isDesktop) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: AdminSidebar(
+                    selectedIndex: _selectedIndex,
+                    onSelect: (i) => setState(() => _selectedIndex = i),
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const AdminTopbar(),
+                      Expanded(child: _body),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: AppColors.background,
+          drawer: Drawer(
+            child: AdminSidebar(
+              selectedIndex: _selectedIndex,
+              onSelect: (i) {
+                setState(() => _selectedIndex = i);
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+          appBar: AdminTopbar(
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          body: _body,
+        );
+      },
+    );
+  }
+}

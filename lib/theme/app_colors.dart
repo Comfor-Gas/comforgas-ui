@@ -11,4 +11,12 @@ class AppColors {
   static const Color inputHint = Color(0xFF9AA7B4);
   static const Color error = Color(0xFFE05348);
   static const Color footerText = Color(0xFF9AA7B4);
+
+  static const Color badgeBlue = Color(0xFF2F80ED);
+  static const Color badgeGreen = Color(0xFF27AE60);
+  static const Color badgeAmber = Color(0xFFE0A030);
+  static const Color badgeRed = Color(0xFFE05348);
+  static const Color badgeGray = Color(0xFF8E9AA8);
+  static const Color sidebarActive = Color(0xFFF27424);
+  static const Color sidebarBackground = Color(0xFF2E3F52);
 }

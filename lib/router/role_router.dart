@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/user_role.dart';
-import '../screens/placeholder/admin_webview_screen.dart';
+import '../screens/admin/admin_home_screen.dart';
 import '../screens/placeholder/home_chofer_screen.dart';
 import '../screens/placeholder/pos_vendedor_screen.dart';
 import '../screens/placeholder/under_construction_screen.dart';
@@ -15,7 +15,7 @@ class RoleRouter {
       case UserRole.vendedor:
         return const PosVendedorScreen();
       case UserRole.admin:
-        return const AdminWebviewScreen();
+        return const AdminHomeScreen();
       case UserRole.gerente:
       case UserRole.adminIt:
         return const UnderConstructionScreen();

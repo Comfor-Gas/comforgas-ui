@@ -16,5 +16,6 @@ class ApiConfig {
   static const String registerPath = '/api/admin/usuarios';
   static const String visitasPath = '/api/visitas';
   static const String adminVisitasPath = '/api/admin/visitas';
+  static const String adminVisitasImportPath = '/api/admin/visitas/import';
   static const String evidenciasFotograficasPath = '/api/evidenciasfotograficas';
 }

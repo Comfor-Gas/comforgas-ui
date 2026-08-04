@@ -10,6 +10,7 @@ import '../../widgets/forgot_password_link.dart';
 import '../../widgets/desktop/desktop_side_panel.dart';
 import '../../widgets/desktop/desktop_footer.dart';
 
+/// Login corporativo para Administradores en Desktop/Web.
 class DesktopLoginView extends StatefulWidget {
   const DesktopLoginView({super.key});
 
@@ -56,6 +57,10 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
 
   @override
   Widget build(BuildContext context) {
+    // select() en vez de watch(): así SOLO este valor puntual dispara un
+    // rebuild, y no arrastra a los LabeledTextField de arriba (que en
+    // Flutter Web pueden perder el foco/input si su padre se reconstruye
+    // completo mientras el usuario está escribiendo).
     final isLoading = context.select<AuthProvider, bool>((a) => a.isLoading);
     final providerError =
         context.select<AuthProvider, String?>((a) => a.errorMessage);

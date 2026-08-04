@@ -11,6 +11,7 @@ import '../../widgets/primary_button.dart';
 import '../../widgets/forgot_password_link.dart';
 import '../../widgets/footer_decoration.dart';
 
+/// Login optimizado para Choferes en ruta (iOS / Android).
 class MobileLoginView extends StatefulWidget {
   const MobileLoginView({super.key});
 
@@ -19,6 +20,9 @@ class MobileLoginView extends StatefulWidget {
 }
 
 class _MobileLoginViewState extends State<MobileLoginView> {
+  // NOTA: el backend autentica por email (ver AuthApi.login). Este campo
+  // se muestra como "Usuario" en la UI del chofer, pero internamente se
+  // envía como email.
   final _userController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _localError;

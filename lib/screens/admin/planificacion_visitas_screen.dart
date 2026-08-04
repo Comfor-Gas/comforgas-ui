@@ -392,9 +392,29 @@ class _PlanificacionVisitasScreenState
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(flex: 65, child: listado),
+                    Expanded(
+                      flex: 65,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: listado,
+                      ),
+                    ),
                     const SizedBox(width: 20),
-                    Expanded(flex: 35, child: formulario),
+                    Expanded(
+                      flex: 35,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          formulario,
+                          const SizedBox(height: 20),
+                          PrimaryButton(
+                            text: 'Publicar Visitas del Día',
+                            isLoading: _publishing,
+                            onPressed: _handlePublicar,
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 );
               }
@@ -404,15 +424,15 @@ class _PlanificacionVisitasScreenState
                   listado,
                   const SizedBox(height: 20),
                   formulario,
+                  const SizedBox(height: 24),
+                  PrimaryButton(
+                    text: 'Publicar Visitas del Día',
+                    isLoading: _publishing,
+                    onPressed: _handlePublicar,
+                  ),
                 ],
               );
             },
-          ),
-          const SizedBox(height: 24),
-          PrimaryButton(
-            text: 'Publicar Visitas del Día',
-            isLoading: _publishing,
-            onPressed: _handlePublicar,
           ),
         ],
       ),
@@ -581,77 +601,94 @@ class _ListadoCard extends StatelessWidget {
               ),
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                sortColumnIndex: sortColumnIndex,
-                sortAscending: sortAsc,
-                headingRowColor: MaterialStateProperty.all(AppColors.background),
-                columns: [
-                  DataColumn(
-                    label: const Text('Chofer'),
-                    onSort: (i, asc) => onSort(i, asc),
-                  ),
-                  DataColumn(
-                    label: const Text('Fecha'),
-                    onSort: (i, asc) => onSort(i, asc),
-                  ),
-                  DataColumn(
-                    label: const Text('Cliente'),
-                    onSort: (i, asc) => onSort(i, asc),
-                  ),
-                  const DataColumn(label: Text('Estado')),
-                  const DataColumn(label: Text('Acciones')),
-                ],
-                rows: rows.map((row) {
-                  final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
-                  final fecha = row.visita.fecha;
-                  return DataRow(cells: [
-                    DataCell(Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: AppColors.steelBlue.withOpacity(0.12),
-                          child: Text(
-                            initialsOf(nombreChofer),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.steelBlue,
-                            ),
+            SizedBox(
+              height: 420,
+              child: Scrollbar(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: LayoutBuilder(
+                    builder: (context, tableConstraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: tableConstraints.maxWidth,
+                          ),
+                          child: DataTable(
+                            sortColumnIndex: sortColumnIndex,
+                            sortAscending: sortAsc,
+                            headingRowColor: MaterialStateProperty.all(AppColors.background),
+                            columns: [
+                              DataColumn(
+                                label: const Text('Chofer'),
+                                onSort: (i, asc) => onSort(i, asc),
+                              ),
+                              DataColumn(
+                                label: const Text('Fecha'),
+                                onSort: (i, asc) => onSort(i, asc),
+                              ),
+                              DataColumn(
+                                label: const Text('Cliente'),
+                                onSort: (i, asc) => onSort(i, asc),
+                              ),
+                              const DataColumn(label: Text('Estado')),
+                              const DataColumn(label: Text('Acciones')),
+                            ],
+                            rows: rows.map((row) {
+                              final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
+                              final fecha = row.visita.fecha;
+                              return DataRow(cells: [
+                                DataCell(Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: AppColors.steelBlue.withOpacity(0.12),
+                                      child: Text(
+                                        initialsOf(nombreChofer),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.steelBlue,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(nombreChofer, style: AppTextStyles.input),
+                                  ],
+                                )),
+                                DataCell(Text(
+                                  fecha == null ? '—' : formatFecha(fecha),
+                                  style: AppTextStyles.input,
+                                )),
+                                DataCell(Text(clienteNombreOf(row.visita), style: AppTextStyles.input)),
+                                DataCell(EstadoVisitaBadge(
+                                  estado: row.visita.estadoVisita,
+                                  esBorrador: row.esBorrador,
+                                )),
+                                DataCell(Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 19),
+                                      color: AppColors.steelBlue,
+                                      onPressed: () => onEditar(row),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 19),
+                                      color: AppColors.error,
+                                      onPressed: () => onEliminar(row),
+                                    ),
+                                  ],
+                                )),
+                              ]);
+                            }).toList(),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Text(nombreChofer, style: AppTextStyles.input),
-                      ],
-                    )),
-                    DataCell(Text(
-                      fecha == null ? '—' : formatFecha(fecha),
-                      style: AppTextStyles.input,
-                    )),
-                    DataCell(Text(clienteNombreOf(row.visita), style: AppTextStyles.input)),
-                    DataCell(EstadoVisitaBadge(
-                      estado: row.visita.estadoVisita,
-                      esBorrador: row.esBorrador,
-                    )),
-                    DataCell(Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 19),
-                          color: AppColors.steelBlue,
-                          onPressed: () => onEditar(row),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 19),
-                          color: AppColors.error,
-                          onPressed: () => onEliminar(row),
-                        ),
-                      ],
-                    )),
-                  ]);
-                }).toList(),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
         ],

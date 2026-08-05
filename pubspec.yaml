@@ -1,4 +1,4 @@
-name: comfor_gas_login
+name: comfor_gas
 description: Reparto y gestion de garrafas.
 publish_to: 'none'
 version: 1.0.0+1
@@ -12,6 +12,7 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   http: ^1.6.0
   provider: ^6.1.5+1
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

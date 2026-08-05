@@ -61,7 +61,7 @@ Necesitás tener instalado:
 
 1. Descomprimí/cloná el proyecto y entrá a la carpeta:
    ```bash
-   cd comfor_gas_login
+   cd nombre-de-carpeta
    ```
 
 2. Instalá las dependencias:
@@ -151,6 +151,6 @@ Podés editar el código en tu editor (VS Code o Android Studio) y ver el result
 
 ## 6. Datos del proyecto
 
-- **Nombre del paquete (Android)**: `com.example.comfor_gas_login`
+- **Nombre del paquete (Android)**: `com.comforgas.app`
 - **Java/Kotlin**: JVM 17
 - **Dependencias principales**: `flutter_secure_storage`, `http`, `provider`

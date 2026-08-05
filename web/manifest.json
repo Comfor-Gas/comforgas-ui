@@ -1,6 +1,6 @@
 {
-    "name": "comfor_gas_login",
-    "short_name": "comfor_gas_login",
+    "name": "com.comforgas.app",
+    "short_name": "com.comforgas.app",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,4 +1,4 @@
-package com.example.com.comforgas.app
+package com.comforgas.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

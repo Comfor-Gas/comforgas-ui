@@ -50,7 +50,44 @@ class _MobileLoginViewState extends State<MobileLoginView> {
 
     if (!mounted) return;
     if (ok) {
+      await _maybeOfferBiometrics(auth);
+      if (!mounted) return;
       RoleRouter.goToRoleHome(context, auth.role);
+    }
+  }
+
+  Future<void> _maybeOfferBiometrics(AuthProvider auth) async {
+    final alreadyEnabled = await auth.isBiometricEnabled;
+    if (alreadyEnabled) return;
+
+    final available = await auth.isBiometricAvailable;
+    if (!available || !mounted) return;
+
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ingreso con huella o rostro'),
+        content: const Text(
+          '¿Querés activar el ingreso rápido con huella o reconocimiento facial?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ahora no'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Activar'),
+          ),
+        ],
+      ),
+    );
+
+    if (accept != true || !mounted) return;
+
+    final confirmed = await auth.verifyBiometrics();
+    if (confirmed) {
+      await auth.enableBiometrics();
     }
   }
 
@@ -134,7 +171,11 @@ class _MobileLoginViewState extends State<MobileLoginView> {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        const Center(child: FingerprintButton()),
+                        const Center(
+                          child: IgnorePointer(
+                            child: FingerprintButton(onTap: null),
+                          ),
+                        ),
                         const SizedBox(height: 5),
                         PrimaryButton(
                           text: 'Ingresar al sistema',

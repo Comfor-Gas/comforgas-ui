@@ -5,6 +5,7 @@ import '../models/auth_user.dart';
 import '../models/user_role.dart';
 import '../services/auth_api.dart';
 import '../services/auth_http_client.dart';
+import '../services/biometric_service.dart';
 import '../services/secure_storage_service.dart';
 
 enum AuthStatus { unknown, unauthenticated, authenticating, authenticated }
@@ -12,10 +13,12 @@ enum AuthStatus { unknown, unauthenticated, authenticating, authenticated }
 class AuthProvider extends ChangeNotifier {
   final AuthApi _api;
   final SecureStorageService _storage;
+  final BiometricService _biometrics;
 
-  AuthProvider({AuthApi? api, SecureStorageService? storage})
+  AuthProvider({AuthApi? api, SecureStorageService? storage, BiometricService? biometrics})
       : _api = api ?? AuthApi(),
-        _storage = storage ?? SecureStorageService();
+        _storage = storage ?? SecureStorageService(),
+        _biometrics = biometrics ?? BiometricService();
 
   late final AuthHttpClient _apiClient = AuthHttpClient(
     storage: _storage,
@@ -55,6 +58,7 @@ class AuthProvider extends ChangeNotifier {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
         role: result.user.role.name,
+        email: result.user.email,
       );
 
       _accessToken = result.accessToken;
@@ -82,6 +86,7 @@ class AuthProvider extends ChangeNotifier {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
         role: result.user.role.name,
+        email: result.user.email,
       );
 
       _accessToken = result.accessToken;
@@ -135,6 +140,56 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<bool> get isBiometricAvailable => _biometrics.isAvailable();
+
+
+  Future<bool> get isBiometricEnabled =>
+      _storage.isBiometricEnabledFor(_user?.email);
+
+
+  Future<bool> get canQuickLoginWithBiometrics async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+    final sessionEmail = await _storage.readSessionEmail();
+    return _storage.isBiometricEnabledFor(sessionEmail);
+  }
+
+  Future<bool> verifyBiometrics() => _biometrics.authenticate();
+
+  Future<void> enableBiometrics() =>
+      _storage.saveBiometricEnabled(true, ownerEmail: _user?.email);
+
+  Future<void> disableBiometrics() => _storage.saveBiometricEnabled(false);
+
+  Future<bool> loginWithBiometrics() async {
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      _errorMessage = 'No hay una sesión guardada para desbloquear.';
+      notifyListeners();
+      return false;
+    }
+
+    final sessionEmail = await _storage.readSessionEmail();
+    final enabledForThisSession = await _storage.isBiometricEnabledFor(sessionEmail);
+    if (!enabledForThisSession) {
+      _errorMessage = 'La biometría no está activada para esta cuenta.';
+      notifyListeners();
+      return false;
+    }
+
+    final authenticated = await _biometrics.authenticate();
+    if (!authenticated) {
+      return false;
+    }
+
+    _status = AuthStatus.authenticating;
+    _errorMessage = null;
+    notifyListeners();
+
+    await restoreSession();
+    return _status == AuthStatus.authenticated;
   }
 
   void clearError() {

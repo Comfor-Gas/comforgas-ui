@@ -1,7 +1,14 @@
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 class ApiConfig {
+  // Si se pasa --dart-define=API_URL=...
+  // se usa ese valor. Si no, cae en las URLs de desarrollo local.
+  static const String _envUrl = String.fromEnvironment('API_URL', defaultValue: '');
+
   static String get baseUrl {
+    if (_envUrl.isNotEmpty) return _envUrl;
+
+    // Fallback para desarrollo local (sin definir API_URL)
     if (kIsWeb) return 'http://localhost:8080';
     if (defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:8080';

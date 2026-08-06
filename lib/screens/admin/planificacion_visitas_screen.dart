@@ -157,6 +157,11 @@ class _PlanificacionVisitasScreenState
     return '$dd/$mm/${d.year}';
   }
 
+  DateTime _hoyFechaSola() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   String _initials(String nombre) {
     final parts = nombre.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
@@ -360,10 +365,12 @@ class _PlanificacionVisitasScreenState
   }
 
   Future<void> _handleEditar(_AgendaRow row) async {
+    final hoy = _hoyFechaSola();
+    final fechaInicial = row.visita.fecha ?? DateTime.now();
     final nuevaFecha = await showDatePicker(
       context: context,
-      initialDate: row.visita.fecha ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      initialDate: fechaInicial.isBefore(hoy) ? hoy : fechaInicial,
+      firstDate: hoy,
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (nuevaFecha == null) return;
@@ -988,11 +995,14 @@ class _DatePickerField extends StatelessWidget {
         InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () async {
+            final now = DateTime.now();
+            final hoy = DateTime(now.year, now.month, now.day);
+            final fechaInicial = value ?? now;
             final picked = await showDatePicker(
               context: context,
-              initialDate: value ?? DateTime.now(),
-              firstDate: DateTime.now().subtract(const Duration(days: 365)),
-              lastDate: DateTime.now().add(const Duration(days: 365)),
+              initialDate: fechaInicial.isBefore(hoy) ? hoy : fechaInicial,
+              firstDate: hoy,
+              lastDate: now.add(const Duration(days: 365)),
             );
             if (picked != null) onChanged(picked);
           },

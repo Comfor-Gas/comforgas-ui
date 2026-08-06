@@ -188,6 +188,58 @@ class VisitaRepository {
     );
   }
 
+  Future<ImportAgendaResult> sincronizarAgenda({
+    required String choferId,
+    required DateTime fecha,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.adminAgendaSyncPath}');
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'choferId': choferId,
+              'fecha': formatDateOnly(fecha),
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+    } catch (_) {
+      throw VisitaRepositoryException(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw VisitaRepositoryException('Respuesta inesperada del servidor.');
+      }
+      return ImportAgendaResult.fromJson(decoded);
+    }
+
+    if (response.statusCode == 400) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'No se pudo sincronizar la agenda. Verificá el chofer y la fecha.',
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para sincronizar la agenda.',
+      );
+    }
+
+    throw VisitaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
   Future<VisitaModel> actualizarParcial(
     int idVisita, {
     DateTime? fecha,

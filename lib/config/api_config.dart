@@ -21,8 +21,12 @@ class ApiConfig {
   static const String logoutPath = '/api/auth/logout';
   static const String mePath = '/api/auth/me';
   static const String registerPath = '/api/admin/usuarios';
+  static const String usuariosPath = '/api/admin/usuarios';
+  static const String sucursalesPath = '/api/sucursales';
+  static const String rutasPath = '/api/rutas';
   static const String visitasPath = '/api/visitas';
   static const String adminVisitasPath = '/api/admin/visitas';
   static const String adminVisitasImportPath = '/api/admin/visitas/import';
+  static const String adminAgendaSyncPath = '/api/admin/agenda/sync';
   static const String evidenciasFotograficasPath = '/api/evidenciasfotograficas';
 }

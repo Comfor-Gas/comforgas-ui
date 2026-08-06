@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../data/mock_planificacion_data.dart';
+import '../../models/ruta_model.dart';
+import '../../models/sucursal_model.dart';
+import '../../models/usuario_model.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/catalogo_repository.dart';
 import '../../repositories/visita_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
@@ -32,6 +35,7 @@ class PlanificacionVisitasScreen extends StatefulWidget {
 class _PlanificacionVisitasScreenState
     extends State<PlanificacionVisitasScreen> {
   late final VisitaRepository _repo;
+  late final CatalogoRepository _catalogoRepo;
 
   bool _loading = true;
   bool _publishing = false;
@@ -40,6 +44,12 @@ class _PlanificacionVisitasScreenState
   List<VisitaModel> _serverVisitas = [];
   final List<VisitaModel> _draftVisitas = [];
 
+  bool _loadingCatalogos = true;
+  String? _catalogoError;
+  List<UsuarioModel> _choferes = [];
+  List<SucursalModel> _sucursales = [];
+  List<RutaModel> _rutas = [];
+
   final _choferFilterCtrl = TextEditingController();
   final _clienteFilterCtrl = TextEditingController();
   DateTime? _fechaFilter;
@@ -47,18 +57,21 @@ class _PlanificacionVisitasScreenState
   int _sortColumnIndex = 1;
   bool _sortAsc = true;
 
-  MockChofer? _formChofer;
+  UsuarioModel? _formChofer;
   DateTime? _formFecha;
-  MockCliente? _formCliente;
+  SucursalModel? _formSucursal;
+  RutaModel? _formRuta;
   String? _formError;
 
   @override
   void initState() {
     super.initState();
     _repo = VisitaRepository(context.read<AuthProvider>().apiClient);
+    _catalogoRepo = CatalogoRepository(context.read<AuthProvider>().apiClient);
     _choferFilterCtrl.addListener(() => setState(() {}));
     _clienteFilterCtrl.addListener(() => setState(() {}));
     _loadVisitas();
+    _loadCatalogos();
   }
 
   @override
@@ -66,6 +79,40 @@ class _PlanificacionVisitasScreenState
     _choferFilterCtrl.dispose();
     _clienteFilterCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCatalogos() async {
+    setState(() {
+      _loadingCatalogos = true;
+      _catalogoError = null;
+    });
+    try {
+      final results = await Future.wait([
+        _catalogoRepo.listarUsuarios(rol: 'CHOFER'),
+        _catalogoRepo.listarSucursales(),
+        _catalogoRepo.listarRutas(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _choferes = results[0] as List<UsuarioModel>;
+        _sucursales = results[1] as List<SucursalModel>;
+        _rutas = results[2] as List<RutaModel>;
+        _loadingCatalogos = false;
+      });
+    } on CatalogoRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _catalogoError = e.message;
+        _loadingCatalogos = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _catalogoError =
+            'No se pudieron cargar los catálogos de choferes/sucursales/rutas.';
+        _loadingCatalogos = false;
+      });
+    }
   }
 
   Future<void> _loadVisitas() async {
@@ -180,26 +227,32 @@ class _PlanificacionVisitasScreenState
   }
 
   void _handleGuardar() {
-    if (_formChofer == null || _formFecha == null || _formCliente == null) {
-      setState(() => _formError = 'Completá chofer, fecha y sucursal/cliente.');
+    if (_formChofer == null ||
+        _formFecha == null ||
+        _formSucursal == null ||
+        _formRuta == null) {
+      setState(() =>
+          _formError = 'Completá chofer, fecha, sucursal y ruta.');
       return;
     }
 
     final chofer = _formChofer!;
     final fecha = _formFecha!;
-    final cliente = _formCliente!;
+    final sucursal = _formSucursal!;
+    final ruta = _formRuta!;
 
     final draft = VisitaModel(
       idUsuario: chofer.id,
-      nombreUsuario: chofer.nombre,
-      idSucursal: cliente.idSucursal,
-      idRuta: cliente.idRuta,
+      nombreUsuario: chofer.fullName,
+      idSucursal: sucursal.idSucursal,
+      idRuta: ruta.idRuta,
       sucursalSnapshot: {
-        'nombre': cliente.nombre,
-        'direccion': cliente.direccion,
+        'nombre': sucursal.nombre,
+        'direccion': sucursal.direccion,
       },
       rutaSnapshot: {
-        'chofer': chofer.nombre,
+        'nombre': ruta.nombre,
+        'chofer': chofer.fullName,
         'fecha_ruta': formatDateOnly(fecha),
       },
       ordenVisita: _siguienteOrden(chofer.id, fecha),
@@ -209,7 +262,8 @@ class _PlanificacionVisitasScreenState
 
     setState(() {
       _draftVisitas.insert(0, draft);
-      _formCliente = null;
+      _formSucursal = null;
+      _formRuta = null;
       _formError = null;
     });
   }
@@ -256,6 +310,51 @@ class _PlanificacionVisitasScreenState
         context: context,
         title: 'Error',
         message: 'No se pudieron publicar las visitas.',
+      );
+    }
+  }
+
+  Future<void> _handleSincronizar() async {
+    if (_formChofer == null || _formFecha == null) {
+      setState(() => _formError =
+          'Seleccioná chofer y fecha para sincronizar su agenda.');
+      return;
+    }
+
+    final chofer = _formChofer!;
+    final fecha = _formFecha!;
+
+    setState(() => _publishing = true);
+
+    try {
+      final result = await _repo.sincronizarAgenda(
+        choferId: chofer.id,
+        fecha: fecha,
+      );
+      if (!mounted) return;
+      setState(() => _publishing = false);
+      await _loadVisitas();
+      if (!mounted) return;
+      final errores = result.errores.isEmpty
+          ? ''
+          : '\n\n${result.errores.join('\n')}';
+      await showAppAlert(
+        context: context,
+        title: 'Agenda sincronizada',
+        message:
+            'Recibidas: ${result.totalRecibidas} · Insertadas: ${result.insertadas} · Omitidas: ${result.omitidas}$errores',
+      );
+    } on VisitaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() => _publishing = false);
+      await showAppAlert(context: context, title: 'Error', message: e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _publishing = false);
+      await showAppAlert(
+        context: context,
+        title: 'Error',
+        message: 'No se pudo sincronizar la agenda del chofer.',
       );
     }
   }
@@ -380,12 +479,22 @@ class _PlanificacionVisitasScreenState
               final formulario = _FormularioCard(
                 chofer: _formChofer,
                 fecha: _formFecha,
-                cliente: _formCliente,
+                sucursal: _formSucursal,
+                ruta: _formRuta,
                 error: _formError,
+                choferes: _choferes,
+                sucursales: _sucursales,
+                rutas: _rutas,
+                loadingCatalogos: _loadingCatalogos,
+                catalogoError: _catalogoError,
+                onReintentarCatalogos: _loadCatalogos,
                 onChoferChanged: (c) => setState(() => _formChofer = c),
                 onFechaChanged: (d) => setState(() => _formFecha = d),
-                onClienteChanged: (c) => setState(() => _formCliente = c),
+                onSucursalChanged: (s) => setState(() => _formSucursal = s),
+                onRutaChanged: (r) => setState(() => _formRuta = r),
                 onGuardar: _handleGuardar,
+                onSincronizar: _handleSincronizar,
+                sincronizando: _publishing,
               );
 
               if (wide) {
@@ -698,24 +807,44 @@ class _ListadoCard extends StatelessWidget {
 }
 
 class _FormularioCard extends StatelessWidget {
-  final MockChofer? chofer;
+  final UsuarioModel? chofer;
   final DateTime? fecha;
-  final MockCliente? cliente;
+  final SucursalModel? sucursal;
+  final RutaModel? ruta;
   final String? error;
-  final ValueChanged<MockChofer?> onChoferChanged;
+  final List<UsuarioModel> choferes;
+  final List<SucursalModel> sucursales;
+  final List<RutaModel> rutas;
+  final bool loadingCatalogos;
+  final String? catalogoError;
+  final VoidCallback onReintentarCatalogos;
+  final ValueChanged<UsuarioModel?> onChoferChanged;
   final ValueChanged<DateTime?> onFechaChanged;
-  final ValueChanged<MockCliente?> onClienteChanged;
+  final ValueChanged<SucursalModel?> onSucursalChanged;
+  final ValueChanged<RutaModel?> onRutaChanged;
   final VoidCallback onGuardar;
+  final VoidCallback onSincronizar;
+  final bool sincronizando;
 
   const _FormularioCard({
     required this.chofer,
     required this.fecha,
-    required this.cliente,
+    required this.sucursal,
+    required this.ruta,
     required this.error,
+    required this.choferes,
+    required this.sucursales,
+    required this.rutas,
+    required this.loadingCatalogos,
+    required this.catalogoError,
+    required this.onReintentarCatalogos,
     required this.onChoferChanged,
     required this.onFechaChanged,
-    required this.onClienteChanged,
+    required this.onSucursalChanged,
+    required this.onRutaChanged,
     required this.onGuardar,
+    required this.onSincronizar,
+    this.sincronizando = false,
   });
 
   @override
@@ -730,48 +859,99 @@ class _FormularioCard extends StatelessWidget {
           const SizedBox(height: 18),
           Text('Campos', style: AppTextStyles.label),
           const SizedBox(height: 10),
-          _StyledDropdown<MockChofer>(
-            hint: 'Selección de Chofer',
-            icon: Icons.person_outline,
-            value: chofer,
-            items: mockChoferes,
-            labelOf: (c) => c.nombre,
-            onChanged: onChoferChanged,
-          ),
-          const SizedBox(height: 14),
-          _DatePickerField(
-            label: '',
-            hideLabel: true,
-            hint: 'Calendario de Fecha',
-            value: fecha,
-            onChanged: onFechaChanged,
-          ),
-          const SizedBox(height: 14),
-          _StyledDropdown<MockCliente>(
-            hint: 'Selección de Sucursal/Cliente',
-            icon: Icons.storefront_outlined,
-            value: cliente,
-            items: mockClientes,
-            labelOf: (c) => c.nombre,
-            onChanged: onClienteChanged,
-          ),
+          if (loadingCatalogos) ...[
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ] else if (catalogoError != null) ...[
+            Text(catalogoError!, style: AppTextStyles.errorText),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onReintentarCatalogos,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Reintentar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.steelBlue,
+                side: BorderSide(color: AppColors.steelBlue),
+              ),
+            ),
+          ] else ...[
+            _StyledDropdown<UsuarioModel>(
+              hint: 'Selección de Chofer',
+              icon: Icons.person_outline,
+              value: chofer,
+              items: choferes,
+              labelOf: (c) => c.fullName,
+              onChanged: onChoferChanged,
+            ),
+            const SizedBox(height: 14),
+            _DatePickerField(
+              label: '',
+              hideLabel: true,
+              hint: 'Calendario de Fecha',
+              value: fecha,
+              onChanged: onFechaChanged,
+            ),
+            const SizedBox(height: 14),
+            _StyledDropdown<SucursalModel>(
+              hint: 'Selección de Sucursal/Cliente',
+              icon: Icons.storefront_outlined,
+              value: sucursal,
+              items: sucursales,
+              labelOf: (s) => s.nombre,
+              onChanged: onSucursalChanged,
+            ),
+            const SizedBox(height: 14),
+            _StyledDropdown<RutaModel>(
+              hint: 'Selección de Ruta',
+              icon: Icons.alt_route_outlined,
+              value: ruta,
+              items: rutas,
+              labelOf: (r) => r.nombre,
+              onChanged: onRutaChanged,
+            ),
+          ],
           if (error != null) ...[
             const SizedBox(height: 10),
             Text(error!, style: AppTextStyles.errorText),
           ],
           const SizedBox(height: 18),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton(
-              onPressed: onGuardar,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.steelBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: sincronizando ? null : onSincronizar,
+                icon: sincronizando
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync, size: 18),
+                label: const Text('Sincronizar agenda'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.steelBlue,
+                  side: BorderSide(color: AppColors.steelBlue),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
-              child: const Text('Guardar'),
-            ),
+              ElevatedButton(
+                onPressed: onGuardar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.steelBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
         ],
       ),

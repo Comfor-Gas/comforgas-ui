@@ -188,6 +188,9 @@ class VisitaRepository {
     );
   }
 
+  /// Sincroniza la agenda completa de un chofer para una fecha,
+  /// trayendo las visitas planificadas desde la fuente externa
+  /// configurada en el backend (mock o API real) e importándolas.
   Future<ImportAgendaResult> sincronizarAgenda({
     required String choferId,
     required DateTime fecha,
@@ -352,10 +355,36 @@ class VisitaRepository {
       if (decoded is Map<String, dynamic> &&
           decoded['error'] is Map<String, dynamic>) {
         final message = (decoded['error'] as Map<String, dynamic>)['message'];
-        if (message is String && message.isNotEmpty) return message;
+        if (message is String && message.isNotEmpty) {
+          return _sanitizeMessage(message);
+        }
       }
     } catch (_) {
     }
     return null;
+  }
+
+  /// El backend a veces devuelve, dentro del mensaje de error, la respuesta
+  /// cruda de un servicio externo caído (HTML de error, fuentes en base64,
+  /// etc.). Esto detecta ese caso y lo reemplaza por un mensaje controlado,
+  /// en vez de mostrarle al usuario un bloque de texto ilegible.
+  String? _sanitizeMessage(String raw) {
+    final looksLikeHtmlOrJunk = raw.contains('<!DOCTYPE') ||
+        raw.contains('<html') ||
+        raw.contains('font-face') ||
+        raw.contains('base64,') ||
+        raw.length > 300;
+
+    if (!looksLikeHtmlOrJunk) return raw;
+
+    // Caso conocido: falla la API externa de agenda (mock/servicio caído).
+    if (raw.contains('agenda externa') || raw.contains('ExternalAgenda')) {
+      return 'El servicio de sincronización de agenda no está disponible '
+          'en este momento (la fuente externa no responde). '
+          'Probá de nuevo más tarde o contactá al administrador.';
+    }
+
+    return 'Ocurrió un error inesperado en el servidor. Intentá de nuevo '
+        'más tarde; si el problema persiste, contactá al administrador.';
   }
 }

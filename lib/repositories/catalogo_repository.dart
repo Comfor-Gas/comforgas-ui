@@ -18,7 +18,6 @@ class CatalogoRepository {
 
   CatalogoRepository([http.Client? client]) : _client = client ?? http.Client();
 
-
   Future<List<UsuarioModel>> listarUsuarios({String? rol}) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usuariosPath}').replace(
       queryParameters: rol != null ? {'rol': rol} : null,
@@ -83,9 +82,24 @@ class CatalogoRepository {
       if (decoded is Map<String, dynamic> &&
           decoded['error'] is Map<String, dynamic>) {
         final message = (decoded['error'] as Map<String, dynamic>)['message'];
-        if (message is String && message.isNotEmpty) return message;
+        if (message is String && message.isNotEmpty) {
+          return _sanitizeMessage(message);
+        }
       }
     } catch (_) {}
     return null;
+  }
+
+  String? _sanitizeMessage(String raw) {
+    final looksLikeHtmlOrJunk = raw.contains('<!DOCTYPE') ||
+        raw.contains('<html') ||
+        raw.contains('font-face') ||
+        raw.contains('base64,') ||
+        raw.length > 300;
+
+    if (!looksLikeHtmlOrJunk) return raw;
+
+    return 'Ocurrió un error inesperado en el servidor. Intentá de nuevo '
+        'más tarde; si el problema persiste, contactá al administrador.';
   }
 }

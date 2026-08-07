@@ -106,93 +106,88 @@ class _MobileLoginViewState extends State<MobileLoginView> {
     return SafeArea(
       top: true,
       bottom: false,
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const LogoHeader(),
-                        const SizedBox(height: 1),
-                        Center(
-                          child: Text(
-                            'Iniciar Sesión',
-                            style: AppTextStyles.title,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        LabeledTextField(
-                          key: const ValueKey('mobile_user_field'),
-                          label: 'Usuario',
-                          hint: 'Nombre de usuario',
-                          icon: Icons.person_outline,
-                          controller: _userController,
-                          textInputAction: TextInputAction.next,
-                          onChanged: (_) => _clearError(),
-                        ),
-                        const SizedBox(height: 18),
-                        LabeledTextField(
-                          key: const ValueKey('mobile_password_field'),
-                          label: 'Contraseña',
-                          hint: '••••••••',
-                          icon: Icons.lock_outline,
-                          obscure: true,
-                          controller: _passwordController,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: _submit,
-                          onChanged: (_) => _clearError(),
-                        ),
-                        if (errorMessage != null) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            errorMessage,
-                            style: AppTextStyles.errorText,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        const Center(
-                          child: IgnorePointer(
-                            child: FingerprintButton(onTap: null),
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        PrimaryButton(
-                          text: 'Ingresar al sistema',
-                          isLoading: isLoading,
-                          onPressed: _submit,
-                        ),
-                        const SizedBox(height: 18),
-                        const Center(child: ForgotPasswordLink()),
-                      ],
-                    ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 32,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const LogoHeader(),
+                  const SizedBox(height: 1),
+                  Center(
+                    child: Text(
+                      'Iniciar Sesión',
+                      style: AppTextStyles.title,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  LabeledTextField(
+                    key: const ValueKey('mobile_user_field'),
+                    label: 'Usuario',
+                    hint: 'Nombre de usuario',
+                    icon: Icons.person_outline,
+                    controller: _userController,
+                    textInputAction: TextInputAction.next,
+                    onChanged: (_) => _clearError(),
+                  ),
+                  const SizedBox(height: 18),
+                  LabeledTextField(
+                    key: const ValueKey('mobile_password_field'),
+                    label: 'Contraseña',
+                    hint: '••••••••',
+                    icon: Icons.lock_outline,
+                    obscure: true,
+                    controller: _passwordController,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: _submit,
+                    onChanged: (_) => _clearError(),
+                  ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      errorMessage,
+                      style: AppTextStyles.errorText,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  const Center(
+                    child: IgnorePointer(
+                      child: FingerprintButton(onTap: null),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  PrimaryButton(
+                    text: 'Ingresar al sistema',
+                    isLoading: isLoading,
+                    onPressed: _submit,
+                  ),
+                  const SizedBox(height: 18),
+                  const Center(child: ForgotPasswordLink()),
+                ],
+              ),
             ),
-          ),
-          const FooterDecoration(),
-        ],
+            const SizedBox(height: 12),
+            const FooterDecoration(),
+          ],
+        ),
       ),
     );
   }

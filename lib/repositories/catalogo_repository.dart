@@ -13,10 +13,12 @@ class CatalogoRepositoryException implements Exception {
   String toString() => message;
 }
 
+
 class CatalogoRepository {
   final http.Client _client;
 
   CatalogoRepository([http.Client? client]) : _client = client ?? http.Client();
+
 
   Future<List<UsuarioModel>> listarUsuarios({String? rol}) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usuariosPath}').replace(
@@ -81,7 +83,8 @@ class CatalogoRepository {
       final decoded = jsonDecode(body);
       if (decoded is Map<String, dynamic> &&
           decoded['error'] is Map<String, dynamic>) {
-        final message = (decoded['error'] as Map<String, dynamic>)['message'];
+        final error = decoded['error'] as Map<String, dynamic>;
+        final message = error['message'];
         if (message is String && message.isNotEmpty) {
           return _sanitizeMessage(message);
         }
@@ -89,6 +92,7 @@ class CatalogoRepository {
     } catch (_) {}
     return null;
   }
+
 
   String? _sanitizeMessage(String raw) {
     final looksLikeHtmlOrJunk = raw.contains('<!DOCTYPE') ||

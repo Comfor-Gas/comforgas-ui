@@ -354,9 +354,11 @@ class VisitaRepository {
       final decoded = jsonDecode(body);
       if (decoded is Map<String, dynamic> &&
           decoded['error'] is Map<String, dynamic>) {
-        final message = (decoded['error'] as Map<String, dynamic>)['message'];
+        final error = decoded['error'] as Map<String, dynamic>;
+        final code = error['code'] as String?;
+        final message = error['message'];
         if (message is String && message.isNotEmpty) {
-          return _sanitizeMessage(message);
+          return _sanitizeMessage(message, code);
         }
       }
     } catch (_) {
@@ -364,11 +366,14 @@ class VisitaRepository {
     return null;
   }
 
-  /// El backend a veces devuelve, dentro del mensaje de error, la respuesta
-  /// cruda de un servicio externo caído (HTML de error, fuentes en base64,
-  /// etc.). Esto detecta ese caso y lo reemplaza por un mensaje controlado,
-  /// en vez de mostrarle al usuario un bloque de texto ilegible.
-  String? _sanitizeMessage(String raw) {
+
+  String? _sanitizeMessage(String raw, String? code) {
+    if (code == 'EXTERNAL_AGENDA_UNAVAILABLE') {
+      return 'El servicio de sincronización de agenda no está disponible '
+          'en este momento (la fuente externa no responde). '
+          'Probá de nuevo más tarde o contactá al administrador.';
+    }
+
     final looksLikeHtmlOrJunk = raw.contains('<!DOCTYPE') ||
         raw.contains('<html') ||
         raw.contains('font-face') ||
@@ -376,13 +381,6 @@ class VisitaRepository {
         raw.length > 300;
 
     if (!looksLikeHtmlOrJunk) return raw;
-
-    // Caso conocido: falla la API externa de agenda (mock/servicio caído).
-    if (raw.contains('agenda externa') || raw.contains('ExternalAgenda')) {
-      return 'El servicio de sincronización de agenda no está disponible '
-          'en este momento (la fuente externa no responde). '
-          'Probá de nuevo más tarde o contactá al administrador.';
-    }
 
     return 'Ocurrió un error inesperado en el servidor. Intentá de nuevo '
         'más tarde; si el problema persiste, contactá al administrador.';

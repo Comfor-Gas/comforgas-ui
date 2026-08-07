@@ -81,18 +81,31 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           key: _scaffoldKey,
           backgroundColor: AppColors.background,
           drawer: Drawer(
-            child: AdminSidebar(
-              selectedIndex: _selectedIndex,
-              onSelect: (i) {
-                setState(() => _selectedIndex = i);
-                Navigator.of(context).pop();
-              },
+            child: SafeArea(
+              child: AdminSidebar(
+                selectedIndex: _selectedIndex,
+                onSelect: (i) {
+                  setState(() => _selectedIndex = i);
+                  Navigator.of(context).pop();
+                },
+              ),
             ),
           ),
-          appBar: AdminTopbar(
-            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+          appBar: PreferredSize(
+            preferredSize: Size.fromHeight(
+              64 + MediaQuery.of(context).padding.top,
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: AdminTopbar(
+                onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+            ),
           ),
-          body: _body,
+          body: SafeArea(
+            top: false,
+            child: _body,
+          ),
         );
       },
     );

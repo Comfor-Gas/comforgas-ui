@@ -151,6 +151,31 @@ class _PlanificacionVisitasScreenState
     return 'Sucursal #${v.idSucursal}';
   }
 
+  String _rutaNombre(VisitaModel v) {
+    for (final r in _rutas) {
+      if (r.idRuta == v.idRuta) return r.nombre;
+    }
+    final snapshot = v.rutaSnapshot;
+    for (final key in ['nombre', 'nombreRuta', 'ruta']) {
+      final value = snapshot[key];
+      if (value is String && value.trim().isNotEmpty) return value;
+    }
+    return 'Ruta #${v.idRuta}';
+  }
+
+  bool _esCancelable(VisitaEstado estado) {
+    return estado == VisitaEstado.pendiente ||
+        estado == VisitaEstado.enCurso ||
+        estado == VisitaEstado.noAsistio;
+  }
+
+  bool _esEditable(VisitaEstado estado) {
+    return estado != VisitaEstado.completada &&
+        estado != VisitaEstado.cancelada &&
+        estado != VisitaEstado.noAsistio &&
+        estado != VisitaEstado.inactivo;
+  }
+
   String _formatDisplayDate(DateTime d) {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
@@ -161,6 +186,11 @@ class _PlanificacionVisitasScreenState
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
   }
+
+  bool _esMismoDia(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
 
   String _initials(String nombre) {
     final parts = nombre.trim().split(RegExp(r'\s+'));
@@ -337,17 +367,51 @@ class _PlanificacionVisitasScreenState
         fecha: fecha,
       );
       if (!mounted) return;
-      setState(() => _publishing = false);
+      setState(() {
+        _publishing = false;
+        // Los borradores locales de este chofer+fecha quedan redundantes:
+        // la sincronización ya los subió (o ya existían) en el servidor.
+        _draftVisitas.removeWhere((v) =>
+            v.idUsuario == chofer.id &&
+            v.fecha != null &&
+            _esMismoDia(v.fecha!, fecha));
+      });
       await _loadVisitas();
       if (!mounted) return;
-      final errores = result.errores.isEmpty
-          ? ''
-          : '\n\n${result.errores.join('\n')}';
+
+      final fechaTexto = _formatDisplayDate(fecha);
+
+      // Todo se pudo insertar: sin duplicados ni errores.
+      if (result.omitidas == 0) {
+        await showAppAlert(
+          context: context,
+          title: 'Agenda sincronizada',
+          message:
+              'Se cargaron ${result.insertadas} visita(s) para ${chofer.fullName} el $fechaTexto.',
+        );
+        return;
+      }
+
+      // Todo lo recibido ya estaba cargado: mensaje simple y controlado,
+      // sin listar el detalle línea por línea que devuelve el backend.
+      if (result.insertadas == 0) {
+        await showAppAlert(
+          context: context,
+          title: 'No se pudo sincronizar',
+          message:
+              'No se ha podido sincronizar a ${chofer.fullName} para el $fechaTexto '
+              'porque su agenda ya se encuentra cargada en el sistema.',
+        );
+        return;
+      }
+
+      // Caso mixto: parte se insertó, parte ya estaba cargada.
       await showAppAlert(
         context: context,
-        title: 'Agenda sincronizada',
+        title: 'Agenda sincronizada parcialmente',
         message:
-            'Recibidas: ${result.totalRecibidas} · Insertadas: ${result.insertadas} · Omitidas: ${result.omitidas}$errores',
+            'Se cargaron ${result.insertadas} visita(s) nuevas para ${chofer.fullName} el $fechaTexto. '
+            'Las otras ${result.omitidas} ya se encontraban cargadas en el sistema.',
       );
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
@@ -444,8 +508,9 @@ class _PlanificacionVisitasScreenState
 
   @override
   Widget build(BuildContext context) {
+    final bottomSafePadding = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -478,6 +543,9 @@ class _PlanificacionVisitasScreenState
                 }),
                 onRetry: _loadVisitas,
                 clienteNombreOf: _clienteNombre,
+                rutaNombreOf: _rutaNombre,
+                esCancelable: _esCancelable,
+                esEditable: _esEditable,
                 formatFecha: _formatDisplayDate,
                 initialsOf: _initials,
                 onEditar: _handleEditar,
@@ -661,6 +729,9 @@ class _ListadoCard extends StatelessWidget {
   final void Function(int columnIndex, bool asc) onSort;
   final VoidCallback onRetry;
   final String Function(VisitaModel) clienteNombreOf;
+  final String Function(VisitaModel) rutaNombreOf;
+  final bool Function(VisitaEstado) esCancelable;
+  final bool Function(VisitaEstado) esEditable;
   final String Function(DateTime) formatFecha;
   final String Function(String) initialsOf;
   final void Function(_AgendaRow) onEditar;
@@ -675,6 +746,9 @@ class _ListadoCard extends StatelessWidget {
     required this.onSort,
     required this.onRetry,
     required this.clienteNombreOf,
+    required this.rutaNombreOf,
+    required this.esCancelable,
+    required this.esEditable,
     required this.formatFecha,
     required this.initialsOf,
     required this.onEditar,
@@ -747,6 +821,7 @@ class _ListadoCard extends StatelessWidget {
                                 label: const Text('Cliente'),
                                 onSort: (i, asc) => onSort(i, asc),
                               ),
+                              const DataColumn(label: Text('Ruta')),
                               const DataColumn(label: Text('Estado')),
                               const DataColumn(label: Text('Acciones')),
                             ],
@@ -778,6 +853,7 @@ class _ListadoCard extends StatelessWidget {
                                   style: AppTextStyles.input,
                                 )),
                                 DataCell(Text(clienteNombreOf(row.visita), style: AppTextStyles.input)),
+                                DataCell(Text(rutaNombreOf(row.visita), style: AppTextStyles.input)),
                                 DataCell(EstadoVisitaBadge(
                                   estado: row.visita.estadoVisita,
                                   esBorrador: row.esBorrador,
@@ -785,16 +861,20 @@ class _ListadoCard extends StatelessWidget {
                                 DataCell(Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined, size: 19),
-                                      color: AppColors.steelBlue,
-                                      onPressed: () => onEditar(row),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline, size: 19),
-                                      color: AppColors.error,
-                                      onPressed: () => onEliminar(row),
-                                    ),
+                                    if (row.esBorrador ||
+                                        esEditable(row.visita.estadoVisita))
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 19),
+                                        color: AppColors.steelBlue,
+                                        onPressed: () => onEditar(row),
+                                      ),
+                                    if (row.esBorrador ||
+                                        esCancelable(row.visita.estadoVisita))
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 19),
+                                        color: AppColors.error,
+                                        onPressed: () => onEliminar(row),
+                                      ),
                                   ],
                                 )),
                               ]);

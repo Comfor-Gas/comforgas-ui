@@ -415,11 +415,23 @@ class _PlanificacionVisitasScreenState
       );
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
-      setState(() => _publishing = false);
+      setState(() {
+        _publishing = false;
+        _draftVisitas.removeWhere((v) =>
+            v.idUsuario == chofer.id &&
+            v.fecha != null &&
+            _esMismoDia(v.fecha!, fecha));
+      });
       await showAppAlert(context: context, title: 'Error', message: e.message);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _publishing = false);
+      setState(() {
+        _publishing = false;
+        _draftVisitas.removeWhere((v) =>
+            v.idUsuario == chofer.id &&
+            v.fecha != null &&
+            _esMismoDia(v.fecha!, fecha));
+      });
       await showAppAlert(
         context: context,
         title: 'Error',

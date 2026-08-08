@@ -767,6 +767,11 @@ class _ListadoCard extends StatelessWidget {
     required this.onEliminar,
   });
 
+  // Debajo de este ancho se usa el listado en tarjetas (mobile/tablet real).
+  // Por encima, la tabla ya entra achicando columnas y separación — no hace
+  // falta pasar a tarjetas en un panel de escritorio normal.
+  static const double _compactBreakpoint = 640;
+
   @override
   Widget build(BuildContext context) {
     return _CardContainer(
@@ -803,104 +808,288 @@ class _ListadoCard extends StatelessWidget {
               ),
             )
           else
-            SizedBox(
-              height: 420,
-              child: Scrollbar(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: LayoutBuilder(
-                    builder: (context, tableConstraints) {
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth: tableConstraints.maxWidth,
-                          ),
-                          child: DataTable(
-                            sortColumnIndex: sortColumnIndex,
-                            sortAscending: sortAsc,
-                            headingRowColor: MaterialStateProperty.all(AppColors.background),
-                            columns: [
-                              DataColumn(
-                                label: const Text('Chofer'),
-                                onSort: (i, asc) => onSort(i, asc),
-                              ),
-                              DataColumn(
-                                label: const Text('Fecha'),
-                                onSort: (i, asc) => onSort(i, asc),
-                              ),
-                              DataColumn(
-                                label: const Text('Cliente'),
-                                onSort: (i, asc) => onSort(i, asc),
-                              ),
-                              const DataColumn(label: Text('Ruta')),
-                              const DataColumn(label: Text('Estado')),
-                              const DataColumn(label: Text('Acciones')),
-                            ],
-                            rows: rows.map((row) {
-                              final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
-                              final fecha = row.visita.fecha;
-                              return DataRow(cells: [
-                                DataCell(Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 14,
-                                      backgroundColor: AppColors.steelBlue.withOpacity(0.12),
-                                      child: Text(
-                                        initialsOf(nombreChofer),
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.steelBlue,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(nombreChofer, style: AppTextStyles.input),
-                                  ],
-                                )),
-                                DataCell(Text(
-                                  fecha == null ? '—' : formatFecha(fecha),
-                                  style: AppTextStyles.input,
-                                )),
-                                DataCell(Text(clienteNombreOf(row.visita), style: AppTextStyles.input)),
-                                DataCell(Text(rutaNombreOf(row.visita), style: AppTextStyles.input)),
-                                DataCell(EstadoVisitaBadge(
-                                  estado: row.visita.estadoVisita,
-                                  esBorrador: row.esBorrador,
-                                )),
-                                DataCell(Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (row.esBorrador ||
-                                        esEditable(row.visita.estadoVisita))
-                                      IconButton(
-                                        icon: const Icon(Icons.edit_outlined, size: 19),
-                                        color: AppColors.steelBlue,
-                                        onPressed: () => onEditar(row),
-                                      ),
-                                    if (row.esBorrador ||
-                                        esCancelable(row.visita.estadoVisita))
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline, size: 19),
-                                        color: AppColors.error,
-                                        onPressed: () => onEliminar(row),
-                                      ),
-                                  ],
-                                )),
-                              ]);
-                            }).toList(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < _compactBreakpoint;
+                return isCompact ? _buildCardsList(context) : _buildTable(context);
+              },
             ),
         ],
       ),
+    );
+  }
+Widget _buildTable(BuildContext context) {
+    final horizontalScrollController = ScrollController();
+    return SizedBox(
+      height: 420,
+      child: Scrollbar(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: LayoutBuilder(
+            builder: (context, tableConstraints) {
+              return Scrollbar(
+                controller: horizontalScrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: tableConstraints.maxWidth,
+                  ),
+                  child: DataTable(
+                    columnSpacing: 14,
+                    horizontalMargin: 10,
+                    dataRowMinHeight: 60,
+                    dataRowMaxHeight: 60,
+                    sortColumnIndex: sortColumnIndex,
+                    sortAscending: sortAsc,
+                    headingRowColor: MaterialStateProperty.all(AppColors.background),
+                    columns: [
+                      DataColumn(
+                        label: const Text('Chofer'),
+                        onSort: (i, asc) => onSort(i, asc),
+                      ),
+                      DataColumn(
+                        label: const Text('Fecha'),
+                        onSort: (i, asc) => onSort(i, asc),
+                      ),
+                      DataColumn(
+                        label: const Text('Cliente'),
+                        onSort: (i, asc) => onSort(i, asc),
+                      ),
+                      const DataColumn(label: Text('Ruta')),
+                      const DataColumn(label: Text('Estado')),
+                      const DataColumn(label: Text('Acciones')),
+                    ],
+                    rows: rows.map((row) {
+                      final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
+                      final fecha = row.visita.fecha;
+                      final clienteNombre = clienteNombreOf(row.visita);
+                      final rutaNombre = rutaNombreOf(row.visita);
+                      return DataRow(cells: [
+                        DataCell(Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 13,
+                              backgroundColor: AppColors.steelBlue.withOpacity(0.12),
+                              child: Text(
+                                initialsOf(nombreChofer),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.steelBlue,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 92),
+                              child: Tooltip(
+                                message: nombreChofer,
+                                child: Text(
+                                  nombreChofer,
+                                  style: AppTextStyles.input,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )),
+                        DataCell(Text(
+                          fecha == null ? '—' : formatFecha(fecha),
+                          style: AppTextStyles.input,
+                        )),
+                        DataCell(ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 160),
+                          child: Tooltip(
+                            message: clienteNombre,
+                            child: Text(
+                              clienteNombre,
+                              style: AppTextStyles.input,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )),
+                        DataCell(ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 90),
+                          child: Tooltip(
+                            message: rutaNombre,
+                            child: Text(
+                              rutaNombre,
+                              style: AppTextStyles.input,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )),
+                        DataCell(EstadoVisitaBadge(
+                          estado: row.visita.estadoVisita,
+                          esBorrador: row.esBorrador,
+                        )),
+                        DataCell(Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (row.esBorrador ||
+                                esEditable(row.visita.estadoVisita))
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 19),
+                                color: AppColors.steelBlue,
+                                onPressed: () => onEditar(row),
+                              ),
+                            if (row.esBorrador ||
+                                esCancelable(row.visita.estadoVisita))
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 19),
+                                color: AppColors.error,
+                                onPressed: () => onEliminar(row),
+                              ),
+                          ],
+                        )),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildCardsList(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 480),
+      child: Scrollbar(
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: rows.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final row = rows[index];
+            final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
+            final fecha = row.visita.fecha;
+
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.inputBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: AppColors.steelBlue.withOpacity(0.12),
+                        child: Text(
+                          initialsOf(nombreChofer),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.steelBlue,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          nombreChofer,
+                          style: AppTextStyles.input.copyWith(fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      EstadoVisitaBadge(
+                        estado: row.visita.estadoVisita,
+                        esBorrador: row.esBorrador,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _CardInfoLine(
+                    label: 'Fecha',
+                    value: fecha == null ? '—' : formatFecha(fecha),
+                  ),
+                  const SizedBox(height: 6),
+                  _CardInfoLine(label: 'Cliente', value: clienteNombreOf(row.visita)),
+                  const SizedBox(height: 6),
+                  _CardInfoLine(label: 'Ruta', value: rutaNombreOf(row.visita)),
+                  if (row.esBorrador ||
+                      esEditable(row.visita.estadoVisita) ||
+                      esCancelable(row.visita.estadoVisita)) ...[
+                    const SizedBox(height: 8),
+                    const Divider(height: 1),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (row.esBorrador ||
+                            esEditable(row.visita.estadoVisita))
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 19),
+                            color: AppColors.steelBlue,
+                            onPressed: () => onEditar(row),
+                          ),
+                        if (row.esBorrador ||
+                            esCancelable(row.visita.estadoVisita))
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 19),
+                            color: AppColors.error,
+                            onPressed: () => onEliminar(row),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _CardInfoLine extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CardInfoLine({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 64,
+          child: Text(
+            label,
+            style: AppTextStyles.label.copyWith(fontSize: 12, color: AppColors.graphiteGray),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTextStyles.input,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

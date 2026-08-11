@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:com.comforgas.app/main.dart';
+import 'package:comfor_gas/main.dart';
 
 void main() {
   testWidgets('La pantalla de login se construye', (WidgetTester tester) async {

@@ -1,0 +1,431 @@
+import 'dart:async' show unawaited;
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../models/evidencia_tipo.dart';
+import '../../models/visita_estado.dart';
+import '../../models/visita_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../repositories/evidencia_repository.dart';
+import '../../repositories/visita_repository.dart';
+import '../../services/location_service.dart';
+import '../../services/photo_capture_service.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_text_styles.dart';
+import '../../widgets/chofer/evidencia_captura_card.dart';
+import '../../widgets/chofer/visita_checkin_card.dart';
+import '../../widgets/primary_button.dart';
+
+enum _FaseVisita { verificandoUbicacion, errorUbicacion, enCurso }
+
+class VisitaActivaScreen extends StatefulWidget {
+  final VisitaModel visita;
+  final String nombreCliente;
+  final String direccionCliente;
+
+  const VisitaActivaScreen({
+    super.key,
+    required this.visita,
+    required this.nombreCliente,
+    required this.direccionCliente,
+  });
+
+  @override
+  State<VisitaActivaScreen> createState() => _VisitaActivaScreenState();
+}
+
+class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
+  late final VisitaRepository _visitaRepo;
+  late final EvidenciaRepository _evidenciaRepo;
+  final _photoService = PhotoCaptureService();
+  final _locationService = LocationService.instance;
+
+  late VisitaModel _visita;
+  _FaseVisita _fase = _FaseVisita.verificandoUbicacion;
+  String? _errorMensaje;
+  File? _foto;
+  bool _capturandoFoto = false;
+  bool _finalizando = false;
+  bool _evidenciaExistente = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _visita = widget.visita;
+    final apiClient = context.read<AuthProvider>().apiClient;
+    _visitaRepo = VisitaRepository(apiClient);
+    _evidenciaRepo = EvidenciaRepository(apiClient);
+
+    if (_visita.estadoVisita == VisitaEstado.enCurso) {
+      _reanudarVisita();
+    } else {
+      _iniciarCheckIn();
+    }
+  }
+
+  @override
+  void dispose() {
+    _locationService.detenerSeguimientoEnSegundoPlano();
+    super.dispose();
+  }
+
+  Future<void> _iniciarCheckIn() async {
+    final idVisita = _visita.idVisita;
+    if (idVisita == null) {
+      setState(() {
+        _fase = _FaseVisita.errorUbicacion;
+        _errorMensaje = 'La visita no tiene un identificador válido.';
+      });
+      return;
+    }
+
+    setState(() {
+      _fase = _FaseVisita.verificandoUbicacion;
+      _errorMensaje = null;
+    });
+
+    try {
+      final checkIn = await _locationService.obtenerUbicacionActual();
+      final actualizada = await _visitaRepo.iniciarVisita(
+        idVisita,
+        latitud: checkIn.latitud,
+        longitud: checkIn.longitud,
+        timestampDispositivo: checkIn.timestamp,
+        precisionMetros: checkIn.precisionMetros,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _visita = actualizada;
+        _fase = _FaseVisita.enCurso;
+      });
+
+      // Arranca el seguimiento en segundo plano (no bloquea la UI).
+      unawaited(
+        _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
+      );
+    } on LocationServiceException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _fase = _FaseVisita.errorUbicacion;
+        _errorMensaje = e.message;
+      });
+    } on VisitaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _fase = _FaseVisita.errorUbicacion;
+        _errorMensaje = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _fase = _FaseVisita.errorUbicacion;
+        _errorMensaje = 'No se pudo iniciar la visita. Intentá de nuevo.';
+      });
+    }
+  }
+
+  /// Reanuda una visita que ya estaba EN_CURSO (el check-in ya se hizo en
+  /// una sesión anterior): no vuelve a pedir geolocalización de inicio,
+  /// solo retoma el tracking en segundo plano y revisa si ya había una
+  /// evidencia fotográfica cargada.
+  Future<void> _reanudarVisita() async {
+    setState(() {
+      _fase = _FaseVisita.enCurso;
+      _errorMensaje = null;
+    });
+
+    unawaited(
+      _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
+    );
+
+    final idVisita = _visita.idVisita;
+    if (idVisita == null) return;
+    try {
+      final evidencias = await _evidenciaRepo.listarPorVisita(idVisita);
+      if (!mounted) return;
+      if (evidencias.isNotEmpty) {
+        setState(() => _evidenciaExistente = true);
+      }
+    } on EvidenciaRepositoryException {
+      // Si falla la consulta no bloqueamos la pantalla: el chofer puede
+      // igual sacar una foto nueva para poder finalizar.
+    }
+  }
+
+  Future<void> _capturarFoto() async {
+    setState(() => _capturandoFoto = true);
+    try {
+      final archivo = await _photoService.capturarFoto();
+      if (!mounted) return;
+      if (archivo != null) {
+        setState(() => _foto = archivo);
+      }
+    } on PhotoCaptureException catch (e) {
+      if (!mounted) return;
+      _mostrarError(e.message);
+    } finally {
+      if (mounted) setState(() => _capturandoFoto = false);
+    }
+  }
+
+  Future<void> _finalizarVisita() async {
+    final foto = _foto;
+    final idVisita = _visita.idVisita;
+    if ((foto == null && !_evidenciaExistente) || idVisita == null || _finalizando) {
+      return;
+    }
+
+    setState(() => _finalizando = true);
+
+    try {
+      if (foto != null) {
+        await _evidenciaRepo.subirEvidencia(
+          idVisita: idVisita,
+          tipoEvidencia: EvidenciaTipo.fachada,
+          archivo: foto,
+        );
+      }
+
+      // Intento "best effort" de tomar la ubicación al cierre; el backend
+      // la acepta como opcional (latitudFin/longitudFin), así que si el
+      // chofer ya no tiene buena señal no bloqueamos el check-out por eso.
+      double? latitudFin;
+      double? longitudFin;
+      try {
+        final ubicacionFin = await _locationService.obtenerUbicacionActual();
+        latitudFin = ubicacionFin.latitud;
+        longitudFin = ubicacionFin.longitud;
+      } on LocationServiceException {
+        // Sin ubicación de cierre: no es obligatoria para el backend,
+        // seguimos el check-out sin latitudFin/longitudFin.
+        latitudFin = null;
+        longitudFin = null;
+      }
+
+      final finalizada = await _visitaRepo.finalizarVisita(
+        idVisita,
+        latitudFin: latitudFin,
+        longitudFin: longitudFin,
+      );
+      await _locationService.detenerSeguimientoEnSegundoPlano();
+
+      if (!mounted) return;
+      Navigator.of(context).pop(finalizada);
+    } on EvidenciaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() => _finalizando = false);
+      _mostrarError(e.message);
+    } on VisitaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() => _finalizando = false);
+      _mostrarError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _finalizando = false);
+      _mostrarError('No se pudo finalizar la visita. Intentá de nuevo.');
+    }
+  }
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _TopBar(orden: _visita.ordenVisita),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: _buildContenido(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContenido() {
+    switch (_fase) {
+      case _FaseVisita.verificandoUbicacion:
+        return _EstadoUbicacion(
+          nombreCliente: widget.nombreCliente,
+          direccionCliente: widget.direccionCliente,
+        );
+      case _FaseVisita.errorUbicacion:
+        return _ErrorUbicacion(
+          mensaje: _errorMensaje ?? 'No se pudo verificar tu ubicación.',
+          onReintentar: _iniciarCheckIn,
+          onCancelar: () => Navigator.of(context).pop(),
+        );
+      case _FaseVisita.enCurso:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            VisitaCheckinCard(
+              nombreCliente: widget.nombreCliente,
+              direccionCliente: widget.direccionCliente,
+              estado: _visita.estadoVisita,
+              horaCheckIn: _visita.timestampInicio,
+            ),
+            if (_evidenciaExistente && _foto == null) ...[
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, size: 16, color: AppColors.badgeGreen),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Ya hay una foto de evidencia cargada para esta visita.',
+                      style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 18),
+            EvidenciaCapturaCard(
+              titulo: _evidenciaExistente
+                  ? 'Evidencia cargada.\nTocá para reemplazarla'
+                  : 'Captura Evidencia\nde Fachada',
+              foto: _foto,
+              cargando: _capturandoFoto,
+              onCapturar: _capturarFoto,
+            ),
+            const SizedBox(height: 20),
+            PrimaryButton(
+              text: 'Finalizar Visita',
+              isLoading: _finalizando,
+              onPressed: ((_foto != null || _evidenciaExistente) && !_finalizando)
+                  ? _finalizarVisita
+                  : null,
+            ),
+            if (_foto != null) ...[
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton(
+                  onPressed: _finalizando ? null : _capturarFoto,
+                  child: const Text(
+                    'REHACER FOTO',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.graphiteGray,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+    }
+  }
+}
+
+class _TopBar extends StatelessWidget {
+  final int orden;
+
+  const _TopBar({required this.orden});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.steelBlue),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          Expanded(
+            child: Text(
+              'Parada N° $orden',
+              style: AppTextStyles.title.copyWith(fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EstadoUbicacion extends StatelessWidget {
+  final String nombreCliente;
+  final String direccionCliente;
+
+  const _EstadoUbicacion({required this.nombreCliente, required this.direccionCliente});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      child: Column(
+        children: [
+          const SizedBox(
+            height: 40,
+            width: 40,
+            child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.orange),
+          ),
+          const SizedBox(height: 20),
+          Text(nombreCliente, style: AppTextStyles.title.copyWith(fontSize: 18)),
+          const SizedBox(height: 6),
+          Text(direccionCliente, style: AppTextStyles.link, textAlign: TextAlign.center),
+          const SizedBox(height: 18),
+          const Text(
+            'Verificando tu ubicación para el check-in…',
+            style: AppTextStyles.link,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorUbicacion extends StatelessWidget {
+  final String mensaje;
+  final VoidCallback onReintentar;
+  final VoidCallback onCancelar;
+
+  const _ErrorUbicacion({
+    required this.mensaje,
+    required this.onReintentar,
+    required this.onCancelar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 50),
+      child: Column(
+        children: [
+          const Icon(Icons.location_off_outlined, size: 44, color: AppColors.error),
+          const SizedBox(height: 16),
+          Text(mensaje, style: AppTextStyles.input, textAlign: TextAlign.center),
+          const SizedBox(height: 22),
+          PrimaryButton(text: 'Reintentar', onPressed: onReintentar),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: onCancelar,
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.graphiteGray, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -166,11 +166,13 @@ class _PlanificacionVisitasScreenState
   bool _esCancelable(VisitaEstado estado) {
     return estado == VisitaEstado.pendiente ||
         estado == VisitaEstado.enCurso ||
+        estado == VisitaEstado.visitado ||
         estado == VisitaEstado.noAsistio;
   }
 
   bool _esEditable(VisitaEstado estado) {
-    return estado != VisitaEstado.completada &&
+    return estado != VisitaEstado.visitado &&
+        estado != VisitaEstado.completada &&
         estado != VisitaEstado.cancelada &&
         estado != VisitaEstado.noAsistio &&
         estado != VisitaEstado.inactivo;

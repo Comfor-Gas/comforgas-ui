@@ -28,6 +28,16 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Usamos Face ID para permitir el ingreso rápido a tu cuenta.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Comfor Gas necesita la cámara para capturar la foto de evidencia de fachada o comodato en cada visita.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Comfor Gas necesita tu ubicación para registrar el check-in de cada visita de tu ruta.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Comfor Gas necesita acceso a tu ubicación en segundo plano para seguir registrando el recorrido mientras la visita está en curso, aunque minimices la app.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -304,6 +304,133 @@ class VisitaRepository {
     );
   }
 
+  /// Marca el check-in de la visita (POST /api/visitas/{id}/check-in).
+  /// El backend valida que esté en PENDIENTE, calcula
+  /// `geolocalizacionValida` él mismo y pasa el estado a EN_CURSO.
+  Future<VisitaModel> iniciarVisita(
+    int idVisita, {
+    required double latitud,
+    required double longitud,
+    DateTime? timestampDispositivo,
+    double? precisionMetros,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaCheckInSuffix}',
+    );
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'latitud': latitud,
+              'longitud': longitud,
+              if (timestampDispositivo != null)
+                'timestampDispositivo': timestampDispositivo.toUtc().toIso8601String(),
+              if (precisionMetros != null) 'precisionMetros': precisionMetros,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw VisitaRepositoryException(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw VisitaRepositoryException('Respuesta inesperada del servidor.');
+      }
+      return VisitaModel.fromJson(decoded);
+    }
+
+    if (response.statusCode == 400 || response.statusCode == 409) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'No se pudo iniciar la visita. Verificá el orden de la ruta.',
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para iniciar visitas.',
+      );
+    }
+
+    throw VisitaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
+  /// Marca el check-out de la visita (POST /api/visitas/{id}/check-out).
+  /// El backend exige que exista al menos una evidencia fotográfica
+  /// cargada previamente, y el estado resultante es VISITADO (no
+  /// COMPLETADA; ese es un cierre administrativo posterior y opcional).
+  Future<VisitaModel> finalizarVisita(
+    int idVisita, {
+    String? observaciones,
+    DateTime? timestampFin,
+    double? latitudFin,
+    double? longitudFin,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaCheckOutSuffix}',
+    );
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              if (observaciones != null && observaciones.trim().isNotEmpty)
+                'observaciones': observaciones.trim(),
+              'timestampFin': (timestampFin ?? DateTime.now()).toUtc().toIso8601String(),
+              if (latitudFin != null) 'latitudFin': latitudFin,
+              if (longitudFin != null) 'longitudFin': longitudFin,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw VisitaRepositoryException(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw VisitaRepositoryException('Respuesta inesperada del servidor.');
+      }
+      return VisitaModel.fromJson(decoded);
+    }
+
+    if (response.statusCode == 400 || response.statusCode == 409) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'No se pudo finalizar la visita. Verificá que hayas cargado la evidencia fotográfica.',
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para finalizar visitas.',
+      );
+    }
+
+    throw VisitaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
   Future<void> cancelar(int idVisita) async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita',

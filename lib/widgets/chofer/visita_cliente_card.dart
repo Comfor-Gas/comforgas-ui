@@ -10,6 +10,7 @@ class VisitaClienteCard extends StatelessWidget {
   final String nombreCliente;
   final String direccionCliente;
   final bool esSiguiente;
+  final String etiquetaDestacada;
   final VoidCallback onTap;
 
   const VisitaClienteCard({
@@ -19,11 +20,12 @@ class VisitaClienteCard extends StatelessWidget {
     required this.direccionCliente,
     required this.esSiguiente,
     required this.onTap,
+    this.etiquetaDestacada = 'NEXT',
   });
 
   @override
   Widget build(BuildContext context) {
-    final completada = visita.estadoVisita == VisitaEstado.completada;
+    final completada = VisitaEstadoMapper.esTerminadaEnCampo(visita.estadoVisita);
 
     return InkWell(
       onTap: onTap,
@@ -56,6 +58,8 @@ class VisitaClienteCard extends StatelessWidget {
                       _OrdenIndicator(
                         orden: visita.ordenVisita,
                         completada: completada,
+                        esSiguiente: esSiguiente,
+                        etiquetaDestacada: etiquetaDestacada,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -109,35 +113,61 @@ class VisitaClienteCard extends StatelessWidget {
 class _OrdenIndicator extends StatelessWidget {
   final int orden;
   final bool completada;
+  final bool esSiguiente;
+  final String etiquetaDestacada;
 
-  const _OrdenIndicator({required this.orden, required this.completada});
+  const _OrdenIndicator({
+    required this.orden,
+    required this.completada,
+    this.esSiguiente = false,
+    this.etiquetaDestacada = 'NEXT',
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: completada ? AppColors.badgeGreen : AppColors.steelBlue,
-          width: 1.6,
-        ),
-        color: completada
-            ? AppColors.badgeGreen.withOpacity(0.08)
-            : AppColors.steelBlue.withOpacity(0.06),
-      ),
-      child: completada
-          ? const Icon(Icons.check, color: AppColors.badgeGreen, size: 20)
-          : Text(
-              '$orden',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.steelBlue,
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: completada
+                  ? AppColors.badgeGreen
+                  : (esSiguiente ? AppColors.orange : AppColors.steelBlue),
+              width: 1.6,
             ),
+            color: completada
+                ? AppColors.badgeGreen.withOpacity(0.08)
+                : (esSiguiente ? AppColors.orange : AppColors.steelBlue).withOpacity(0.08),
+          ),
+          child: completada
+              ? const Icon(Icons.check, color: AppColors.badgeGreen, size: 20)
+              : Text(
+                  '$orden',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: esSiguiente ? AppColors.orange : AppColors.steelBlue,
+                  ),
+                ),
+        ),
+        if (esSiguiente && !completada) ...[
+          const SizedBox(height: 3),
+          Text(
+            etiquetaDestacada,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: AppColors.orange,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

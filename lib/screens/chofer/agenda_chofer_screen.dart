@@ -8,8 +8,11 @@ import '../../providers/auth_provider.dart';
 import '../../repositories/visita_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/chofer/clientes_visitados_section.dart';
 import '../../widgets/chofer/visita_cliente_card.dart';
 import '../../widgets/chofer/visita_estado_chip.dart';
+import '../../widgets/primary_button.dart';
+import 'visita_activa_screen.dart';
 
 const List<String> _diasSemana = [
   'Lunes',
@@ -50,6 +53,8 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   bool _loading = true;
   String? _error;
   List<VisitaModel> _visitas = [];
+  bool _visitadosExpanded = false;
+  bool _iniciandoVisita = false;
 
   @override
   void initState() {
@@ -123,31 +128,112 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     return 'Sin dirección registrada';
   }
 
-  List<VisitaModel> get _visitasFiltradas {
+  List<VisitaModel> _filtrar(List<VisitaModel> lista) {
     final query = _searchCtrl.text.trim().toLowerCase();
-    if (query.isEmpty) return _visitas;
-    return _visitas.where((v) {
+    if (query.isEmpty) return lista;
+    return lista.where((v) {
       return _nombreCliente(v).toLowerCase().contains(query) ||
           _direccionCliente(v).toLowerCase().contains(query);
     }).toList();
   }
 
-  VisitaModel? get _siguienteVisita {
+  /// Visitas todavía no completadas, en el orden de la ruta. Se mantienen
+  /// arriba de la lista (la visita activa/pendiente de turno).
+  List<VisitaModel> get _pendientesFiltradas => _filtrar(
+        _visitas.where((v) => !VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita)).toList(),
+      );
+
+  /// Visitas ya resueltas por el chofer (VISITADO tras el check-out, o
+  /// COMPLETADA si además hubo cierre administrativo): se reordenan
+  /// automáticamente al pie de la lista, dentro de la sección desplegable
+  /// "Clientes Visitados".
+  List<VisitaModel> get _completadasFiltradas => _filtrar(
+        _visitas.where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita)).toList(),
+      );
+
+  VisitaModel? get _visitaEnCurso {
+    for (final v in _visitas) {
+      if (v.estadoVisita == VisitaEstado.enCurso) return v;
+    }
+    return null;
+  }
+
+  VisitaModel? get _siguientePendiente {
     for (final v in _visitas) {
       if (v.estadoVisita == VisitaEstado.pendiente) return v;
     }
     return null;
   }
 
+  /// La visita "accionable" en este momento: si hay una EN_CURSO, es esa
+  /// (hay que reanudarla y cerrarla antes de arrancar otra); si no, es la
+  /// próxima pendiente en orden de ruta.
+  VisitaModel? get _visitaAccionable => _visitaEnCurso ?? _siguientePendiente;
+
   void _handleIniciarSiguiente() {
-    final siguiente = _siguienteVisita;
-    if (siguiente == null) {
+    final accionable = _visitaAccionable;
+    if (accionable == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No quedan visitas pendientes por hoy.')),
       );
       return;
     }
-    _mostrarDetalle(siguiente);
+    _iniciarVisita(accionable);
+  }
+
+  /// Al tocar una tarjeta: si es la visita accionable (la EN_CURSO a
+  /// reanudar, o si no hay ninguna en curso, la próxima pendiente), entra
+  /// al flujo de check-in/evidencia. Si hay una visita EN_CURSO y tocás
+  /// otra pendiente, se bloquea: hay que cerrar la actual primero. En
+  /// cualquier otro caso (visita futura sin nada en curso, o ya visitada)
+  /// solo se muestra el detalle.
+  void _handleCardTap(VisitaModel visita) {
+    final accionable = _visitaAccionable;
+    if (accionable != null && accionable.idVisita == visita.idVisita) {
+      _iniciarVisita(visita);
+      return;
+    }
+
+    final enCurso = _visitaEnCurso;
+    if (enCurso != null && visita.estadoVisita == VisitaEstado.pendiente) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tenés una visita en curso. Finalizala antes de iniciar otra.'),
+        ),
+      );
+      return;
+    }
+
+    _mostrarDetalle(visita);
+  }
+
+  Future<void> _iniciarVisita(VisitaModel visita) async {
+    if (_iniciandoVisita) return;
+    setState(() => _iniciandoVisita = true);
+
+    final resultado = await Navigator.of(context).push<VisitaModel>(
+      MaterialPageRoute(
+        builder: (_) => VisitaActivaScreen(
+          visita: visita,
+          nombreCliente: _nombreCliente(visita),
+          direccionCliente: _direccionCliente(visita),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _iniciandoVisita = false;
+      if (resultado != null) {
+        final index = _visitas.indexWhere((v) => v.idVisita == resultado.idVisita);
+        if (index != -1) {
+          _visitas[index] = resultado;
+        }
+        if (VisitaEstadoMapper.esTerminadaEnCampo(resultado.estadoVisita)) {
+          _visitadosExpanded = true;
+        }
+      }
+    });
   }
 
   void _mostrarDetalle(VisitaModel visita) {
@@ -175,11 +261,16 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     final fechaTexto =
         '${_diasSemana[now.weekday - 1]}, ${now.day} de ${_meses[now.month - 1]} ${now.year}';
 
-    final visitasOrdenadas = _visitasFiltradas;
-    final completadas =
-        _visitas.where((v) => v.estadoVisita == VisitaEstado.completada).length;
+    final pendientes = _pendientesFiltradas;
+    final completadasVisibles = _completadasFiltradas;
+    final completadas = _visitas
+        .where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita))
+        .length;
     final recaudacion = completadas * mockMontoPromedioPorVisita;
-    final siguiente = _siguienteVisita;
+    final siguiente = _visitaAccionable;
+    final huboFiltro = _searchCtrl.text.trim().isNotEmpty;
+    final sinResultados =
+        pendientes.isEmpty && completadasVisibles.isEmpty && !_loading && _error == null;
 
     return SafeArea(
       bottom: false,
@@ -230,7 +321,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             ],
                           ),
                         )
-                      else if (visitasOrdenadas.isEmpty)
+                      else if (sinResultados)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           child: Center(
@@ -243,16 +334,30 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             ),
                           ),
                         )
-                      else
-                        ...visitasOrdenadas.map(
+                      else ...[
+                        ...pendientes.map(
                           (v) => VisitaClienteCard(
                             visita: v,
                             nombreCliente: _nombreCliente(v),
                             direccionCliente: _direccionCliente(v),
                             esSiguiente: siguiente != null && siguiente.idVisita == v.idVisita,
-                            onTap: () => _mostrarDetalle(v),
+                            etiquetaDestacada:
+                                v.estadoVisita == VisitaEstado.enCurso ? 'EN CURSO' : 'NEXT',
+                            onTap: () => _handleCardTap(v),
                           ),
                         ),
+                        if (completadasVisibles.isNotEmpty || (!huboFiltro && completadas > 0)) ...[
+                          const SizedBox(height: 4),
+                          ClientesVisitadosSection(
+                            visitados: completadasVisibles,
+                            expandido: _visitadosExpanded,
+                            onToggle: (value) => setState(() => _visitadosExpanded = value),
+                            nombreCliente: _nombreCliente,
+                            direccionCliente: _direccionCliente,
+                            onTapVisita: _mostrarDetalle,
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: 8),
                     ],
                   ),
@@ -261,22 +366,12 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _loading ? null : _handleIniciarSiguiente,
-                  icon: const Icon(Icons.place_outlined),
-                  label: const Text('INICIAR SIGUIENTE VISITA'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.orange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    textStyle: AppTextStyles.button,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
+              child: PrimaryButton(
+                text: siguiente?.estadoVisita == VisitaEstado.enCurso
+                    ? 'Continuar Visita'
+                    : 'Iniciar Siguiente Visita',
+                isLoading: _iniciandoVisita,
+                onPressed: (_loading || _iniciandoVisita) ? null : _handleIniciarSiguiente,
               ),
             ),
           ],

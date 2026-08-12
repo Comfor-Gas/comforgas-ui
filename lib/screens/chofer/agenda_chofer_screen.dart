@@ -1,14 +1,20 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/mock_chofer_data.dart';
+import '../../local/offline_evento.dart';
+import '../../local/offline_queue_service.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/visita_repository.dart';
+import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/chofer/clientes_visitados_section.dart';
+import '../../widgets/chofer/sync_pendiente_banner.dart';
 import '../../widgets/chofer/visita_cliente_card.dart';
 import '../../widgets/chofer/visita_estado_chip.dart';
 import '../../widgets/primary_button.dart';
@@ -55,18 +61,25 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   List<VisitaModel> _visitas = [];
   bool _visitadosExpanded = false;
   bool _iniciandoVisita = false;
+  bool _sincronizando = false;
+  StreamSubscription<bool>? _syncEstadoSub;
 
   @override
   void initState() {
     super.initState();
     _repo = VisitaRepository(context.read<AuthProvider>().apiClient);
     _searchCtrl.addListener(() => setState(() {}));
+    _syncEstadoSub = SyncManager.instance.sincronizando.listen((sincronizando) {
+      if (mounted) setState(() => _sincronizando = sincronizando);
+    });
+    unawaited(SyncManager.instance.sincronizar());
     _load();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _syncEstadoSub?.cancel();
     super.dispose();
   }
 
@@ -137,16 +150,10 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     }).toList();
   }
 
-  /// Visitas todavía no completadas, en el orden de la ruta. Se mantienen
-  /// arriba de la lista (la visita activa/pendiente de turno).
   List<VisitaModel> get _pendientesFiltradas => _filtrar(
         _visitas.where((v) => !VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita)).toList(),
       );
 
-  /// Visitas ya resueltas por el chofer (VISITADO tras el check-out, o
-  /// COMPLETADA si además hubo cierre administrativo): se reordenan
-  /// automáticamente al pie de la lista, dentro de la sección desplegable
-  /// "Clientes Visitados".
   List<VisitaModel> get _completadasFiltradas => _filtrar(
         _visitas.where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita)).toList(),
       );
@@ -165,9 +172,6 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     return null;
   }
 
-  /// La visita "accionable" en este momento: si hay una EN_CURSO, es esa
-  /// (hay que reanudarla y cerrarla antes de arrancar otra); si no, es la
-  /// próxima pendiente en orden de ruta.
   VisitaModel? get _visitaAccionable => _visitaEnCurso ?? _siguientePendiente;
 
   void _handleIniciarSiguiente() {
@@ -181,12 +185,6 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     _iniciarVisita(accionable);
   }
 
-  /// Al tocar una tarjeta: si es la visita accionable (la EN_CURSO a
-  /// reanudar, o si no hay ninguna en curso, la próxima pendiente), entra
-  /// al flujo de check-in/evidencia. Si hay una visita EN_CURSO y tocás
-  /// otra pendiente, se bloquea: hay que cerrar la actual primero. En
-  /// cualquier otro caso (visita futura sin nada en curso, o ya visitada)
-  /// solo se muestra el detalle.
   void _handleCardTap(VisitaModel visita) {
     final accionable = _visitaAccionable;
     if (accionable != null && accionable.idVisita == visita.idVisita) {
@@ -297,7 +295,18 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                       ),
                       const SizedBox(height: 16),
                       _SearchField(controller: _searchCtrl),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+                      ValueListenableBuilder<Box<OfflineEvento>>(
+                        valueListenable: OfflineQueueService.instance.escuchar(),
+                        builder: (context, box, _) {
+                          return SyncPendienteBanner(
+                            cantidadPendiente: box.length,
+                            sincronizando: _sincronizando,
+                            onReintentar: () => SyncManager.instance.sincronizar(),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 4),
                       if (_loading)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),

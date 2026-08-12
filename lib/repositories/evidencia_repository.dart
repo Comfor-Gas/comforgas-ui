@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../models/evidencia_fotografica_model.dart';
+import 'network_exception.dart';
 
 class EvidenciaRepositoryException implements Exception {
   final String message;
@@ -29,9 +30,7 @@ class EvidenciaRepository {
           .get(uri, headers: const {'Content-Type': 'application/json'})
           .timeout(const Duration(seconds: 20));
     } catch (_) {
-      throw EvidenciaRepositoryException(
-        'No se pudo conectar con el servidor. Revisa tu conexión.',
-      );
+      throw NetworkException();
     }
 
     if (response.statusCode == 200) {
@@ -83,9 +82,7 @@ class EvidenciaRepository {
     try {
       streamed = await _client.send(request).timeout(const Duration(seconds: 30));
     } catch (_) {
-      throw EvidenciaRepositoryException(
-        'No se pudo conectar con el servidor. Revisa tu conexión.',
-      );
+      throw NetworkException();
     }
 
     final response = await http.Response.fromStream(streamed);

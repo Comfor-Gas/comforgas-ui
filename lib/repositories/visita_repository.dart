@@ -4,6 +4,7 @@ import '../config/api_config.dart';
 import '../models/import_agenda_result.dart';
 import '../models/visita_model.dart';
 import '../utils/json_parsing.dart';
+import 'network_exception.dart';
 
 class VisitaRepositoryException implements Exception {
   final String message;
@@ -304,9 +305,7 @@ class VisitaRepository {
     );
   }
 
-  /// Marca el check-in de la visita (POST /api/visitas/{id}/check-in).
-  /// El backend valida que esté en PENDIENTE, calcula
-  /// `geolocalizacionValida` él mismo y pasa el estado a EN_CURSO.
+
   Future<VisitaModel> iniciarVisita(
     int idVisita, {
     required double latitud,
@@ -334,9 +333,7 @@ class VisitaRepository {
           )
           .timeout(const Duration(seconds: 20));
     } catch (_) {
-      throw VisitaRepositoryException(
-        'No se pudo conectar con el servidor. Revisa tu conexión.',
-      );
+      throw NetworkException();
     }
 
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -367,10 +364,6 @@ class VisitaRepository {
     );
   }
 
-  /// Marca el check-out de la visita (POST /api/visitas/{id}/check-out).
-  /// El backend exige que exista al menos una evidencia fotográfica
-  /// cargada previamente, y el estado resultante es VISITADO (no
-  /// COMPLETADA; ese es un cierre administrativo posterior y opcional).
   Future<VisitaModel> finalizarVisita(
     int idVisita, {
     String? observaciones,
@@ -398,9 +391,7 @@ class VisitaRepository {
           )
           .timeout(const Duration(seconds: 20));
     } catch (_) {
-      throw VisitaRepositoryException(
-        'No se pudo conectar con el servidor. Revisa tu conexión.',
-      );
+      throw NetworkException();
     }
 
     if (response.statusCode == 200 || response.statusCode == 201) {

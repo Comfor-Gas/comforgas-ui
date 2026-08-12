@@ -1,22 +1,27 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:uuid/uuid.dart';
+import '../../local/offline_evento.dart';
+import '../../local/offline_queue_service.dart';
 import '../../models/evidencia_tipo.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/evidencia_repository.dart';
+import '../../repositories/network_exception.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_capture_service.dart';
+import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/chofer/evidencia_captura_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/primary_button.dart';
+
+const _uuid = Uuid();
 
 enum _FaseVisita { verificandoUbicacion, errorUbicacion, enCurso }
 
@@ -49,6 +54,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _capturandoFoto = false;
   bool _finalizando = false;
   bool _evidenciaExistente = false;
+  bool _checkInPendienteSync = false;
 
   @override
   void initState() {
@@ -86,8 +92,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _errorMensaje = null;
     });
 
+    LocationCheckIn? checkIn;
     try {
-      final checkIn = await _locationService.obtenerUbicacionActual();
+      checkIn = await _locationService.obtenerUbicacionActual();
       final actualizada = await _visitaRepo.iniciarVisita(
         idVisita,
         latitud: checkIn.latitud,
@@ -112,6 +119,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         _fase = _FaseVisita.errorUbicacion;
         _errorMensaje = e.message;
       });
+    } on NetworkException {
+      await _iniciarOffline(idVisita: idVisita, checkIn: checkIn);
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -127,14 +136,55 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
-  /// Reanuda una visita que ya estaba EN_CURSO (el check-in ya se hizo en
-  /// una sesión anterior): no vuelve a pedir geolocalización de inicio,
-  /// solo retoma el tracking en segundo plano y revisa si ya había una
-  /// evidencia fotográfica cargada.
+  Future<void> _iniciarOffline({
+    required int idVisita,
+    required LocationCheckIn? checkIn,
+  }) async {
+    final ahora = DateTime.now();
+
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: _uuid.v4(),
+        tipoEvento: OfflineEventoTipo.checkIn,
+        idVisita: idVisita,
+        timestampOrigen: ahora,
+        creadoEn: ahora,
+        latitud: checkIn?.latitud,
+        longitud: checkIn?.longitud,
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _visita = _visita.copyWith(
+        estadoVisita: VisitaEstado.enCurso,
+        timestampInicio: ahora,
+        latitudInicio: checkIn?.latitud,
+        longitudInicio: checkIn?.longitud,
+        geolocalizacionValida: false,
+      );
+      _fase = _FaseVisita.enCurso;
+      _checkInPendienteSync = true;
+    });
+
+    unawaited(
+      _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
+    );
+    unawaited(SyncManager.instance.sincronizar());
+
+    _mostrarAviso(
+      'Sin conexión: el check-in se guardó en el dispositivo y se enviará cuando haya señal.',
+    );
+  }
+
   Future<void> _reanudarVisita() async {
     setState(() {
       _fase = _FaseVisita.enCurso;
       _errorMensaje = null;
+      _checkInPendienteSync = _visita.idVisita != null &&
+          OfflineQueueService.instance
+              .pendientesDeVisita(_visita.idVisita!)
+              .any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
     });
 
     unawaited(
@@ -149,6 +199,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       if (evidencias.isNotEmpty) {
         setState(() => _evidenciaExistente = true);
       }
+    } on NetworkException {
     } on EvidenciaRepositoryException {
       // Si falla la consulta no bloqueamos la pantalla: el chofer puede
       // igual sacar una foto nueva para poder finalizar.
@@ -179,6 +230,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
 
     setState(() => _finalizando = true);
+    bool evidenciaConfirmadaOnline = _evidenciaExistente;
 
     try {
       if (foto != null) {
@@ -187,11 +239,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           tipoEvidencia: EvidenciaTipo.fachada,
           archivo: foto,
         );
+        evidenciaConfirmadaOnline = true;
       }
 
-      // Intento "best effort" de tomar la ubicación al cierre; el backend
-      // la acepta como opcional (latitudFin/longitudFin), así que si el
-      // chofer ya no tiene buena señal no bloqueamos el check-out por eso.
       double? latitudFin;
       double? longitudFin;
       try {
@@ -214,6 +264,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
       if (!mounted) return;
       Navigator.of(context).pop(finalizada);
+    } on NetworkException {
+      await _finalizarOffline(
+        idVisita: idVisita,
+        foto: evidenciaConfirmadaOnline ? null : foto,
+      );
     } on EvidenciaRepositoryException catch (e) {
       if (!mounted) return;
       setState(() => _finalizando = false);
@@ -229,9 +284,57 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  Future<void> _finalizarOffline({required int idVisita, required File? foto}) async {
+    final ahora = DateTime.now();
+
+    if (foto != null) {
+      final bytes = await foto.readAsBytes();
+      await OfflineQueueService.instance.encolar(
+        OfflineEvento(
+          uuidOffline: _uuid.v4(),
+          tipoEvento: OfflineEventoTipo.evidencia,
+          idVisita: idVisita,
+          timestampOrigen: ahora,
+          creadoEn: ahora,
+          archivoBytes: bytes,
+          tipoEvidencia: EvidenciaTipo.fachada,
+          mimeType: 'image/jpeg',
+        ),
+      );
+    }
+
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: _uuid.v4(),
+        tipoEvento: OfflineEventoTipo.checkOut,
+        idVisita: idVisita,
+        timestampOrigen: ahora,
+        creadoEn: ahora,
+        timestampFin: ahora,
+      ),
+    );
+
+    await _locationService.detenerSeguimientoEnSegundoPlano();
+    unawaited(SyncManager.instance.sincronizar());
+
+    final visitaOptimista = _visita.copyWith(
+      estadoVisita: VisitaEstado.visitado,
+      timestampFin: ahora,
+    );
+
+    if (!mounted) return;
+    Navigator.of(context).pop(visitaOptimista);
+  }
+
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
+    );
+  }
+
+  void _mostrarAviso(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.badgeAmber),
     );
   }
 
@@ -273,6 +376,29 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_checkInPendienteSync) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.badgeAmber.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.cloud_off_outlined, size: 16, color: AppColors.badgeAmber),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Check-in guardado sin conexión. Se enviará solo cuando haya señal.',
+                        style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             VisitaCheckinCard(
               nombreCliente: widget.nombreCliente,
               direccionCliente: widget.direccionCliente,

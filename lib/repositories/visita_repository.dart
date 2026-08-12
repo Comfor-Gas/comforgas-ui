@@ -35,9 +35,7 @@ class VisitaRepository {
           .get(uri, headers: const {'Content-Type': 'application/json'})
           .timeout(const Duration(seconds: 20));
     } catch (_) {
-      throw VisitaRepositoryException(
-        'No se pudo conectar con el servidor. Revisa tu conexión.',
-      );
+      throw NetworkException();
     }
 
     if (response.statusCode == 200) {

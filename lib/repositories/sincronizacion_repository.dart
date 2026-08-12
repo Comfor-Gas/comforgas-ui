@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../config/api_config.dart';
 import '../local/offline_evento.dart';
 import 'network_exception.dart';
@@ -12,6 +14,7 @@ class SincronizacionRepositoryException implements Exception {
   String toString() => message;
 }
 
+/// Resultado de un evento individual dentro de la respuesta del lote.
 class ItemSincronizacionResultado {
   static const String procesado = 'PROCESADO';
   static const String omitido = 'OMITIDO';
@@ -35,6 +38,9 @@ class ItemSincronizacionResultado {
     );
   }
 
+  /// PROCESADO o OMITIDO: en ambos casos el evento ya quedó reflejado en
+  /// el backend (o ya lo estaba de antes) y hay que sacarlo de la cola
+  /// local. Solo ERROR debe conservarse para reintentar.
   bool get resueltoEnBackend => estado == procesado || estado == omitido;
 }
 
@@ -68,6 +74,9 @@ class SincronizacionLoteResultado {
   }
 }
 
+/// Envía en un solo lote los eventos offline (check-in, check-out,
+/// evidencias) acumulados en el dispositivo hacia
+/// `POST /api/visitas/sync-lote`.
 class SincronizacionRepository {
   final http.Client _client;
 
@@ -94,6 +103,8 @@ class SincronizacionRepository {
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode({'eventos': eventos.map(_eventoToJson).toList()}),
           )
+          // El lote puede incluir varias fotos en base64: le damos más
+          // margen que a una request individual.
           .timeout(const Duration(seconds: 90));
     } catch (_) {
       throw NetworkException();

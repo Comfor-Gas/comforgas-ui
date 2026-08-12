@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_colors.dart';
 import 'providers/auth_provider.dart';
+import 'local/agenda_cache_service.dart';
 import 'local/offline_queue_service.dart';
 import 'services/app_lock_controller.dart';
 import 'services/sync_manager.dart';
@@ -18,6 +19,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await OfflineQueueService.instance.init();
+  await AgendaCacheService.instance.init();
   runApp(const ComforGasApp());
 }
 

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 
+/// Banner compacto que avisa cuántos eventos (check-in/check-out/fotos)
+/// quedaron guardados localmente por falta de conexión, con un botón para
+/// forzar un reintento manual de sincronización.
 class SyncPendienteBanner extends StatelessWidget {
   final int cantidadPendiente;
   final bool sincronizando;

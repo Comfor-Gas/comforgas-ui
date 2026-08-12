@@ -1,8 +1,10 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
 import '../../models/evidencia_tipo.dart';
@@ -120,6 +122,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         _errorMensaje = e.message;
       });
     } on NetworkException {
+      // Tenemos la posición del GPS (no depende de la red) pero no hay
+      // señal para avisarle al backend: guardamos el check-in localmente
+      // y seguimos como si hubiera funcionado, para no frenar al chofer.
       await _iniciarOffline(idVisita: idVisita, checkIn: checkIn);
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
@@ -136,6 +141,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  /// Guarda el check-in en la cola offline cuando no hay conexión, y
+  /// actualiza el estado local de forma optimista (como si el check-in
+  /// online hubiera funcionado) para que el chofer pueda seguir
+  /// trabajando con normalidad.
   Future<void> _iniciarOffline({
     required int idVisita,
     required LocationCheckIn? checkIn,
@@ -167,6 +176,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _checkInPendienteSync = true;
     });
 
+    // Arranca igual el seguimiento en segundo plano; si la señal vuelve
+    // durante la visita, el SyncManager va a mandar la cola sin que el
+    // chofer tenga que hacer nada.
     unawaited(
       _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
     );
@@ -177,6 +189,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
+  /// Reanuda una visita que ya estaba EN_CURSO (el check-in ya se hizo en
+  /// una sesión anterior): no vuelve a pedir geolocalización de inicio,
+  /// solo retoma el tracking en segundo plano y revisa si ya había una
+  /// evidencia fotográfica cargada.
   Future<void> _reanudarVisita() async {
     setState(() {
       _fase = _FaseVisita.enCurso;
@@ -200,6 +216,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         setState(() => _evidenciaExistente = true);
       }
     } on NetworkException {
+      // Sin conexión no podemos saber si ya había evidencia cargada; no
+      // bloqueamos la pantalla, el chofer puede sacar una foto nueva.
     } on EvidenciaRepositoryException {
       // Si falla la consulta no bloqueamos la pantalla: el chofer puede
       // igual sacar una foto nueva para poder finalizar.
@@ -230,6 +248,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
 
     setState(() => _finalizando = true);
+
+    // Si la evidencia ya estaba confirmada del lado del servidor (de una
+    // sesión anterior, o porque la subimos recién en este intento), no
+    // hace falta volver a encolarla si más adelante falla el check-out.
     bool evidenciaConfirmadaOnline = _evidenciaExistente;
 
     try {
@@ -242,6 +264,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         evidenciaConfirmadaOnline = true;
       }
 
+      // Intento "best effort" de tomar la ubicación al cierre; el backend
+      // la acepta como opcional (latitudFin/longitudFin), así que si el
+      // chofer ya no tiene buena señal no bloqueamos el check-out por eso.
       double? latitudFin;
       double? longitudFin;
       try {
@@ -265,6 +290,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       if (!mounted) return;
       Navigator.of(context).pop(finalizada);
     } on NetworkException {
+      // Sin señal en algún punto del cierre (subida de foto y/o
+      // check-out): encolamos lo que falte confirmar y cerramos la
+      // visita localmente para no trabar al chofer.
       await _finalizarOffline(
         idVisita: idVisita,
         foto: evidenciaConfirmadaOnline ? null : foto,
@@ -284,6 +312,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  /// Encola en la cola offline lo que falte del cierre (la foto, si no se
+  /// pudo confirmar que ya llegó al servidor, y el check-out en sí), y
+  /// deja la visita como VISITADO de forma optimista en el dispositivo.
   Future<void> _finalizarOffline({required int idVisita, required File? foto}) async {
     final ahora = DateTime.now();
 
@@ -317,6 +348,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     await _locationService.detenerSeguimientoEnSegundoPlano();
     unawaited(SyncManager.instance.sincronizar());
 
+    // Actualización optimista: reflejamos VISITADO ya mismo para que la
+    // agenda mueva la tarjeta a "Clientes Visitados" sin que el chofer
+    // tenga que esperar a tener señal.
     final visitaOptimista = _visita.copyWith(
       estadoVisita: VisitaEstado.visitado,
       timestampFin: ahora,

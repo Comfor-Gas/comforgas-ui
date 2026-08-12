@@ -17,30 +17,29 @@ class ChoferHomeScreen extends StatefulWidget {
 class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
   int _index = 0;
 
-  Widget get _body {
-    switch (_index) {
-      case 0:
-        return const AgendaChoferScreen();
-      case 1:
-        return const _ChoferPlaceholderTab(
-          icon: Icons.receipt_long_outlined,
-          title: 'Pedidos',
-        );
-      case 2:
-        return const _ChoferPlaceholderTab(
-          icon: Icons.inventory_2_outlined,
-          title: 'Comodato',
-        );
-      default:
-        return const _ChoferPerfilTab();
-    }
-  }
+  // Un widget por pestaña, creado UNA sola vez. Usamos IndexedStack en vez
+  // de reconstruir el widget según el índice: así, al volver a "Agenda"
+  // después de pasar por otra pestaña, no se destruye su estado ni se
+  // vuelve a pedir la ruta al servidor — sigue mostrando lo que ya tenía
+  // cargado, aunque en el medio se haya quedado sin señal.
+  final List<Widget> _tabs = const [
+    AgendaChoferScreen(),
+    _ChoferPlaceholderTab(
+      icon: Icons.receipt_long_outlined,
+      title: 'Pedidos',
+    ),
+    _ChoferPlaceholderTab(
+      icon: Icons.inventory_2_outlined,
+      title: 'Comodato',
+    ),
+    _ChoferPerfilTab(),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: _body,
+      body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: (i) => setState(() => _index = i),

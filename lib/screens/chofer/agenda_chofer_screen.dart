@@ -2,13 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
-
 import '../../data/mock_chofer_data.dart';
+import '../../local/agenda_cache_service.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/network_exception.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
@@ -62,7 +63,11 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   bool _visitadosExpanded = false;
   bool _iniciandoVisita = false;
   bool _sincronizando = false;
+  bool _mostrandoCache = false;
+  String? _avisoCache;
   StreamSubscription<bool>? _syncEstadoSub;
+  String? _idUsuarioCargado;
+  DateTime? _fechaCargada;
 
   @override
   void initState() {
@@ -99,30 +104,62 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
       return;
     }
 
+    final hoy = DateTime.now();
+    _idUsuarioCargado = idUsuario;
+    _fechaCargada = hoy;
+
     try {
       final data = await _repo.getVisitasPorUsuarioYFecha(
         idUsuario: idUsuario,
-        fecha: DateTime.now(),
+        fecha: hoy,
       );
       data.sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
       if (!mounted) return;
       setState(() {
         _visitas = data;
         _loading = false;
+        _mostrandoCache = false;
+        _avisoCache = null;
       });
+      unawaited(AgendaCacheService.instance.guardar(idUsuario, hoy, data));
+    } on NetworkException {
+      _cargarDesdeCache(
+        idUsuario,
+        hoy,
+        'Sin conexión: mostrando la última ruta guardada en el dispositivo.',
+      );
     } on VisitaRepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      _cargarDesdeCache(idUsuario, hoy, e.message);
     } catch (_) {
-      if (!mounted) return;
+      _cargarDesdeCache(idUsuario, hoy, 'No se pudo cargar la ruta del día.');
+    }
+  }
+
+  void _cargarDesdeCache(String idUsuario, DateTime fecha, String mensaje) {
+    if (!mounted) return;
+    final cache = AgendaCacheService.instance.obtener(idUsuario, fecha);
+    if (cache != null) {
       setState(() {
-        _error = 'No se pudo cargar la ruta del día.';
+        _visitas = cache;
         _loading = false;
+        _error = null;
+        _mostrandoCache = true;
+        _avisoCache = mensaje;
+      });
+    } else {
+      setState(() {
+        _loading = false;
+        _error = mensaje;
+        _mostrandoCache = false;
       });
     }
+  }
+
+  void _guardarCacheActual() {
+    final idUsuario = _idUsuarioCargado;
+    final fecha = _fechaCargada;
+    if (idUsuario == null || fecha == null) return;
+    unawaited(AgendaCacheService.instance.guardar(idUsuario, fecha, _visitas));
   }
 
   String _nombreCliente(VisitaModel v) {
@@ -232,6 +269,9 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         }
       }
     });
+    if (resultado != null) {
+      _guardarCacheActual();
+    }
   }
 
   void _mostrarDetalle(VisitaModel visita) {
@@ -296,6 +336,30 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                       const SizedBox(height: 16),
                       _SearchField(controller: _searchCtrl),
                       const SizedBox(height: 12),
+                      if (_mostrandoCache && _avisoCache != null) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.badgeBlue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.badgeBlue.withOpacity(0.35)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, size: 18, color: AppColors.badgeBlue),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _avisoCache!,
+                                  style: AppTextStyles.link
+                                      .copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       ValueListenableBuilder<Box<OfflineEvento>>(
                         valueListenable: OfflineQueueService.instance.escuchar(),
                         builder: (context, box, _) {

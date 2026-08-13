@@ -1,48 +1,86 @@
-enum VisitaAlertaTipo { ninguna, gpsDesvio, fueraDeHorario, clienteSalteado }
+enum VisitaAlertaTipo {
+  desvioGeografico,
+  desvioTemporal,
+  paradaFueraDeOrden,
+  omisionNoJustificada,
+  incidenciaCampo,
+  coordenadasAusentes,
+  coordenadasInvalidas,
+}
+
+enum VisitaAlertaEstado { abierta, resuelta, descartada }
 
 class VisitaAlertaMapper {
   VisitaAlertaMapper._();
 
-  static VisitaAlertaTipo fromValue(dynamic value) {
-    if (value == null) return VisitaAlertaTipo.ninguna;
-    final normalized = value.toString().trim().toUpperCase();
-    switch (normalized) {
-      case 'GPS_DESVIO':
-      case 'DESVIO_GPS':
-        return VisitaAlertaTipo.gpsDesvio;
-      case 'FUERA_DE_HORARIO':
-        return VisitaAlertaTipo.fueraDeHorario;
-      case 'CLIENTE_SALTEADO':
-      case 'CLIENTE_SALTADO':
-        return VisitaAlertaTipo.clienteSalteado;
+  static VisitaAlertaTipo? fromValue(dynamic value) {
+    if (value == null) return null;
+    switch (value.toString().trim().toUpperCase()) {
+      case 'DESVIO_GEOGRAFICO':
+        return VisitaAlertaTipo.desvioGeografico;
+      case 'DESVIO_TEMPORAL':
+        return VisitaAlertaTipo.desvioTemporal;
+      case 'PARADA_FUERA_DE_ORDEN':
+        return VisitaAlertaTipo.paradaFueraDeOrden;
+      case 'OMISION_NO_JUSTIFICADA':
+        return VisitaAlertaTipo.omisionNoJustificada;
+      case 'INCIDENCIA_CAMPO':
+        return VisitaAlertaTipo.incidenciaCampo;
+      case 'COORDENADAS_AUSENTES':
+        return VisitaAlertaTipo.coordenadasAusentes;
+      case 'COORDENADAS_INVALIDAS':
+        return VisitaAlertaTipo.coordenadasInvalidas;
       default:
-        return VisitaAlertaTipo.ninguna;
+        return null;
     }
   }
 
   static String toValue(VisitaAlertaTipo tipo) {
     switch (tipo) {
-      case VisitaAlertaTipo.gpsDesvio:
-        return 'GPS_DESVIO';
-      case VisitaAlertaTipo.fueraDeHorario:
-        return 'FUERA_DE_HORARIO';
-      case VisitaAlertaTipo.clienteSalteado:
-        return 'CLIENTE_SALTEADO';
-      case VisitaAlertaTipo.ninguna:
-        return '';
+      case VisitaAlertaTipo.desvioGeografico:
+        return 'DESVIO_GEOGRAFICO';
+      case VisitaAlertaTipo.desvioTemporal:
+        return 'DESVIO_TEMPORAL';
+      case VisitaAlertaTipo.paradaFueraDeOrden:
+        return 'PARADA_FUERA_DE_ORDEN';
+      case VisitaAlertaTipo.omisionNoJustificada:
+        return 'OMISION_NO_JUSTIFICADA';
+      case VisitaAlertaTipo.incidenciaCampo:
+        return 'INCIDENCIA_CAMPO';
+      case VisitaAlertaTipo.coordenadasAusentes:
+        return 'COORDENADAS_AUSENTES';
+      case VisitaAlertaTipo.coordenadasInvalidas:
+        return 'COORDENADAS_INVALIDAS';
     }
   }
 
   static String label(VisitaAlertaTipo tipo) {
     switch (tipo) {
-      case VisitaAlertaTipo.gpsDesvio:
-        return 'GPS Desvío';
-      case VisitaAlertaTipo.fueraDeHorario:
+      case VisitaAlertaTipo.desvioGeografico:
+        return 'Desvío GPS';
+      case VisitaAlertaTipo.desvioTemporal:
         return 'Fuera de Horario';
-      case VisitaAlertaTipo.clienteSalteado:
+      case VisitaAlertaTipo.paradaFueraDeOrden:
+        return 'Parada Fuera de Orden';
+      case VisitaAlertaTipo.omisionNoJustificada:
         return 'Cliente Salteado';
-      case VisitaAlertaTipo.ninguna:
-        return '';
+      case VisitaAlertaTipo.incidenciaCampo:
+        return 'Incidencia en Campo';
+      case VisitaAlertaTipo.coordenadasAusentes:
+        return 'Sin Coordenadas';
+      case VisitaAlertaTipo.coordenadasInvalidas:
+        return 'Coordenadas Inválidas';
+    }
+  }
+
+  static VisitaAlertaEstado estadoFromValue(dynamic value) {
+    switch (value.toString().trim().toUpperCase()) {
+      case 'RESUELTA':
+        return VisitaAlertaEstado.resuelta;
+      case 'DESCARTADA':
+        return VisitaAlertaEstado.descartada;
+      default:
+        return VisitaAlertaEstado.abierta;
     }
   }
 }

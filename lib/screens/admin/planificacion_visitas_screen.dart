@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../models/ruta_model.dart';
 import '../../models/sucursal_model.dart';
 import '../../models/usuario_model.dart';
@@ -170,7 +169,8 @@ class _PlanificacionVisitasScreenState
   }
 
   bool _esEditable(VisitaEstado estado) {
-    return estado != VisitaEstado.completada &&
+    return estado != VisitaEstado.visitado &&
+        estado != VisitaEstado.completada &&
         estado != VisitaEstado.cancelada &&
         estado != VisitaEstado.noAsistio &&
         estado != VisitaEstado.inactivo;
@@ -392,8 +392,6 @@ class _PlanificacionVisitasScreenState
         return;
       }
 
-      // Todo lo recibido ya estaba cargado: mensaje simple y controlado,
-      // sin listar el detalle línea por línea que devuelve el backend.
       if (result.insertadas == 0) {
         await showAppAlert(
           context: context,
@@ -405,7 +403,6 @@ class _PlanificacionVisitasScreenState
         return;
       }
 
-      // Caso mixto: parte se insertó, parte ya estaba cargada.
       await showAppAlert(
         context: context,
         title: 'Agenda sincronizada parcialmente',

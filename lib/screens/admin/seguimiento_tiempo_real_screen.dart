@@ -1,12 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-
-import '../../data/mock_seguimiento_data.dart';
+import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+import '../../models/alerta_model.dart';
+import '../../models/visita_alerta.dart';
+import '../../models/visita_estado.dart';
+import '../../models/visita_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../repositories/alerta_repository.dart';
+import '../../repositories/visita_repository.dart';
+import '../../services/visitas_realtime_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/alerta_visita_badge.dart';
+import '../../widgets/admin/estado_visita_badge.dart';
 import '../../widgets/labeled_text_field.dart';
-import '../../widgets/primary_button.dart';
+
+const LatLng formosaCenter = LatLng(-26.1849, -58.1731);
+
+const List<Color> _choferPalette = [
+  Color(0xFF2F80ED),
+  Color(0xFFE05348),
+  Color(0xFFE0A030),
+  Color(0xFF27AE60),
+  Color(0xFF9B51E0),
+  Color(0xFF00A896),
+];
+
+(Color, IconData) _estadoVisual(VisitaEstado estado) {
+  switch (estado) {
+    case VisitaEstado.pendiente:
+      return (AppColors.badgeBlue, Icons.hourglass_empty);
+    case VisitaEstado.enCurso:
+      return (AppColors.badgeAmber, Icons.local_shipping_outlined);
+    case VisitaEstado.visitado:
+      return (AppColors.badgeGreen, Icons.check_circle_outline);
+    case VisitaEstado.completada:
+      return (AppColors.badgeGreen, Icons.task_alt);
+    case VisitaEstado.cancelada:
+      return (AppColors.badgeRed, Icons.cancel_outlined);
+    case VisitaEstado.noAsistio:
+      return (AppColors.badgeRed, Icons.error_outline);
+    case VisitaEstado.inactivo:
+    case VisitaEstado.unknown:
+      return (AppColors.badgeGray, Icons.help_outline);
+  }
+}
+
+class _ChoferRuta {
+  final String choferId;
+  final String choferNombre;
+  final Color color;
+  final List<LatLng> puntos;
+  final LatLng? posicionActual;
+
+  const _ChoferRuta({
+    required this.choferId,
+    required this.choferNombre,
+    required this.color,
+    required this.puntos,
+    required this.posicionActual,
+  });
+}
 
 class SeguimientoTiempoRealScreen extends StatefulWidget {
   const SeguimientoTiempoRealScreen({super.key});
@@ -18,56 +74,237 @@ class SeguimientoTiempoRealScreen extends StatefulWidget {
 
 class _SeguimientoTiempoRealScreenState
     extends State<SeguimientoTiempoRealScreen> {
+  late final VisitaRepository _visitaRepo;
+  late final AlertaRepository _alertaRepo;
+  late final VisitasRealtimeService _realtime;
+
   final MapController _mapController = MapController();
   final TextEditingController _choferFilterCtrl = TextEditingController();
 
-  String? _selectedVisitaId;
+  bool _loading = true;
+  String? _loadError;
+  bool _wsConnected = false;
+
+  List<VisitaModel> _visitas = [];
+  final Map<int, VisitaAlertaTipo> _alertaPorVisita = {};
+
+  int? _selectedVisitaId;
   String? _estadoFilter;
 
   @override
   void initState() {
     super.initState();
+    final auth = context.read<AuthProvider>();
+    _visitaRepo = VisitaRepository(auth.apiClient);
+    _alertaRepo = AlertaRepository(auth.apiClient);
+    _realtime = VisitasRealtimeService();
+
     _choferFilterCtrl.addListener(() => setState(() {}));
+
+    _cargarDatos();
+
+    _realtime.connectionState.listen((connected) {
+      if (mounted) setState(() => _wsConnected = connected);
+    });
+    _realtime.messages.listen(_handleRealtimeMessage);
+
+    final token = auth.accessToken;
+    if (token != null && token.isNotEmpty) {
+      _realtime.connect(token);
+    }
   }
 
   @override
   void dispose() {
+    _realtime.dispose();
     _choferFilterCtrl.dispose();
     super.dispose();
   }
 
-  List<VisitaSeguimientoMock> get _filteredVisitas {
+  Future<void> _cargarDatos() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final results = await Future.wait([
+        _visitaRepo.listarTodas(),
+        _alertaRepo.listarAbiertas(),
+      ]);
+      if (!mounted) return;
+      final todasLasVisitas = results[0] as List<VisitaModel>;
+      final hoy = DateTime.now();
+      setState(() {
+        _visitas = todasLasVisitas.where((v) {
+          final f = v.fecha;
+          return f != null &&
+              f.year == hoy.year &&
+              f.month == hoy.month &&
+              f.day == hoy.day;
+        }).toList();
+        _alertaPorVisita.clear();
+        for (final alerta in results[1] as List<AlertaModel>) {
+          if (alerta.tipo != null) {
+            _alertaPorVisita[alerta.idVisita] = alerta.tipo!;
+          }
+        }
+        _loading = false;
+      });
+    } on VisitaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.message;
+        _loading = false;
+      });
+    } on AlertaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = 'No se pudo cargar el estado de las visitas de hoy.';
+        _loading = false;
+      });
+    }
+  }
+
+  void _handleRealtimeMessage(VisitaRealtimeMessage message) {
+    if (!mounted) return;
+    if (message is VisitaEstadoActualizadoMessage) {
+      setState(() {
+        final idx = _visitas.indexWhere((v) => v.idVisita == message.idVisita);
+        if (idx == -1) return;
+        final estado = VisitaEstadoMapper.fromValue(message.estadoNuevo);
+        final enCurso = estado == VisitaEstado.enCurso;
+        _visitas[idx] = _visitas[idx].copyWith(
+          estadoVisita: estado,
+          timestampInicio: message.timestampInicio,
+          timestampFin: message.timestampFin,
+          latitudInicio: enCurso ? message.latitud : null,
+          longitudInicio: enCurso ? message.longitud : null,
+          latitudFin: enCurso ? null : message.latitud,
+          longitudFin: enCurso ? null : message.longitud,
+          geolocalizacionValida: message.geolocalizacionValida,
+        );
+      });
+    } else if (message is AlertaCreadaMessage) {
+      setState(() {
+        if (message.estado == VisitaAlertaEstado.abierta && message.tipo != null) {
+          _alertaPorVisita[message.idVisita] = message.tipo!;
+        } else {
+          _alertaPorVisita.remove(message.idVisita);
+        }
+      });
+    }
+  }
+
+  String _clienteNombre(VisitaModel v) {
+    final snapshot = v.sucursalSnapshot;
+    for (final key in ['nombre', 'nombreSucursal', 'razonSocial', 'cliente']) {
+      final value = snapshot[key];
+      if (value is String && value.trim().isNotEmpty) return value;
+    }
+    return 'Sucursal #${v.idSucursal}';
+  }
+
+  String _horaProgramada(VisitaModel v) {
+    final h = v.horaInicioPlanificada;
+    if (h == null || h.isEmpty) return 'Sin horario';
+    return h.length >= 5 ? h.substring(0, 5) : h;
+  }
+
+  String? _horaCheckIn(VisitaModel v) {
+    final t = v.timestampInicio;
+    if (t == null) return null;
+    final local = t.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  LatLng? _posicionDe(VisitaModel v) {
+    final lat = v.latitudFin ?? v.latitudInicio ?? v.sucursalLatitud;
+    final lng = v.longitudFin ?? v.longitudInicio ?? v.sucursalLongitud;
+    if (lat == null || lng == null) return null;
+    return LatLng(lat, lng);
+  }
+
+  Color _colorParaChofer(String idChofer) {
+    return _choferPalette[idChofer.hashCode.abs() % _choferPalette.length];
+  }
+
+  List<VisitaModel> get _filteredVisitas {
     final query = _choferFilterCtrl.text.trim().toLowerCase();
-    return mockVisitasSeguimiento.where((v) {
-      if (query.isNotEmpty && !v.choferNombre.toLowerCase().contains(query)) {
-        return false;
-      }
-      if (_estadoFilter != null && v.estado.label != _estadoFilter) {
+    return _visitas.where((v) {
+      final nombre = (v.nombreUsuario ?? '').toLowerCase();
+      if (query.isNotEmpty && !nombre.contains(query)) return false;
+      if (_estadoFilter != null &&
+          VisitaEstadoMapper.toValue(v.estadoVisita) != _estadoFilter) {
         return false;
       }
       return true;
     }).toList();
   }
 
-  Map<String, List<VisitaSeguimientoMock>> get _agrupadasPorChofer {
-    final map = <String, List<VisitaSeguimientoMock>>{};
+  Map<String, List<VisitaModel>> get _agrupadasPorChofer {
+    final map = <String, List<VisitaModel>>{};
     for (final v in _filteredVisitas) {
-      map.putIfAbsent(v.choferNombre, () => []).add(v);
+      final nombre = v.nombreUsuario ?? 'Sin asignar';
+      map.putIfAbsent(nombre, () => []).add(v);
     }
     return map;
   }
 
-  VisitaSeguimientoMock? get _selectedVisita {
+  List<_ChoferRuta> get _rutasPorChofer {
+    final porChofer = <String, List<VisitaModel>>{};
+    for (final v in _visitas) {
+      porChofer.putIfAbsent(v.idUsuario, () => []).add(v);
+    }
+
+    final rutas = <_ChoferRuta>[];
+    porChofer.forEach((idChofer, visitasChofer) {
+      visitasChofer.sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
+      final puntos = <LatLng>[];
+      for (final v in visitasChofer) {
+        final p = _posicionDe(v);
+        if (p != null) puntos.add(p);
+      }
+
+      VisitaModel? enCurso;
+      for (final v in visitasChofer) {
+        if (v.estadoVisita == VisitaEstado.enCurso) {
+          enCurso = v;
+          break;
+        }
+      }
+      final posicionActual = enCurso != null
+          ? _posicionDe(enCurso)
+          : (puntos.isNotEmpty ? puntos.last : null);
+
+      rutas.add(_ChoferRuta(
+        choferId: idChofer,
+        choferNombre: visitasChofer.first.nombreUsuario ?? 'Sin asignar',
+        color: _colorParaChofer(idChofer),
+        puntos: puntos,
+        posicionActual: posicionActual,
+      ));
+    });
+    return rutas;
+  }
+
+  VisitaModel? get _selectedVisita {
     if (_selectedVisitaId == null) return null;
-    for (final v in mockVisitasSeguimiento) {
-      if (v.id == _selectedVisitaId) return v;
+    for (final v in _visitas) {
+      if (v.idVisita == _selectedVisitaId) return v;
     }
     return null;
   }
 
-  void _selectVisita(VisitaSeguimientoMock v) {
-    setState(() => _selectedVisitaId = v.id);
-    _mapController.move(v.posicion, 15.5);
+  void _selectVisita(VisitaModel v) {
+    final p = _posicionDe(v);
+    setState(() => _selectedVisitaId = v.idVisita);
+    if (p != null) _mapController.move(p, 15.5);
   }
 
   void _cerrarInfo() => setState(() => _selectedVisitaId = null);
@@ -75,12 +312,38 @@ class _SeguimientoTiempoRealScreenState
   @override
   Widget build(BuildContext context) {
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+
+    if (_loadError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_loadError!, style: AppTextStyles.errorText),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _cargarDatos,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Reintentar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.steelBlue,
+                side: const BorderSide(color: AppColors.steelBlue),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Header(),
+          _Header(connected: _wsConnected),
           const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -88,9 +351,17 @@ class _SeguimientoTiempoRealScreenState
 
               final mapa = _MapaCard(
                 mapController: _mapController,
+                rutas: _rutasPorChofer,
+                visitas: _visitas,
+                posicionDe: _posicionDe,
+                alertaPorVisita: _alertaPorVisita,
                 selectedVisita: _selectedVisita,
+                selectedVisitaAlerta: _selectedVisitaId != null
+                    ? _alertaPorVisita[_selectedVisitaId]
+                    : null,
                 onMarkerTap: _selectVisita,
                 onCerrarInfo: _cerrarInfo,
+                clienteNombreOf: _clienteNombre,
               );
 
               final lista = _ListadoCard(
@@ -100,6 +371,10 @@ class _SeguimientoTiempoRealScreenState
                 grupos: _agrupadasPorChofer,
                 selectedVisitaId: _selectedVisitaId,
                 onSelect: _selectVisita,
+                clienteNombreOf: _clienteNombre,
+                horaProgramadaOf: _horaProgramada,
+                horaCheckInOf: _horaCheckIn,
+                alertaPorVisita: _alertaPorVisita,
               );
 
               if (wide) {
@@ -125,29 +400,16 @@ class _SeguimientoTiempoRealScreenState
               );
             },
           ),
-          const SizedBox(height: 20),
-          PrimaryButton(
-            text: 'Publicar Nuevas Rutas',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'La publicación de rutas se conecta con Planificación '
-                    'de Visitas. Esta pantalla es de solo lectura por ahora.',
-                  ),
-                ),
-              );
-            },
-          ),
         ],
       ),
     );
   }
 }
 
-
 class _Header extends StatelessWidget {
-  const _Header();
+  final bool connected;
+
+  const _Header({required this.connected});
 
   @override
   Widget build(BuildContext context) {
@@ -158,48 +420,44 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Listado de Visitas en Tiempo Real',
-                style: AppTextStyles.desktopTitle,
-              ),
+              Text('Listado de Visitas en Tiempo Real', style: AppTextStyles.desktopTitle),
               const SizedBox(height: 4),
               Text(
-                'Seguimiento en vivo de choferes, visitas y alertas del día.',
+                'Seguimiento en vivo de choferes, visitas y alertas de hoy.',
                 style: AppTextStyles.desktopSubtitle,
               ),
             ],
           ),
         ),
         const SizedBox(width: 16),
-        const _WebSocketStatusChip(),
+        _WebSocketStatusChip(connected: connected),
       ],
     );
   }
 }
 
 class _WebSocketStatusChip extends StatelessWidget {
-  const _WebSocketStatusChip();
+  final bool connected;
+
+  const _WebSocketStatusChip({required this.connected});
 
   @override
   Widget build(BuildContext context) {
+    final color = connected ? AppColors.badgeGreen : AppColors.badgeGray;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.badgeGray.withOpacity(0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.wifi_off, size: 14, color: AppColors.badgeGray),
+          Icon(connected ? Icons.wifi : Icons.wifi_off, size: 14, color: color),
           const SizedBox(width: 6),
           Text(
-            'Tiempo real: esperando backend',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.badgeGray.withOpacity(0.9),
-            ),
+            connected ? 'Tiempo real: conectado' : 'Tiempo real: reconectando',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
           ),
         ],
       ),
@@ -207,15 +465,11 @@ class _WebSocketStatusChip extends StatelessWidget {
   }
 }
 
-
 class _CardContainer extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
 
-  const _CardContainer({
-    required this.child,
-    this.padding = const EdgeInsets.all(20),
-  });
+  const _CardContainer({required this.child, this.padding = const EdgeInsets.all(20)});
 
   @override
   Widget build(BuildContext context) {
@@ -234,15 +488,27 @@ class _CardContainer extends StatelessWidget {
 
 class _MapaCard extends StatelessWidget {
   final MapController mapController;
-  final VisitaSeguimientoMock? selectedVisita;
-  final ValueChanged<VisitaSeguimientoMock> onMarkerTap;
+  final List<_ChoferRuta> rutas;
+  final List<VisitaModel> visitas;
+  final LatLng? Function(VisitaModel) posicionDe;
+  final Map<int, VisitaAlertaTipo> alertaPorVisita;
+  final VisitaModel? selectedVisita;
+  final VisitaAlertaTipo? selectedVisitaAlerta;
+  final ValueChanged<VisitaModel> onMarkerTap;
   final VoidCallback onCerrarInfo;
+  final String Function(VisitaModel) clienteNombreOf;
 
   const _MapaCard({
     required this.mapController,
+    required this.rutas,
+    required this.visitas,
+    required this.posicionDe,
+    required this.alertaPorVisita,
     required this.selectedVisita,
+    required this.selectedVisitaAlerta,
     required this.onMarkerTap,
     required this.onCerrarInfo,
+    required this.clienteNombreOf,
   });
 
   @override
@@ -261,56 +527,50 @@ class _MapaCard extends StatelessWidget {
                   initialZoom: 13.5,
                   minZoom: 3,
                   maxZoom: 19,
-                  interactionOptions: InteractionOptions(
-                    flags: InteractiveFlag.all,
-                  ),
+                  interactionOptions: InteractionOptions(flags: InteractiveFlag.all),
                 ),
                 children: [
                   TileLayer(
                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.comforgas.web',
+                    tileProvider: CancellableNetworkTileProvider(),
                   ),
                   PolylineLayer(
                     polylines: [
-                      for (final ruta in mockRutasChofer)
-                        if (recorridoDeChofer(ruta.choferId).length > 1)
-                          Polyline(
-                            points: recorridoDeChofer(ruta.choferId),
-                            color: ruta.color,
-                            strokeWidth: 4,
-                          ),
+                      for (final r in rutas)
+                        if (r.puntos.length > 1)
+                          Polyline(points: r.puntos, color: r.color, strokeWidth: 4),
                     ],
                   ),
                   MarkerLayer(
                     markers: [
-                      for (final ruta in mockRutasChofer)
-                        Marker(
-                          point: ruta.posicionActual,
-                          width: 44,
-                          height: 44,
-                          child: _ChoferMarker(color: ruta.color),
-                        ),
-                      for (final v in mockVisitasSeguimiento)
-                        Marker(
-                          point: v.posicion,
-                          width: 38,
-                          height: 38,
-                          child: _VisitaMarker(
-                            visita: v,
-                            selected: v.id == selectedVisita?.id,
-                            onTap: () => onMarkerTap(v),
+                      for (final r in rutas)
+                        if (r.posicionActual != null)
+                          Marker(
+                            point: r.posicionActual!,
+                            width: 44,
+                            height: 44,
+                            child: _ChoferMarker(color: r.color),
                           ),
-                        ),
+                      for (final v in visitas)
+                        if (posicionDe(v) != null)
+                          Marker(
+                            point: posicionDe(v)!,
+                            width: 38,
+                            height: 38,
+                            child: _VisitaMarker(
+                              visita: v,
+                              alerta: alertaPorVisita[v.idVisita],
+                              selected: v.idVisita == selectedVisita?.idVisita,
+                              onTap: () => onMarkerTap(v),
+                            ),
+                          ),
                     ],
                   ),
                 ],
               ),
             ),
-            Positioned(
-              top: 12,
-              left: 12,
-              child: _Leyenda(rutas: mockRutasChofer),
-            ),
+            Positioned(top: 12, left: 12, child: _Leyenda(rutas: rutas)),
             Positioned(
               bottom: selectedVisita != null ? 92 : 12,
               right: 12,
@@ -323,6 +583,8 @@ class _MapaCard extends StatelessWidget {
                 bottom: 12,
                 child: _VisitaInfoPanel(
                   visita: selectedVisita!,
+                  alerta: selectedVisitaAlerta,
+                  clienteNombre: clienteNombreOf(selectedVisita!),
                   onClose: onCerrarInfo,
                 ),
               ),
@@ -350,11 +612,7 @@ class _ZoomControls extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -403,37 +661,29 @@ class _ChoferMarker extends StatelessWidget {
         color: color,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.45),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color.withOpacity(0.45), blurRadius: 8, spreadRadius: 1)],
       ),
-      child: const Icon(
-        Icons.local_shipping,
-        color: Colors.white,
-        size: 20,
-      ),
+      child: const Icon(Icons.local_shipping, color: Colors.white, size: 20),
     );
   }
 }
 
 class _VisitaMarker extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
+  final VisitaModel visita;
+  final VisitaAlertaTipo? alerta;
   final bool selected;
   final VoidCallback onTap;
 
   const _VisitaMarker({
     required this.visita,
+    required this.alerta,
     required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = visita.estado.color;
+    final (color, icon) = _estadoVisual(visita.estadoVisita);
     return GestureDetector(
       onTap: onTap,
       child: MouseRegion(
@@ -448,24 +698,12 @@ class _VisitaMarker extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white,
-                  width: selected ? 3 : 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.5),
-                    blurRadius: selected ? 10 : 4,
-                  ),
-                ],
+                border: Border.all(color: Colors.white, width: selected ? 3 : 2),
+                boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: selected ? 10 : 4)],
               ),
-              child: Icon(
-                visita.estado.icon,
-                color: Colors.white,
-                size: selected ? 18 : 14,
-              ),
+              child: Icon(icon, color: Colors.white, size: selected ? 18 : 14),
             ),
-            if (visita.tieneAlerta)
+            if (alerta != null)
               Positioned(
                 right: -2,
                 top: -2,
@@ -473,7 +711,9 @@ class _VisitaMarker extends StatelessWidget {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: visita.alerta.name == 'gpsDesvio'
+                    color: alerta == VisitaAlertaTipo.desvioGeografico ||
+                            alerta == VisitaAlertaTipo.coordenadasInvalidas ||
+                            alerta == VisitaAlertaTipo.incidenciaCampo
                         ? AppColors.badgeRed
                         : AppColors.orange,
                     shape: BoxShape.circle,
@@ -489,46 +729,37 @@ class _VisitaMarker extends StatelessWidget {
 }
 
 class _Leyenda extends StatelessWidget {
-  final List<ChoferRutaMock> rutas;
+  final List<_ChoferRuta> rutas;
 
   const _Leyenda({required this.rutas});
 
   @override
   Widget build(BuildContext context) {
+    if (rutas.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final r in rutas)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+          for (int i = 0; i < rutas.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            Text.rich(
+              TextSpan(
                 children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: r.color,
-                      shape: BoxShape.circle,
-                    ),
+                  TextSpan(
+                    text: '●  ',
+                    style: TextStyle(fontSize: 12, color: rutas[i].color),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    r.choferNombre,
+                  TextSpan(
+                    text: rutas[i].choferNombre,
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -538,6 +769,7 @@ class _Leyenda extends StatelessWidget {
                 ],
               ),
             ),
+          ],
         ],
       ),
     );
@@ -545,24 +777,28 @@ class _Leyenda extends StatelessWidget {
 }
 
 class _VisitaInfoPanel extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
+  final VisitaModel visita;
+  final VisitaAlertaTipo? alerta;
+  final String clienteNombre;
   final VoidCallback onClose;
 
-  const _VisitaInfoPanel({required this.visita, required this.onClose});
+  const _VisitaInfoPanel({
+    required this.visita,
+    required this.alerta,
+    required this.clienteNombre,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final (color, icon) = _estadoVisual(visita.estadoVisita);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
@@ -570,11 +806,8 @@ class _VisitaInfoPanel extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: visita.estado.color.withOpacity(0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(visita.estado.icon, color: visita.estado.color),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+            child: Icon(icon, color: color),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -582,19 +815,19 @@ class _VisitaInfoPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  visita.cliente,
+                  clienteNombre,
                   style: AppTextStyles.title.copyWith(fontSize: 15),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${visita.choferNombre} · ${visita.sucursal} Nº ${visita.numeroSucursal}',
+                  '${visita.nombreUsuario ?? 'Sin asignar'} · Sucursal #${visita.idSucursal}',
                   style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (visita.tieneAlerta) ...[
+                if (alerta != null) ...[
                   const SizedBox(height: 6),
-                  AlertaVisitaBadge(tipo: visita.alerta),
+                  AlertaVisitaBadge(tipo: alerta),
                 ],
               ],
             ),
@@ -613,9 +846,13 @@ class _ListadoCard extends StatelessWidget {
   final TextEditingController choferCtrl;
   final String? estadoFilter;
   final ValueChanged<String?> onEstadoChanged;
-  final Map<String, List<VisitaSeguimientoMock>> grupos;
-  final String? selectedVisitaId;
-  final ValueChanged<VisitaSeguimientoMock> onSelect;
+  final Map<String, List<VisitaModel>> grupos;
+  final int? selectedVisitaId;
+  final ValueChanged<VisitaModel> onSelect;
+  final String Function(VisitaModel) clienteNombreOf;
+  final String Function(VisitaModel) horaProgramadaOf;
+  final String? Function(VisitaModel) horaCheckInOf;
+  final Map<int, VisitaAlertaTipo> alertaPorVisita;
 
   const _ListadoCard({
     required this.choferCtrl,
@@ -624,14 +861,19 @@ class _ListadoCard extends StatelessWidget {
     required this.grupos,
     required this.selectedVisitaId,
     required this.onSelect,
+    required this.clienteNombreOf,
+    required this.horaProgramadaOf,
+    required this.horaCheckInOf,
+    required this.alertaPorVisita,
   });
 
-  static const List<String> _estados = [
-    'PENDIENTE',
-    'EN CURSO',
-    'VISITADO',
-    'ASIGNADO',
-    'CANCELADA',
+  static const List<(String value, String label)> _estados = [
+    ('PENDIENTE', 'Pendiente'),
+    ('EN_CURSO', 'En curso'),
+    ('VISITADO', 'Visitado'),
+    ('COMPLETADA', 'Completada'),
+    ('CANCELADA', 'Cancelada'),
+    ('NO_ASISTIO', 'No asistió'),
   ];
 
   @override
@@ -672,20 +914,15 @@ class _ListadoCard extends StatelessWidget {
                           isExpanded: true,
                           value: estadoFilter,
                           hint: Text('Todos', style: AppTextStyles.hint),
-                          icon: const Icon(Icons.keyboard_arrow_down,
-                              color: AppColors.inputHint),
+                          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
                           style: AppTextStyles.input,
                           items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Todos'),
-                            ),
-                            ..._estados.map(
-                              (e) => DropdownMenuItem<String?>(
-                                value: e,
-                                child: Text(e),
+                            const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+                            for (final (value, label) in _estados)
+                              DropdownMenuItem<String?>(
+                                value: value,
+                                child: Text(label),
                               ),
-                            ),
                           ],
                           onChanged: onEstadoChanged,
                         ),
@@ -698,7 +935,7 @@ class _ListadoCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            '$totalVisitas visita(s) · agrupadas por chofer',
+            '$totalVisitas visita(s) de hoy · agrupadas por chofer',
             style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 8),
@@ -720,6 +957,10 @@ class _ListadoCard extends StatelessWidget {
                           visitas: entry.value,
                           selectedVisitaId: selectedVisitaId,
                           onSelect: onSelect,
+                          clienteNombreOf: clienteNombreOf,
+                          horaProgramadaOf: horaProgramadaOf,
+                          horaCheckInOf: horaCheckInOf,
+                          alertaPorVisita: alertaPorVisita,
                         ),
                     ],
                   ),
@@ -732,15 +973,23 @@ class _ListadoCard extends StatelessWidget {
 
 class _GrupoChofer extends StatelessWidget {
   final String choferNombre;
-  final List<VisitaSeguimientoMock> visitas;
-  final String? selectedVisitaId;
-  final ValueChanged<VisitaSeguimientoMock> onSelect;
+  final List<VisitaModel> visitas;
+  final int? selectedVisitaId;
+  final ValueChanged<VisitaModel> onSelect;
+  final String Function(VisitaModel) clienteNombreOf;
+  final String Function(VisitaModel) horaProgramadaOf;
+  final String? Function(VisitaModel) horaCheckInOf;
+  final Map<int, VisitaAlertaTipo> alertaPorVisita;
 
   const _GrupoChofer({
     required this.choferNombre,
     required this.visitas,
     required this.selectedVisitaId,
     required this.onSelect,
+    required this.clienteNombreOf,
+    required this.horaProgramadaOf,
+    required this.horaCheckInOf,
+    required this.alertaPorVisita,
   });
 
   @override
@@ -754,17 +1003,18 @@ class _GrupoChofer extends StatelessWidget {
             children: [
               const Icon(Icons.person_outline, size: 16, color: AppColors.steelBlue),
               const SizedBox(width: 6),
-              Text(
-                choferNombre,
-                style: AppTextStyles.label.copyWith(fontSize: 13),
-              ),
+              Text(choferNombre, style: AppTextStyles.label.copyWith(fontSize: 13)),
             ],
           ),
         ),
         for (final v in visitas)
           _VisitaRow(
             visita: v,
-            selected: v.id == selectedVisitaId,
+            alerta: alertaPorVisita[v.idVisita],
+            selected: v.idVisita == selectedVisitaId,
+            clienteNombre: clienteNombreOf(v),
+            horaProgramada: horaProgramadaOf(v),
+            horaCheckIn: horaCheckInOf(v),
             onTap: () => onSelect(v),
           ),
         const SizedBox(height: 6),
@@ -774,13 +1024,21 @@ class _GrupoChofer extends StatelessWidget {
 }
 
 class _VisitaRow extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
+  final VisitaModel visita;
+  final VisitaAlertaTipo? alerta;
   final bool selected;
+  final String clienteNombre;
+  final String horaProgramada;
+  final String? horaCheckIn;
   final VoidCallback onTap;
 
   const _VisitaRow({
     required this.visita,
+    required this.alerta,
     required this.selected,
+    required this.clienteNombre,
+    required this.horaProgramada,
+    required this.horaCheckIn,
     required this.onTap,
   });
 
@@ -793,9 +1051,7 @@ class _VisitaRow extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.steelBlue.withOpacity(0.06)
-              : AppColors.background,
+          color: selected ? AppColors.steelBlue.withOpacity(0.06) : AppColors.background,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected ? AppColors.steelBlue : Colors.transparent,
@@ -805,8 +1061,22 @@ class _VisitaRow extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 560;
-            if (compact) return _VisitaRowCompact(visita: visita);
-            return _VisitaRowWide(visita: visita);
+            if (compact) {
+              return _VisitaRowCompact(
+                visita: visita,
+                alerta: alerta,
+                clienteNombre: clienteNombre,
+                horaProgramada: horaProgramada,
+                horaCheckIn: horaCheckIn,
+              );
+            }
+            return _VisitaRowWide(
+              visita: visita,
+              alerta: alerta,
+              clienteNombre: clienteNombre,
+              horaProgramada: horaProgramada,
+              horaCheckIn: horaCheckIn,
+            );
           },
         ),
       ),
@@ -815,9 +1085,19 @@ class _VisitaRow extends StatelessWidget {
 }
 
 class _VisitaRowWide extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
+  final VisitaModel visita;
+  final VisitaAlertaTipo? alerta;
+  final String clienteNombre;
+  final String horaProgramada;
+  final String? horaCheckIn;
 
-  const _VisitaRowWide({required this.visita});
+  const _VisitaRowWide({
+    required this.visita,
+    required this.alerta,
+    required this.clienteNombre,
+    required this.horaProgramada,
+    required this.horaCheckIn,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -829,12 +1109,12 @@ class _VisitaRowWide extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                visita.cliente,
+                clienteNombre,
                 style: AppTextStyles.input.copyWith(fontWeight: FontWeight.w700),
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                '${visita.sucursal} · Nº ${visita.numeroSucursal}',
+                'Sucursal #${visita.idSucursal}',
                 style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 11),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -846,35 +1126,35 @@ class _VisitaRowWide extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Prog. ${visita.horaProgramada}',
-                  style: AppTextStyles.input.copyWith(fontSize: 12)),
+              Text('Prog. $horaProgramada', style: AppTextStyles.input.copyWith(fontSize: 12)),
               Text(
-                visita.horaCheckIn != null
-                    ? 'Check-in ${visita.horaCheckIn}'
-                    : 'Sin check-in',
+                horaCheckIn != null ? 'Check-in $horaCheckIn' : 'Sin check-in',
                 style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 11),
               ),
             ],
           ),
         ),
-        Expanded(
-          flex: 2,
-          child: _EstadoBadge(visita: visita),
-        ),
-        Expanded(
-          flex: 2,
-          child: AlertaVisitaBadge(tipo: visita.alerta),
-        ),
-        _VisitaAcciones(visita: visita),
+        Expanded(flex: 2, child: EstadoVisitaBadge(estado: visita.estadoVisita)),
+        Expanded(flex: 2, child: AlertaVisitaBadge(tipo: alerta)),
       ],
     );
   }
 }
 
 class _VisitaRowCompact extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
+  final VisitaModel visita;
+  final VisitaAlertaTipo? alerta;
+  final String clienteNombre;
+  final String horaProgramada;
+  final String? horaCheckIn;
 
-  const _VisitaRowCompact({required this.visita});
+  const _VisitaRowCompact({
+    required this.visita,
+    required this.alerta,
+    required this.clienteNombre,
+    required this.horaProgramada,
+    required this.horaCheckIn,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -885,88 +1165,23 @@ class _VisitaRowCompact extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                visita.cliente,
+                clienteNombre,
                 style: AppTextStyles.input.copyWith(fontWeight: FontWeight.w700),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            _EstadoBadge(visita: visita),
+            EstadoVisitaBadge(estado: visita.estadoVisita),
           ],
         ),
         const SizedBox(height: 4),
         Text(
-          '${visita.sucursal} · Nº ${visita.numeroSucursal} · Prog. ${visita.horaProgramada}',
+          'Sucursal #${visita.idSucursal} · Prog. $horaProgramada',
           style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 11),
         ),
-        if (visita.tieneAlerta) ...[
+        if (alerta != null) ...[
           const SizedBox(height: 6),
-          AlertaVisitaBadge(tipo: visita.alerta),
+          AlertaVisitaBadge(tipo: alerta),
         ],
-        const SizedBox(height: 6),
-        Align(
-          alignment: Alignment.centerRight,
-          child: _VisitaAcciones(visita: visita),
-        ),
-      ],
-    );
-  }
-}
-
-class _EstadoBadge extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
-
-  const _EstadoBadge({required this.visita});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: visita.estado.color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        visita.estado.label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: visita.estado.color,
-        ),
-      ),
-    );
-  }
-}
-
-class _VisitaAcciones extends StatelessWidget {
-  final VisitaSeguimientoMock visita;
-
-  const _VisitaAcciones({required this.visita});
-
-  void _proximamente(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Esta acción se habilitará junto con el canal de tiempo real.',
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Editar',
-          onPressed: () => _proximamente(context),
-          icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.inputHint),
-        ),
-        IconButton(
-          tooltip: 'Eliminar',
-          onPressed: () => _proximamente(context),
-          icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.inputHint),
-        ),
       ],
     );
   }

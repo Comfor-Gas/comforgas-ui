@@ -16,7 +16,7 @@ class EstadoVisitaBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = _dataFor(estado, esBorrador);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
       decoration: BoxDecoration(
         color: data.$1.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
@@ -39,6 +39,8 @@ class EstadoVisitaBadge extends StatelessWidget {
         return (AppColors.badgeBlue, 'Asignado');
       case VisitaEstado.enCurso:
         return (AppColors.badgeAmber, 'En curso');
+      case VisitaEstado.visitado:
+        return (AppColors.badgeGreen, 'Visitado');
       case VisitaEstado.completada:
         return (AppColors.badgeGreen, 'Completada');
       case VisitaEstado.cancelada:

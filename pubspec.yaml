@@ -14,8 +14,9 @@ dependencies:
   provider: ^6.1.5+1
   local_auth: ^2.3.0
   flutter_map: ^7.0.2
+  flutter_map_cancellable_tile_provider: ^3.0.2
   latlong2: ^0.9.1
-  web_socket_channel: ^3.0.1
+  stomp_dart_client: ^3.0.1
 
 dev_dependencies:
   flutter_test:

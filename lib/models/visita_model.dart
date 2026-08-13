@@ -18,6 +18,9 @@ class VisitaModel {
   final DateTime? timestampFin;
   final double? latitudInicio;
   final double? longitudInicio;
+  final double? latitudFin;
+  final double? longitudFin;
+  final String? horaInicioPlanificada;
   final bool geolocalizacionValida;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -38,6 +41,9 @@ class VisitaModel {
     this.timestampFin,
     this.latitudInicio,
     this.longitudInicio,
+    this.latitudFin,
+    this.longitudFin,
+    this.horaInicioPlanificada,
     this.geolocalizacionValida = false,
     this.createdAt,
     this.updatedAt,
@@ -64,6 +70,9 @@ class VisitaModel {
       timestampFin: parseDate(json['timestampFin']),
       latitudInicio: parseDouble(json['latitudInicio']),
       longitudInicio: parseDouble(json['longitudInicio']),
+      latitudFin: parseDouble(json['latitudFin']),
+      longitudFin: parseDouble(json['longitudFin']),
+      horaInicioPlanificada: json['horaInicioPlanificada'] as String?,
       geolocalizacionValida: json['geolocalizacionValida'] == true,
       createdAt: parseDate(json['createdAt']),
       updatedAt: parseDate(json['updatedAt']),
@@ -107,6 +116,9 @@ class VisitaModel {
     DateTime? timestampFin,
     double? latitudInicio,
     double? longitudInicio,
+    double? latitudFin,
+    double? longitudFin,
+    String? horaInicioPlanificada,
     bool? geolocalizacionValida,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -127,10 +139,16 @@ class VisitaModel {
       timestampFin: timestampFin ?? this.timestampFin,
       latitudInicio: latitudInicio ?? this.latitudInicio,
       longitudInicio: longitudInicio ?? this.longitudInicio,
+      latitudFin: latitudFin ?? this.latitudFin,
+      longitudFin: longitudFin ?? this.longitudFin,
+      horaInicioPlanificada: horaInicioPlanificada ?? this.horaInicioPlanificada,
       geolocalizacionValida:
           geolocalizacionValida ?? this.geolocalizacionValida,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  double? get sucursalLatitud => parseDouble(sucursalSnapshot['latitud']);
+  double? get sucursalLongitud => parseDouble(sucursalSnapshot['longitud']);
 }

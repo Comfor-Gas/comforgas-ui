@@ -3,25 +3,29 @@ import '../../models/visita_alerta.dart';
 import '../../theme/app_colors.dart';
 
 class AlertaVisitaBadge extends StatelessWidget {
-  final VisitaAlertaTipo tipo;
+  final VisitaAlertaTipo? tipo;
   final bool compact;
 
-  const AlertaVisitaBadge({
-    super.key,
-    required this.tipo,
-    this.compact = false,
-  });
+  const AlertaVisitaBadge({super.key, required this.tipo, this.compact = false});
 
   (Color, IconData)? get _data {
-    switch (tipo) {
-      case VisitaAlertaTipo.gpsDesvio:
-        return (AppColors.badgeRed, Icons.gpp_maybe_outlined);
-      case VisitaAlertaTipo.fueraDeHorario:
+    final t = tipo;
+    if (t == null) return null;
+    switch (t) {
+      case VisitaAlertaTipo.desvioGeografico:
+        return (AppColors.badgeRed, Icons.gps_off);
+      case VisitaAlertaTipo.coordenadasInvalidas:
+        return (AppColors.badgeRed, Icons.location_off);
+      case VisitaAlertaTipo.incidenciaCampo:
+        return (AppColors.badgeRed, Icons.report_problem_outlined);
+      case VisitaAlertaTipo.desvioTemporal:
         return (AppColors.orange, Icons.schedule_outlined);
-      case VisitaAlertaTipo.clienteSalteado:
+      case VisitaAlertaTipo.paradaFueraDeOrden:
+        return (AppColors.orange, Icons.low_priority);
+      case VisitaAlertaTipo.omisionNoJustificada:
         return (AppColors.orange, Icons.person_off_outlined);
-      case VisitaAlertaTipo.ninguna:
-        return null;
+      case VisitaAlertaTipo.coordenadasAusentes:
+        return (AppColors.orange, Icons.location_disabled);
     }
   }
 
@@ -30,7 +34,7 @@ class AlertaVisitaBadge extends StatelessWidget {
     final data = _data;
     if (data == null) return const SizedBox.shrink();
     final (color, icon) = data;
-    final label = VisitaAlertaMapper.label(tipo);
+    final label = VisitaAlertaMapper.label(tipo!);
 
     if (compact) {
       return Tooltip(
@@ -47,11 +51,7 @@ class AlertaVisitaBadge extends StatelessWidget {
         Flexible(
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
             overflow: TextOverflow.ellipsis,
           ),
         ),

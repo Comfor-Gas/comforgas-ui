@@ -39,5 +39,6 @@ class ApiConfig {
     return http;
   }
 
-  static const String seguimientoWsPath = '/ws/visitas/seguimiento';
+  static const String seguimientoWsPath = '/ws/visitas';
+  static const String adminAlertasPath = '/api/admin/visitas/alertas';
 }

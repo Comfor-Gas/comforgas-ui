@@ -29,4 +29,15 @@ class ApiConfig {
   static const String adminVisitasImportPath = '/api/admin/visitas/import';
   static const String adminAgendaSyncPath = '/api/admin/agenda/sync';
   static const String evidenciasFotograficasPath = '/api/evidenciasfotograficas';
+  static const String _envWsUrl = String.fromEnvironment('WS_URL', defaultValue: '');
+
+  static String get wsBaseUrl {
+    if (_envWsUrl.isNotEmpty) return _envWsUrl;
+    final http = baseUrl;
+    if (http.startsWith('https://')) return 'wss://${http.substring(8)}';
+    if (http.startsWith('http://')) return 'ws://${http.substring(7)}';
+    return http;
+  }
+
+  static const String seguimientoWsPath = '/ws/visitas/seguimiento';
 }

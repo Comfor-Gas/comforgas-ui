@@ -1134,8 +1134,20 @@ class _VisitaRowWide extends StatelessWidget {
             ],
           ),
         ),
-        Expanded(flex: 2, child: EstadoVisitaBadge(estado: visita.estadoVisita)),
-        Expanded(flex: 2, child: AlertaVisitaBadge(tipo: alerta)),
+        Expanded(
+          flex: 2,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: EstadoVisitaBadge(estado: visita.estadoVisita),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: AlertaVisitaBadge(tipo: alerta),
+          ),
+        ),
       ],
     );
   }

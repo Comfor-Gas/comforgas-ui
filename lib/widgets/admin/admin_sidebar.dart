@@ -11,6 +11,7 @@ class AdminNavItem {
 const List<AdminNavItem> adminNavItems = [
   AdminNavItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
   AdminNavItem(icon: Icons.event_note_outlined, label: 'Planificación'),
+  AdminNavItem(icon: Icons.location_on_outlined, label: 'Seguimiento'),
   AdminNavItem(icon: Icons.groups_outlined, label: 'Clientes'),
   AdminNavItem(icon: Icons.alt_route_outlined, label: 'Rutas'),
   AdminNavItem(icon: Icons.settings_outlined, label: 'Configuración'),

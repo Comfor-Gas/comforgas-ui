@@ -133,7 +133,7 @@ class SincronizacionRepository {
     return {
       'uuidOffline': e.uuidOffline,
       'tipoEvento': e.tipoEvento,
-      'idVisita': e.idVisita,
+      'idAgendaItem': e.idAgendaItem,
       'timestampOrigen': e.timestampOrigen.toUtc().toIso8601String(),
       if (e.latitud != null) 'latitud': e.latitud,
       if (e.longitud != null) 'longitud': e.longitud,

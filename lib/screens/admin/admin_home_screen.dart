@@ -5,6 +5,7 @@ import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/admin/admin_topbar.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
+import 'seguimiento_tiempo_real_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -19,19 +20,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   Widget get _body {
     switch (_selectedIndex) {
-      case 1:
-        return const PlanificacionVisitasScreen();
       case 0:
         return const PlaceholderAdminSection(
           title: 'Dashboard',
           icon: Icons.dashboard_outlined,
         );
+      case 1:
+        return const PlanificacionVisitasScreen();
       case 2:
+        return const SeguimientoTiempoRealScreen();
+      case 3:
         return const PlaceholderAdminSection(
           title: 'Clientes',
           icon: Icons.groups_outlined,
         );
-      case 3:
+      case 4:
         return const PlaceholderAdminSection(
           title: 'Rutas',
           icon: Icons.alt_route_outlined,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../models/agenda_item_model.dart';
 import '../models/import_agenda_result.dart';
 import '../models/visita_model.dart';
 import '../utils/json_parsing.dart';
@@ -20,7 +21,11 @@ class VisitaRepository {
 
   VisitaRepository([http.Client? client]) : _client = client ?? http.Client();
 
-  Future<List<VisitaModel>> getVisitasPorUsuarioYFecha({
+  /// Agenda del chofer autenticado para una fecha. El backend devuelve
+  /// `AgendaItemResponse` (no `VisitaResponse`): cada ítem trae `idAgendaItem`
+  /// siempre presente, e `idVisita`/`estadoEjecucion` nulos hasta que el
+  /// chofer hace el primer check-in.
+  Future<List<AgendaItemModel>> getVisitasPorUsuarioYFecha({
     required String idUsuario,
     required DateTime fecha,
   }) async {
@@ -39,8 +44,9 @@ class VisitaRepository {
     }
 
     if (response.statusCode == 200) {
-      final visitas = _parseVisitasList(response.body);
-      return visitas.map((v) => v.copyWith(fecha: fecha)).toList();
+      return _parseAgendaItemsList(response.body)
+          .map((item) => item.fecha == null ? item.copyWith(fecha: fecha) : item)
+          .toList();
     }
 
     if (response.statusCode == 403) {
@@ -460,6 +466,16 @@ class VisitaRepository {
     return decoded
         .whereType<Map<String, dynamic>>()
         .map(VisitaModel.fromJson)
+        .toList();
+  }
+
+  List<AgendaItemModel> _parseAgendaItemsList(String body) {
+    if (body.isEmpty) return const [];
+    final decoded = jsonDecode(body);
+    if (decoded is! List) return const [];
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(AgendaItemModel.fromJson)
         .toList();
   }
 

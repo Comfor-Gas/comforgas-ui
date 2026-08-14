@@ -109,11 +109,13 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     _fechaCargada = hoy;
 
     try {
-      final data = await _repo.getVisitasPorUsuarioYFecha(
+      final agendaItems = await _repo.getVisitasPorUsuarioYFecha(
         idUsuario: idUsuario,
         fecha: hoy,
       );
-      data.sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
+      final data = agendaItems.map((item) => item.toVisitaModel(idUsuario)).toList()
+      
+        ..sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
       if (!mounted) return;
       setState(() {
         _visitas = data;
@@ -224,7 +226,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
 
   void _handleCardTap(VisitaModel visita) {
     final accionable = _visitaAccionable;
-    if (accionable != null && accionable.idVisita == visita.idVisita) {
+    if (accionable != null && accionable.idAgendaItem == visita.idAgendaItem) {
       _iniciarVisita(visita);
       return;
     }
@@ -260,7 +262,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     setState(() {
       _iniciandoVisita = false;
       if (resultado != null) {
-        final index = _visitas.indexWhere((v) => v.idVisita == resultado.idVisita);
+        final index = _visitas.indexWhere((v) => v.idAgendaItem == resultado.idAgendaItem);
         if (index != -1) {
           _visitas[index] = resultado;
         }
@@ -413,7 +415,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             visita: v,
                             nombreCliente: _nombreCliente(v),
                             direccionCliente: _direccionCliente(v),
-                            esSiguiente: siguiente != null && siguiente.idVisita == v.idVisita,
+                            esSiguiente: siguiente != null && siguiente.idAgendaItem == v.idAgendaItem,
                             etiquetaDestacada:
                                 v.estadoVisita == VisitaEstado.enCurso ? 'EN CURSO' : 'NEXT',
                             onTap: () => _handleCardTap(v),

@@ -12,11 +12,8 @@ class VisitaEstadoMapper {
         return VisitaEstado.pendiente;
       case 'EN_CURSO':
         return VisitaEstado.enCurso;
-      // Estado resultante del check-out del chofer en campo
-      // (VisitaServiceImpl.checkOut → EstadoVisita.VISITADO).
       case 'VISITADO':
         return VisitaEstado.visitado;
-      // Cierre administrativo posterior al VISITADO (opcional, backend).
       case 'COMPLETADA':
         return VisitaEstado.completada;
       case 'CANCELADA':
@@ -51,11 +48,25 @@ class VisitaEstadoMapper {
     }
   }
 
-  /// Una visita se considera "terminada en campo" (el chofer ya la resolvió)
-  /// cuando está en VISITADO (check-out de campo) o COMPLETADA (cierre
-  /// administrativo posterior). Se usa para agrupar la agenda del chofer
-  /// en "pendientes" vs "Clientes Visitados".
+  /// Indica si la visita ya "terminó" desde la perspectiva del chofer en
+  /// campo, es decir si ya hizo check-out (o el estado avanzó más allá de
+  /// eso). Se usa para separar las visitas pendientes de las completadas
+  /// en la agenda del chofer.
+  ///
+  /// Espeja a `EstadoVisita.esTerminal()` del backend: todo menos
+  /// PENDIENTE y EN_CURSO.
   static bool esTerminadaEnCampo(VisitaEstado estado) {
-    return estado == VisitaEstado.visitado || estado == VisitaEstado.completada;
+    switch (estado) {
+      case VisitaEstado.visitado:
+      case VisitaEstado.completada:
+      case VisitaEstado.cancelada:
+      case VisitaEstado.noAsistio:
+      case VisitaEstado.inactivo:
+        return true;
+      case VisitaEstado.pendiente:
+      case VisitaEstado.enCurso:
+      case VisitaEstado.unknown:
+        return false;
+    }
   }
 }

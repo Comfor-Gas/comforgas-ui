@@ -43,7 +43,14 @@ class OfflineQueueService {
     return listarPendientes().where((e) => e.idVisita == idVisita).toList();
   }
 
+  List<OfflineEvento> pendientesDeAgendaItem(int idAgendaItem) {
+    return listarPendientes().where((e) => e.idAgendaItem == idAgendaItem).toList();
+  }
+
   bool tienePendientes(int idVisita) => pendientesDeVisita(idVisita).isNotEmpty;
+
+  bool tienePendientesAgendaItem(int idAgendaItem) =>
+      pendientesDeAgendaItem(idAgendaItem).isNotEmpty;
 
   int get cantidadPendiente => _requireBox.length;
 

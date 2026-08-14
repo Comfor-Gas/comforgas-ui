@@ -51,6 +51,7 @@ class AgendaCacheService {
   Map<String, dynamic> _toCacheJson(VisitaModel v) {
     return {
       'idVisita': v.idVisita,
+      'idAgendaItem': v.idAgendaItem,
       'idUsuario': v.idUsuario,
       'nombreUsuario': v.nombreUsuario,
       'idSucursal': v.idSucursal,
@@ -65,6 +66,8 @@ class AgendaCacheService {
       if (v.timestampFin != null) 'timestampFin': v.timestampFin!.toIso8601String(),
       'latitudInicio': v.latitudInicio,
       'longitudInicio': v.longitudInicio,
+      'horaInicioPlanificada': v.horaInicioPlanificada,
+      'horaFinPlanificada': v.horaFinPlanificada,
       'geolocalizacionValida': v.geolocalizacionValida,
       if (v.createdAt != null) 'createdAt': v.createdAt!.toIso8601String(),
       if (v.updatedAt != null) 'updatedAt': v.updatedAt!.toIso8601String(),

@@ -57,6 +57,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _finalizando = false;
   bool _evidenciaExistente = false;
   bool _checkInPendienteSync = false;
+  VoidCallback? _colaListener;
 
   @override
   void initState() {
@@ -65,6 +66,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     final apiClient = context.read<AuthProvider>().apiClient;
     _visitaRepo = VisitaRepository(apiClient);
     _evidenciaRepo = EvidenciaRepository(apiClient);
+
+    _colaListener = _actualizarPendienteSync;
+    OfflineQueueService.instance.escuchar().addListener(_colaListener!);
 
     if (_visita.estadoVisita == VisitaEstado.enCurso) {
       _reanudarVisita();
@@ -75,13 +79,28 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   @override
   void dispose() {
+    if (_colaListener != null) {
+      OfflineQueueService.instance.escuchar().removeListener(_colaListener!);
+    }
     _locationService.detenerSeguimientoEnSegundoPlano();
     super.dispose();
   }
 
+  void _actualizarPendienteSync() {
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idAgendaItem == null) return;
+    final sigoPendiente = OfflineQueueService.instance
+        .pendientesDeAgendaItem(idAgendaItem)
+        .any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
+    if (mounted && sigoPendiente != _checkInPendienteSync) {
+      setState(() => _checkInPendienteSync = sigoPendiente);
+    }
+  }
+
   Future<void> _iniciarCheckIn() async {
-    final idVisita = _visita.idVisita;
-    if (idVisita == null) {
+    final idAgendaItem = _visita.idAgendaItem;
+    final idVisitaExistente = _visita.idVisita;
+    if (idAgendaItem == null && idVisitaExistente == null) {
       setState(() {
         _fase = _FaseVisita.errorUbicacion;
         _errorMensaje = 'La visita no tiene un identificador válido.';
@@ -97,8 +116,18 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     LocationCheckIn? checkIn;
     try {
       checkIn = await _locationService.obtenerUbicacionActual();
+
+      if (idVisitaExistente == null) {
+        await _iniciarViaColaSincronizacion(
+          idAgendaItem: idAgendaItem!,
+          idVisita: null,
+          checkIn: checkIn,
+        );
+        return;
+      }
+
       final actualizada = await _visitaRepo.iniciarVisita(
-        idVisita,
+        idVisitaExistente,
         latitud: checkIn.latitud,
         longitud: checkIn.longitud,
         timestampDispositivo: checkIn.timestamp,
@@ -107,7 +136,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
       if (!mounted) return;
       setState(() {
-        _visita = actualizada;
+        _visita = actualizada.copyWith(idAgendaItem: _visita.idAgendaItem);
         _fase = _FaseVisita.enCurso;
       });
 
@@ -125,7 +154,22 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       // Tenemos la posición del GPS (no depende de la red) pero no hay
       // señal para avisarle al backend: guardamos el check-in localmente
       // y seguimos como si hubiera funcionado, para no frenar al chofer.
-      await _iniciarOffline(idVisita: idVisita, checkIn: checkIn);
+      final idAgendaItemFallback = _visita.idAgendaItem;
+      if (idAgendaItemFallback == null) {
+        if (!mounted) return;
+        setState(() {
+          _fase = _FaseVisita.errorUbicacion;
+          _errorMensaje =
+              'No hay conexión y la visita no tiene un ítem de agenda asociado para guardarla localmente.';
+        });
+        return;
+      }
+      await _iniciarViaColaSincronizacion(
+        idAgendaItem: idAgendaItemFallback,
+        idVisita: idVisitaExistente,
+        checkIn: checkIn,
+        porFallaDeRed: true,
+      );
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -141,13 +185,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
-  /// Guarda el check-in en la cola offline cuando no hay conexión, y
-  /// actualiza el estado local de forma optimista (como si el check-in
-  /// online hubiera funcionado) para que el chofer pueda seguir
-  /// trabajando con normalidad.
-  Future<void> _iniciarOffline({
-    required int idVisita,
+  Future<void> _iniciarViaColaSincronizacion({
+    required int idAgendaItem,
+    int? idVisita,
     required LocationCheckIn? checkIn,
+    bool porFallaDeRed = false,
   }) async {
     final ahora = DateTime.now();
 
@@ -155,6 +197,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       OfflineEvento(
         uuidOffline: _uuid.v4(),
         tipoEvento: OfflineEventoTipo.checkIn,
+        idAgendaItem: idAgendaItem,
         idVisita: idVisita,
         timestampOrigen: ahora,
         creadoEn: ahora,
@@ -185,7 +228,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     unawaited(SyncManager.instance.sincronizar());
 
     _mostrarAviso(
-      'Sin conexión: el check-in se guardó en el dispositivo y se enviará cuando haya señal.',
+      porFallaDeRed
+          ? 'Sin conexión: el check-in se guardó en el dispositivo y se enviará cuando haya señal.'
+          : 'Check-in guardado. Se está confirmando con el servidor…',
     );
   }
 
@@ -197,9 +242,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     setState(() {
       _fase = _FaseVisita.enCurso;
       _errorMensaje = null;
-      _checkInPendienteSync = _visita.idVisita != null &&
+      _checkInPendienteSync = _visita.idAgendaItem != null &&
           OfflineQueueService.instance
-              .pendientesDeVisita(_visita.idVisita!)
+              .pendientesDeAgendaItem(_visita.idAgendaItem!)
               .any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
     });
 
@@ -243,11 +288,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   Future<void> _finalizarVisita() async {
     final foto = _foto;
     final idVisita = _visita.idVisita;
-    if ((foto == null && !_evidenciaExistente) || idVisita == null || _finalizando) {
+    final idAgendaItem = _visita.idAgendaItem;
+    if ((foto == null && !_evidenciaExistente) || _finalizando) {
+      return;
+    }
+    if (idVisita == null && idAgendaItem == null) {
+      _mostrarError('La visita no tiene un identificador válido.');
       return;
     }
 
     setState(() => _finalizando = true);
+
+    if (idVisita == null) {
+      await _finalizarOffline(idAgendaItem: idAgendaItem!, idVisita: null, foto: foto);
+      return;
+    }
 
     // Si la evidencia ya estaba confirmada del lado del servidor (de una
     // sesión anterior, o porque la subimos recién en este intento), no
@@ -288,12 +343,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       await _locationService.detenerSeguimientoEnSegundoPlano();
 
       if (!mounted) return;
-      Navigator.of(context).pop(finalizada);
+      Navigator.of(context).pop(finalizada.copyWith(idAgendaItem: idAgendaItem));
     } on NetworkException {
       // Sin señal en algún punto del cierre (subida de foto y/o
       // check-out): encolamos lo que falte confirmar y cerramos la
       // visita localmente para no trabar al chofer.
+      if (idAgendaItem == null) {
+        if (!mounted) return;
+        setState(() => _finalizando = false);
+        _mostrarError(
+          'No hay conexión y la visita no tiene un ítem de agenda asociado para guardarla localmente.',
+        );
+        return;
+      }
       await _finalizarOffline(
+        idAgendaItem: idAgendaItem,
         idVisita: idVisita,
         foto: evidenciaConfirmadaOnline ? null : foto,
       );
@@ -315,7 +379,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   /// Encola en la cola offline lo que falte del cierre (la foto, si no se
   /// pudo confirmar que ya llegó al servidor, y el check-out en sí), y
   /// deja la visita como VISITADO de forma optimista en el dispositivo.
-  Future<void> _finalizarOffline({required int idVisita, required File? foto}) async {
+  Future<void> _finalizarOffline({
+    required int idAgendaItem,
+    int? idVisita,
+    required File? foto,
+  }) async {
     final ahora = DateTime.now();
 
     if (foto != null) {
@@ -324,6 +392,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         OfflineEvento(
           uuidOffline: _uuid.v4(),
           tipoEvento: OfflineEventoTipo.evidencia,
+          idAgendaItem: idAgendaItem,
           idVisita: idVisita,
           timestampOrigen: ahora,
           creadoEn: ahora,
@@ -338,6 +407,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       OfflineEvento(
         uuidOffline: _uuid.v4(),
         tipoEvento: OfflineEventoTipo.checkOut,
+        idAgendaItem: idAgendaItem,
         idVisita: idVisita,
         timestampOrigen: ahora,
         creadoEn: ahora,
@@ -420,11 +490,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.cloud_off_outlined, size: 16, color: AppColors.badgeAmber),
+                    Icon(Icons.sync, size: 16, color: AppColors.badgeAmber),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Check-in guardado sin conexión. Se enviará solo cuando haya señal.',
+                        'Check-in pendiente de confirmar con el servidor. Se actualiza solo.',
                         style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
                       ),
                     ),

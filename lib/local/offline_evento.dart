@@ -12,7 +12,8 @@ class OfflineEventoTipo {
 class OfflineEvento {
   final String uuidOffline;
   final String tipoEvento;
-  final int idVisita;
+  final int idAgendaItem;
+  final int? idVisita;
   final DateTime timestampOrigen;
 
   // CHECK_IN
@@ -38,7 +39,8 @@ class OfflineEvento {
   const OfflineEvento({
     required this.uuidOffline,
     required this.tipoEvento,
-    required this.idVisita,
+    required this.idAgendaItem,
+    this.idVisita,
     required this.timestampOrigen,
     required this.creadoEn,
     this.latitud,
@@ -58,6 +60,7 @@ class OfflineEvento {
     return OfflineEvento(
       uuidOffline: uuidOffline,
       tipoEvento: tipoEvento,
+      idAgendaItem: idAgendaItem,
       idVisita: idVisita,
       timestampOrigen: timestampOrigen,
       creadoEn: creadoEn,
@@ -89,7 +92,7 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
     return OfflineEvento(
       uuidOffline: fields[0] as String,
       tipoEvento: fields[1] as String,
-      idVisita: fields[2] as int,
+      idVisita: fields[2] as int?,
       timestampOrigen: fields[3] as DateTime,
       latitud: fields[4] as double?,
       longitud: fields[5] as double?,
@@ -103,13 +106,14 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
       creadoEn: fields[13] as DateTime,
       intentos: fields[14] as int? ?? 0,
       ultimoError: fields[15] as String?,
+      idAgendaItem: fields[16] as int? ?? -1,
     );
   }
 
   @override
   void write(BinaryWriter writer, OfflineEvento obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(17)
       ..writeByte(0)
       ..write(obj.uuidOffline)
       ..writeByte(1)
@@ -141,6 +145,8 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
       ..writeByte(14)
       ..write(obj.intentos)
       ..writeByte(15)
-      ..write(obj.ultimoError);
+      ..write(obj.ultimoError)
+      ..writeByte(16)
+      ..write(obj.idAgendaItem);
   }
 }

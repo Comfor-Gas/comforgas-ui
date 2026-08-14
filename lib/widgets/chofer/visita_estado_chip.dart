@@ -31,7 +31,7 @@ class VisitaEstadoChip extends StatelessWidget {
   (IconData, Color, String) _dataFor(VisitaEstado estado) {
     switch (estado) {
       case VisitaEstado.completada:
-        return (Icons.check_circle, AppColors.badgeGreen, 'COMPLETADA');
+        return (Icons.task_alt, AppColors.badgeGreen, 'COMPLETADA');
       case VisitaEstado.visitado:
         return (Icons.check_circle, AppColors.badgeGreen, 'VISITADO');
       case VisitaEstado.enCurso:

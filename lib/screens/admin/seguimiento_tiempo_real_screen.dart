@@ -4,6 +4,7 @@ import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_ti
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/alerta_model.dart';
+import '../../models/cliente_ficha.dart';
 import '../../models/visita_alerta.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
@@ -15,6 +16,8 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/alerta_visita_badge.dart';
 import '../../widgets/admin/estado_visita_badge.dart';
+import '../../widgets/chofer/comodato_badge.dart';
+import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/labeled_text_field.dart';
 
 const LatLng formosaCenter = LatLng(-26.1849, -58.1731);
@@ -792,6 +795,7 @@ class _VisitaInfoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, icon) = _estadoVisual(visita.estadoVisita);
+    final ficha = ClienteFicha.fromVisita(visita, nombreResuelto: clienteNombre);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -802,6 +806,7 @@ class _VisitaInfoPanel extends StatelessWidget {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 40,
@@ -821,9 +826,20 @@ class _VisitaInfoPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${visita.nombreUsuario ?? 'Sin asignar'} · Sucursal #${visita.idSucursal}',
+                  '${visita.nombreUsuario ?? 'Sin asignar'} · Cliente ID ${ficha.clienteId}',
                   style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 12),
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (ficha.tieneComodatoActivo)
+                      ComodatoBadge(comodatos: ficha.comodatosActivos, compacto: true),
+                    UltimaBajadaIndicator(fecha: ficha.ultimaBajada, compacto: true),
+                  ],
                 ),
                 if (alerta != null) ...[
                   const SizedBox(height: 6),
@@ -1101,7 +1117,9 @@ class _VisitaRowWide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ficha = ClienteFicha.fromVisita(visita, nombreResuelto: clienteNombre);
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           flex: 3,
@@ -1114,10 +1132,16 @@ class _VisitaRowWide extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                'Sucursal #${visita.idSucursal}',
+                'Cliente ID ${ficha.clienteId}',
                 style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 11),
                 overflow: TextOverflow.ellipsis,
               ),
+              const SizedBox(height: 6),
+              UltimaBajadaIndicator(fecha: ficha.ultimaBajada, compacto: true),
+              if (ficha.tieneComodatoActivo) ...[
+                const SizedBox(height: 6),
+                ComodatoBadge(comodatos: ficha.comodatosActivos, compacto: true),
+              ],
             ],
           ),
         ),
@@ -1170,6 +1194,7 @@ class _VisitaRowCompact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ficha = ClienteFicha.fromVisita(visita, nombreResuelto: clienteNombre);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1187,12 +1212,23 @@ class _VisitaRowCompact extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Sucursal #${visita.idSucursal} · Prog. $horaProgramada',
+          'Cliente ID ${ficha.clienteId} · Prog. $horaProgramada',
           style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 11),
         ),
-        if (alerta != null) ...[
+        const SizedBox(height: 6),
+        UltimaBajadaIndicator(fecha: ficha.ultimaBajada, compacto: true),
+        if (ficha.tieneComodatoActivo || alerta != null) ...[
           const SizedBox(height: 6),
-          AlertaVisitaBadge(tipo: alerta),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (ficha.tieneComodatoActivo)
+                ComodatoBadge(comodatos: ficha.comodatosActivos, compacto: true),
+              if (alerta != null) AlertaVisitaBadge(tipo: alerta),
+            ],
+          ),
         ],
       ],
     );

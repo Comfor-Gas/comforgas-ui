@@ -8,3 +8,7 @@ String formatHora12(DateTime fecha) {
   if (hora12 == 0) hora12 = 12;
   return '${hora12.toString().padLeft(2, '0')}:$minuto $periodo';
 }
+
+String formatFechaCorta(DateTime fecha) {
+  return '${fecha.day}/${fecha.month}/${fecha.year}';
+}

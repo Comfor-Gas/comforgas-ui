@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../models/cliente_ficha.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import 'comodato_badge.dart';
 import 'visita_estado_chip.dart';
 
 class VisitaClienteCard extends StatelessWidget {
@@ -26,6 +28,11 @@ class VisitaClienteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final completada = VisitaEstadoMapper.esTerminadaEnCampo(visita.estadoVisita);
+    final ficha = ClienteFicha.fromVisita(
+      visita,
+      nombreResuelto: nombreCliente,
+      domicilioResuelto: direccionCliente,
+    );
 
     return InkWell(
       onTap: onTap,
@@ -49,14 +56,16 @@ class VisitaClienteCard extends StatelessWidget {
         ),
         child: IntrinsicHeight(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _OrdenIndicator(
-                        orden: visita.ordenVisita,
+                        orden: ficha.orden,
                         completada: completada,
                         esSiguiente: esSiguiente,
                         etiquetaDestacada: etiquetaDestacada,
@@ -67,20 +76,30 @@ class VisitaClienteCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              nombreCliente,
+                              ficha.nombre,
                               style: AppTextStyles.label.copyWith(fontSize: 15),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              direccionCliente,
-                              style: AppTextStyles.link.copyWith(fontSize: 13),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            const SizedBox(height: 4),
+                            _InfoLinea(
+                              icon: Icons.location_on_outlined,
+                              texto: ficha.domicilio,
                             ),
-                            const SizedBox(height: 6),
-                            VisitaEstadoChip(estado: visita.estadoVisita),
+                            const SizedBox(height: 9),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                VisitaEstadoChip(estado: visita.estadoVisita),
+                                if (ficha.tieneComodatoActivo)
+                                  ComodatoBadge(
+                                    comodatos: ficha.comodatosActivos,
+                                    compacto: true,
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -106,6 +125,35 @@ class VisitaClienteCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _InfoLinea extends StatelessWidget {
+  final IconData icon;
+  final String texto;
+
+  const _InfoLinea({required this.icon, required this.texto});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 14, color: AppColors.inputHint),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            texto,
+            style: AppTextStyles.link.copyWith(fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

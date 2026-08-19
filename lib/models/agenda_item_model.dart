@@ -23,6 +23,7 @@ class AgendaItemModel {
   final bool? comodato10;
   final bool? comodato11;
   final bool? comodato12;
+  final DateTime? ultimaBajada;
   final String? horaInicio;
   final String? horaFin;
   final String? vendedor;
@@ -51,6 +52,7 @@ class AgendaItemModel {
     this.comodato10,
     this.comodato11,
     this.comodato12,
+    this.ultimaBajada,
     this.horaInicio,
     this.horaFin,
     this.vendedor,
@@ -83,6 +85,7 @@ class AgendaItemModel {
       comodato10: json['comodato10'] as bool?,
       comodato11: json['comodato11'] as bool?,
       comodato12: json['comodato12'] as bool?,
+      ultimaBajada: parseDate(json['ultimaBajada'] ?? json['ultimaCompra']),
       horaInicio: json['horaInicio'] as String?,
       horaFin: json['horaFin'] as String?,
       vendedor: json['vendedor'] as String?,
@@ -116,6 +119,7 @@ class AgendaItemModel {
       comodato10: comodato10,
       comodato11: comodato11,
       comodato12: comodato12,
+      ultimaBajada: ultimaBajada,
       horaInicio: horaInicio,
       horaFin: horaFin,
       vendedor: vendedor,
@@ -133,15 +137,19 @@ class AgendaItemModel {
   /// pantallas del chofer. `idUsuario` se pasa aparte porque
   /// `AgendaItemResponse` no lo incluye (siempre es el chofer autenticado).
   VisitaModel toVisitaModel(String idUsuario) {
-    final snapshot = sucursalSnapshot.isNotEmpty
-        ? sucursalSnapshot
-        : {
-            'nombre': nombre ?? '',
-            'direccion': domicilio ?? '',
-            'barrio': barrio ?? '',
-            'ciudad': ciudad ?? '',
-            'telefono': telefono ?? '',
-          };
+    final snapshot = <String, dynamic>{
+      ...sucursalSnapshot,
+      if (idClienteExt != null) 'clienteId': idClienteExt,
+      if (nombre != null && nombre!.trim().isNotEmpty) 'nombre': nombre,
+      if (domicilio != null && domicilio!.trim().isNotEmpty) 'direccion': domicilio,
+      if (barrio != null && barrio!.trim().isNotEmpty) 'barrio': barrio,
+      if (ciudad != null && ciudad!.trim().isNotEmpty) 'ciudad': ciudad,
+      if (telefono != null && telefono!.trim().isNotEmpty) 'telefono': telefono,
+      if (comodato10 != null) 'comodato10': comodato10,
+      if (comodato11 != null) 'comodato11': comodato11,
+      if (comodato12 != null) 'comodato12': comodato12,
+      if (ultimaBajada != null) 'ultimaBajada': ultimaBajada!.toIso8601String(),
+    };
 
     return VisitaModel(
       idVisita: idVisita,

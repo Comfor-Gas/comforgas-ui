@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
+import '../../models/cliente_ficha.dart';
 import '../../models/evidencia_tipo.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
@@ -508,6 +509,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               direccionCliente: widget.direccionCliente,
               estado: _visita.estadoVisita,
               horaCheckIn: _visita.timestampInicio,
+              ficha: ClienteFicha.fromVisita(
+                _visita,
+                nombreResuelto: widget.nombreCliente,
+                domicilioResuelto: widget.direccionCliente,
+              ),
             ),
             if (_evidenciaExistente && _foto == null) ...[
               const SizedBox(height: 12),

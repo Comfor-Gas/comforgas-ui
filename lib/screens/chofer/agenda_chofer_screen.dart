@@ -6,6 +6,7 @@ import '../../data/mock_chofer_data.dart';
 import '../../local/agenda_cache_service.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
+import '../../models/cliente_ficha.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
@@ -15,7 +16,9 @@ import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/chofer/clientes_visitados_section.dart';
+import '../../widgets/chofer/comodato_badge.dart';
 import '../../widgets/chofer/sync_pendiente_banner.dart';
+import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/chofer/visita_cliente_card.dart';
 import '../../widgets/chofer/visita_estado_chip.dart';
 import '../../widgets/primary_button.dart';
@@ -225,22 +228,6 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   }
 
   void _handleCardTap(VisitaModel visita) {
-    final accionable = _visitaAccionable;
-    if (accionable != null && accionable.idAgendaItem == visita.idAgendaItem) {
-      _iniciarVisita(visita);
-      return;
-    }
-
-    final enCurso = _visitaEnCurso;
-    if (enCurso != null && visita.estadoVisita == VisitaEstado.pendiente) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tenés una visita en curso. Finalizala antes de iniciar otra.'),
-        ),
-      );
-      return;
-    }
-
     _mostrarDetalle(visita);
   }
 
@@ -277,14 +264,37 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   }
 
   void _mostrarDetalle(VisitaModel visita) {
+    final accionable = _visitaAccionable;
+    final esAccionable =
+        accionable != null && accionable.idAgendaItem == visita.idAgendaItem;
+    final yaVisitada = VisitaEstadoMapper.esTerminadaEnCampo(visita.estadoVisita);
+    final enCurso = _visitaEnCurso;
+
+    String? mensajeBloqueo;
+    if (!esAccionable && !yaVisitada) {
+      mensajeBloqueo = enCurso != null
+          ? 'Tenés una visita en curso. Finalizala antes de iniciar esta.'
+          : 'Vas a poder iniciarla cuando completes las paradas anteriores.';
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => _DetalleVisitaSheet(
+      isScrollControlled: true,
+      builder: (sheetContext) => _DetalleVisitaSheet(
+        visita: visita,
         nombreCliente: _nombreCliente(visita),
         direccionCliente: _direccionCliente(visita),
-        orden: visita.ordenVisita,
-        estado: visita.estadoVisita,
+        textoAccion: visita.estadoVisita == VisitaEstado.enCurso
+            ? 'Continuar Visita'
+            : 'Iniciar Visita',
+        mensajeBloqueo: mensajeBloqueo,
+        onIniciar: esAccionable
+            ? () {
+                Navigator.of(sheetContext).pop();
+                _iniciarVisita(visita);
+              }
+            : null,
       ),
     );
   }
@@ -635,22 +645,37 @@ class _SearchField extends StatelessWidget {
 }
 
 class _DetalleVisitaSheet extends StatelessWidget {
+  final VisitaModel visita;
   final String nombreCliente;
   final String direccionCliente;
-  final int orden;
-  final VisitaEstado estado;
+  final String textoAccion;
+  final String? mensajeBloqueo;
+  final VoidCallback? onIniciar;
 
   const _DetalleVisitaSheet({
+    required this.visita,
     required this.nombreCliente,
     required this.direccionCliente,
-    required this.orden,
-    required this.estado,
+    required this.textoAccion,
+    this.mensajeBloqueo,
+    this.onIniciar,
   });
 
   @override
   Widget build(BuildContext context) {
+    final ficha = ClienteFicha.fromVisita(
+      visita,
+      nombreResuelto: nombreCliente,
+      domicilioResuelto: direccionCliente,
+    );
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        28 + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -670,20 +695,68 @@ class _DetalleVisitaSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          Text('Parada N° $orden', style: AppTextStyles.link),
-          const SizedBox(height: 4),
-          Text(nombreCliente, style: AppTextStyles.title.copyWith(fontSize: 20)),
-          const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 16, color: AppColors.graphiteGray),
-              const SizedBox(width: 6),
-              Expanded(child: Text(direccionCliente, style: AppTextStyles.input)),
+              Expanded(
+                child: Text('Parada N° ${ficha.orden}', style: AppTextStyles.link),
+              ),
+              _DetalleIdTag(clienteId: ficha.clienteId),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(ficha.nombre, style: AppTextStyles.title.copyWith(fontSize: 20)),
+          const SizedBox(height: 10),
+          _DetalleLinea(icon: Icons.location_on_outlined, texto: ficha.domicilio),
+          if (ficha.tieneBarrio) ...[
+            const SizedBox(height: 6),
+            _DetalleLinea(icon: Icons.map_outlined, texto: 'Barrio ${ficha.barrio}'),
+          ],
+          if (ficha.tieneTelefono) ...[
+            const SizedBox(height: 6),
+            _DetalleLinea(icon: Icons.phone_outlined, texto: ficha.telefono),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              VisitaEstadoChip(estado: visita.estadoVisita),
+              if (ficha.tieneComodatoActivo)
+                ComodatoBadge(comodatos: ficha.comodatosActivos),
             ],
           ),
           const SizedBox(height: 12),
-          VisitaEstadoChip(estado: estado),
+          UltimaBajadaIndicator(fecha: ficha.ultimaBajada),
+          if (mensajeBloqueo != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.badgeAmber.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 18, color: AppColors.badgeAmber),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      mensajeBloqueo!,
+                      style: AppTextStyles.link
+                          .copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
+          if (onIniciar != null) ...[
+            PrimaryButton(text: textoAccion, onPressed: onIniciar),
+            const SizedBox(height: 10),
+          ],
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
@@ -701,6 +774,50 @@ class _DetalleVisitaSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DetalleIdTag extends StatelessWidget {
+  final String clienteId;
+
+  const _DetalleIdTag({required this.clienteId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'Cliente ID $clienteId',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.steelBlue,
+        ),
+      ),
+    );
+  }
+}
+
+class _DetalleLinea extends StatelessWidget {
+  final IconData icon;
+  final String texto;
+
+  const _DetalleLinea({required this.icon, required this.texto});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: AppColors.graphiteGray),
+        const SizedBox(width: 8),
+        Expanded(child: Text(texto, style: AppTextStyles.input)),
+      ],
     );
   }
 }

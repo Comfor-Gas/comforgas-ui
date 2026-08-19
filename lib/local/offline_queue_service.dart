@@ -61,6 +61,10 @@ class OfflineQueueService {
     await _requireBox.delete(uuidOffline);
   }
 
+  Future<void> vaciar() async {
+    await _requireBox.clear();
+  }
+
   Future<void> registrarError(String uuidOffline, String mensaje) async {
     final evento = _requireBox.get(uuidOffline);
     if (evento == null) return;

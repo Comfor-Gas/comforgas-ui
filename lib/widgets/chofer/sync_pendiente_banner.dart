@@ -10,12 +10,14 @@ class SyncPendienteBanner extends StatelessWidget {
   final int cantidadPendiente;
   final bool sincronizando;
   final VoidCallback onReintentar;
+  final VoidCallback? onDescartar;
 
   const SyncPendienteBanner({
     super.key,
     required this.cantidadPendiente,
     required this.sincronizando,
     required this.onReintentar,
+    this.onDescartar,
   });
 
   @override
@@ -55,7 +57,7 @@ class SyncPendienteBanner extends StatelessWidget {
               style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
             ),
           ),
-          if (!sincronizando)
+          if (!sincronizando) ...[
             TextButton(
               onPressed: onReintentar,
               style: TextButton.styleFrom(
@@ -72,6 +74,24 @@ class SyncPendienteBanner extends StatelessWidget {
                 ),
               ),
             ),
+            if (onDescartar != null)
+              TextButton(
+                onPressed: onDescartar,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Descartar',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.graphiteGray,
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );

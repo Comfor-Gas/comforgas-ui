@@ -27,6 +27,8 @@ class ApiConfig {
   static const String visitasPath = '/api/visitas';
   static const String visitaCheckInSuffix = '/check-in';
   static const String visitaCheckOutSuffix = '/check-out';
+  static const String repartidorVisitasPath = '/api/repartidor/visitas';
+  static const String visitaResultadoSuffix = '/resultado';
   static const String visitasSyncLotePath = '/api/visitas/sync-lote';
   static const String adminVisitasPath = '/api/admin/visitas';
   static const String adminVisitasImportPath = '/api/admin/visitas/import';

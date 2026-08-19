@@ -105,8 +105,7 @@ class ClienteFicha {
     }
 
     final ultimaBajada = parseDate(snapshot['ultimaBajada']) ??
-        parseDate(snapshot['ultimaCompra']) ??
-        mockUltimaBajadaFor(idClienteNum);
+        parseDate(snapshot['ultimaCompra']);
 
     return ClienteFicha(
       orden: visita.ordenVisita,

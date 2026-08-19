@@ -459,6 +459,65 @@ class VisitaRepository {
     );
   }
 
+  Future<VisitaModel> cerrarVisitaConEstado(
+    int idVisita,
+    String estadoFinal, {
+    String? observaciones,
+    double? latitudFin,
+    double? longitudFin,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.repartidorVisitasPath}/$idVisita${ApiConfig.visitaResultadoSuffix}',
+    );
+
+    http.Response response;
+    try {
+      response = await _client
+          .patch(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'estadoFinal': estadoFinal,
+              if (observaciones != null && observaciones.trim().isNotEmpty)
+                'observaciones': observaciones.trim(),
+              'timestampFin': DateTime.now().toUtc().toIso8601String(),
+              if (latitudFin != null) 'latitudFin': latitudFin,
+              if (longitudFin != null) 'longitudFin': longitudFin,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw NetworkException();
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw VisitaRepositoryException('Respuesta inesperada del servidor.');
+      }
+      return VisitaModel.fromJson(decoded);
+    }
+
+    if (response.statusCode == 400 || response.statusCode == 409) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'No se pudo cancelar la visita.',
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para cancelar visitas.',
+      );
+    }
+
+    throw VisitaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
   List<VisitaModel> _parseVisitasList(String body) {
     if (body.isEmpty) return const [];
     final decoded = jsonDecode(body);

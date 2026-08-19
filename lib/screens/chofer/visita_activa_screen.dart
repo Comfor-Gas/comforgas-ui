@@ -56,6 +56,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   File? _foto;
   bool _capturandoFoto = false;
   bool _finalizando = false;
+  bool _cancelando = false;
   bool _evidenciaExistente = false;
   bool _checkInPendienteSync = false;
   VoidCallback? _colaListener;
@@ -377,6 +378,92 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  Future<void> _cancelarVisita() async {
+    if (_cancelando || _finalizando) return;
+
+    final idVisita = _visita.idVisita;
+    if (idVisita == null) {
+      _mostrarError(
+        'No se puede cancelar todavía: el inicio de la visita aún no se '
+        'confirmó con el servidor. Reintentá cuando tengas conexión.',
+      );
+      return;
+    }
+
+    final motivo = await _pedirMotivoCancelacion();
+    if (motivo == null) return;
+
+    setState(() => _cancelando = true);
+    try {
+      final cancelada = await _visitaRepo.cerrarVisitaConEstado(
+        idVisita,
+        'CANCELADA',
+        observaciones: motivo.isEmpty ? null : motivo,
+      );
+      await _locationService.detenerSeguimientoEnSegundoPlano();
+      if (!mounted) return;
+      Navigator.of(context).pop(cancelada.copyWith(idAgendaItem: _visita.idAgendaItem));
+    } on NetworkException {
+      if (!mounted) return;
+      setState(() => _cancelando = false);
+      _mostrarError(
+        'Sin conexión: no se pudo cancelar la visita. Intentá cuando tengas señal.',
+      );
+    } on VisitaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() => _cancelando = false);
+      _mostrarError(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cancelando = false);
+      _mostrarError('No se pudo cancelar la visita. Intentá de nuevo.');
+    }
+  }
+
+  Future<String?> _pedirMotivoCancelacion() async {
+    final ctrl = TextEditingController();
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancelar visita'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Confirmá si no se pudo hacer la entrega (no había nadie o no '
+              'respondieron). No se va a registrar la última bajada.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'Motivo (opcional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Volver'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Cancelar visita'),
+          ),
+        ],
+      ),
+    );
+    final motivo = ctrl.text.trim();
+    ctrl.dispose();
+    if (confirmado != true) return null;
+    return motivo;
+  }
+
   /// Encola en la cola offline lo que falte del cierre (la foto, si no se
   /// pudo confirmar que ya llegó al servidor, y el check-out en sí), y
   /// deja la visita como VISITADO de forma optimista en el dispositivo.
@@ -564,6 +651,31 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton.icon(
+                onPressed: (_finalizando || _cancelando) ? null : _cancelarVisita,
+                icon: _cancelando
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.error,
+                        ),
+                      )
+                    : const Icon(Icons.cancel_outlined, size: 18, color: AppColors.error),
+                label: const Text(
+                  'Cancelar visita',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.error,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ),
           ],
         );
     }

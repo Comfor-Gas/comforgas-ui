@@ -231,6 +231,37 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     _mostrarDetalle(visita);
   }
 
+  Future<void> _confirmarDescartarPendientes(int cantidad) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Descartar cambios pendientes'),
+        content: Text(
+          'Se van a eliminar $cantidad cambio(s) guardado(s) en el dispositivo '
+          'que todavía no se enviaron al servidor. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Descartar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmado != true) return;
+    await OfflineQueueService.instance.vaciar();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cambios pendientes descartados.')),
+    );
+  }
+
   Future<void> _iniciarVisita(VisitaModel visita) async {
     if (_iniciandoVisita) return;
     setState(() => _iniciandoVisita = true);
@@ -251,7 +282,22 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
       if (resultado != null) {
         final index = _visitas.indexWhere((v) => v.idAgendaItem == resultado.idAgendaItem);
         if (index != -1) {
-          _visitas[index] = resultado;
+          final previo = _visitas[index];
+          final esCheckOut = resultado.estadoVisita == VisitaEstado.visitado;
+          final snapshotActualizado = esCheckOut
+              ? <String, dynamic>{
+                  ...previo.sucursalSnapshot,
+                  'ultimaBajada':
+                      (resultado.fecha ?? previo.fecha ?? DateTime.now()).toIso8601String(),
+                }
+              : previo.sucursalSnapshot;
+          _visitas[index] = previo.copyWith(
+            idVisita: resultado.idVisita ?? previo.idVisita,
+            estadoVisita: resultado.estadoVisita,
+            timestampInicio: resultado.timestampInicio ?? previo.timestampInicio,
+            timestampFin: resultado.timestampFin ?? previo.timestampFin,
+            sucursalSnapshot: snapshotActualizado,
+          );
         }
         if (VisitaEstadoMapper.esTerminadaEnCampo(resultado.estadoVisita)) {
           _visitadosExpanded = true;
@@ -379,6 +425,9 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             cantidadPendiente: box.length,
                             sincronizando: _sincronizando,
                             onReintentar: () => SyncManager.instance.sincronizar(),
+                            onDescartar: box.length > 0
+                                ? () => _confirmarDescartarPendientes(box.length)
+                                : null,
                           );
                         },
                       ),

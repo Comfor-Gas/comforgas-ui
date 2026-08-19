@@ -42,3 +42,7 @@ DateTime mockUltimaBajadaFor(int idCliente) {
   final dias = 2 + (idCliente.abs() % 27);
   return DateTime.now().subtract(Duration(days: dias));
 }
+
+int mockMovilFor(int seed) {
+  return 100 + (seed.abs() % 60);
+}

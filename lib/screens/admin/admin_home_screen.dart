@@ -6,6 +6,7 @@ import '../../widgets/admin/admin_topbar.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
 import 'seguimiento_tiempo_real_screen.dart';
+import 'tablero_hoja_ruta_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -35,10 +36,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           icon: Icons.groups_outlined,
         );
       case 4:
-        return const PlaceholderAdminSection(
-          title: 'Rutas',
-          icon: Icons.alt_route_outlined,
-        );
+        return const TableroHojaRutaScreen();
       default:
         return const PlaceholderAdminSection(
           title: 'Configuración',

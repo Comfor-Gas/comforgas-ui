@@ -53,6 +53,25 @@ class VisitaModel {
     this.updatedAt,
   });
 
+  static Map<String, dynamic> _buildRutaSnapshot(Map<String, dynamic> json) {
+    final base = json['rutaSnapshot'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['rutaSnapshot'] as Map<String, dynamic>)
+        : <String, dynamic>{};
+    final vendedor = json['vendedor'];
+    final acompanante = json['acompanante'];
+    final movil = json['movil'];
+    if (vendedor is String && vendedor.trim().isNotEmpty) {
+      base.putIfAbsent('vendedor', () => vendedor);
+    }
+    if (acompanante is String && acompanante.trim().isNotEmpty) {
+      base.putIfAbsent('acompanante', () => acompanante);
+    }
+    if (movil != null) {
+      base.putIfAbsent('movil', () => movil);
+    }
+    return base;
+  }
+
   factory VisitaModel.fromJson(Map<String, dynamic> json) {
     return VisitaModel(
       idVisita: parseInt(json['idVisita']),
@@ -64,9 +83,7 @@ class VisitaModel {
       sucursalSnapshot: json['sucursalSnapshot'] is Map<String, dynamic>
           ? json['sucursalSnapshot'] as Map<String, dynamic>
           : const {},
-      rutaSnapshot: json['rutaSnapshot'] is Map<String, dynamic>
-          ? json['rutaSnapshot'] as Map<String, dynamic>
-          : const {},
+      rutaSnapshot: _buildRutaSnapshot(json),
       ordenVisita: parseInt(json['ordenVisita']) ?? 0,
       estadoVisita: VisitaEstadoMapper.fromValue(json['estadoVisita']),
       fecha: parseDate(json['fecha']),

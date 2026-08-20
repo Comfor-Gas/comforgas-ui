@@ -371,11 +371,22 @@ class _PlanificacionVisitasScreenState
   }
 
   Future<void> _handleSincronizar() async {
-    if (_formChofer == null || _formFecha == null) {
-      setState(() => _formError =
-          'Seleccioná chofer y fecha para sincronizar su agenda.');
+    final camposCompletos = [
+      _formChofer != null,
+      _formFecha != null,
+      _formSucursal != null,
+      _formRuta != null,
+    ];
+    final completos = camposCompletos.where((c) => c).length;
+
+    if (completos != camposCompletos.length) {
+      setState(() => _formError = completos == 0
+          ? 'Completá Chofer, Fecha, Sucursal y Ruta para sincronizar la agenda.'
+          : 'Para sincronizar completá todos los campos (Chofer, Fecha, '
+              'Sucursal y Ruta) o dejálos todos vacíos.');
       return;
     }
+    setState(() => _formError = null);
 
     final chofer = _formChofer!;
     final fecha = _formFecha!;
@@ -1211,6 +1222,7 @@ class _FormularioCard extends StatelessWidget {
         children: [
           Text('Asignar choferes', style: AppTextStyles.title.copyWith(fontSize: 17)),
           const SizedBox(height: 4),
+          Text('Nueva Asignación', style: AppTextStyles.desktopSubtitle),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

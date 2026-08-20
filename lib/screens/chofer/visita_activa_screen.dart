@@ -119,6 +119,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     try {
       checkIn = await _locationService.obtenerUbicacionActual();
 
+      final latObjetivo = _visita.sucursalLatitud;
+      final lonObjetivo = _visita.sucursalLongitud;
+      if (latObjetivo != null &&
+          lonObjetivo != null &&
+          !_locationService.estaCercaDe(checkIn, latObjetivo, lonObjetivo)) {
+        if (!mounted) return;
+        setState(() {
+          _fase = _FaseVisita.errorUbicacion;
+          _errorMensaje =
+              'No estás cerca de la ubicación del cliente. Acercate al domicilio para poder registrar el check-in.';
+        });
+        return;
+      }
+
       if (idVisitaExistente == null) {
         await _iniciarViaColaSincronizacion(
           idAgendaItem: idAgendaItem!,
@@ -287,9 +301,32 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  Future<int?> _resolverIdVisitaOnline() async {
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idAgendaItem == null) return null;
+    try {
+      final items = await _visitaRepo.getVisitasPorUsuarioYFecha(
+        idUsuario: _visita.idUsuario,
+        fecha: _visita.fecha ?? DateTime.now(),
+      );
+      for (final item in items) {
+        if (item.idAgendaItem == idAgendaItem) {
+          return item.idVisita;
+        }
+      }
+    } on NetworkException {
+      return null;
+    } on VisitaRepositoryException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   Future<void> _finalizarVisita() async {
     final foto = _foto;
-    final idVisita = _visita.idVisita;
+    var idVisita = _visita.idVisita;
     final idAgendaItem = _visita.idAgendaItem;
     if ((foto == null && !_evidenciaExistente) || _finalizando) {
       return;
@@ -302,8 +339,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     setState(() => _finalizando = true);
 
     if (idVisita == null) {
-      await _finalizarOffline(idAgendaItem: idAgendaItem!, idVisita: null, foto: foto);
-      return;
+      idVisita = await _resolverIdVisitaOnline();
+      if (!mounted) return;
+      if (idVisita == null) {
+        await _finalizarOffline(idAgendaItem: idAgendaItem!, idVisita: null, foto: foto);
+        return;
+      }
     }
 
     // Si la evidencia ya estaba confirmada del lado del servidor (de una
@@ -473,6 +514,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     required File? foto,
   }) async {
     final ahora = DateTime.now();
+    final tsEvidencia = ahora;
+    final tsCheckOut = ahora.add(const Duration(seconds: 1));
 
     if (foto != null) {
       final bytes = await foto.readAsBytes();
@@ -482,8 +525,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           tipoEvento: OfflineEventoTipo.evidencia,
           idAgendaItem: idAgendaItem,
           idVisita: idVisita,
-          timestampOrigen: ahora,
-          creadoEn: ahora,
+          timestampOrigen: tsEvidencia,
+          creadoEn: tsEvidencia,
           archivoBytes: bytes,
           tipoEvidencia: EvidenciaTipo.fachada,
           mimeType: 'image/jpeg',
@@ -497,8 +540,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         tipoEvento: OfflineEventoTipo.checkOut,
         idAgendaItem: idAgendaItem,
         idVisita: idVisita,
-        timestampOrigen: ahora,
-        creadoEn: ahora,
+        timestampOrigen: tsCheckOut,
+        creadoEn: tsCheckOut,
         timestampFin: ahora,
       ),
     );

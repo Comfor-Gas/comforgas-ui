@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:geolocator/geolocator.dart';
 
@@ -36,6 +36,8 @@ class LocationService {
 
 
   static const double _umbralPrecisionMetros = 60;
+  static const double radioCheckInMetros = 150;
+  static const double _radioTierraMetros = 6371000.0;
 
   StreamSubscription<Position>? _backgroundSubscription;
   Position? lastKnownPosition;
@@ -96,6 +98,37 @@ class LocationService {
     );
   }
 
+
+  double distanciaMetros(double lat1, double lon1, double lat2, double lon2) {
+    final dLat = _aRadianes(lat2 - lat1);
+    final dLon = _aRadianes(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_aRadianes(lat1)) *
+            math.cos(_aRadianes(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return _radioTierraMetros * c;
+  }
+
+  bool estaCercaDe(
+    LocationCheckIn checkIn,
+    double latObjetivo,
+    double lonObjetivo,
+  ) {
+    final distancia = distanciaMetros(
+      checkIn.latitud,
+      checkIn.longitud,
+      latObjetivo,
+      lonObjetivo,
+    );
+    final tolerancia = checkIn.precisionMetros.isFinite && checkIn.precisionMetros > 0
+        ? checkIn.precisionMetros
+        : 0;
+    return distancia <= radioCheckInMetros + tolerancia;
+  }
+
+  double _aRadianes(double grados) => grados * math.pi / 180.0;
 
   Future<void> iniciarSeguimientoEnSegundoPlano({
     required void Function(Position position) onPosition,

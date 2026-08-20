@@ -166,7 +166,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
       final vendedor = _cabecera(visitasGrupo, 'vendedor');
       final acompanante = _cabecera(visitasGrupo, 'acompanante');
 
-      final visitasVisibles = _estadoFilter == null
+      var visitasVisibles = _estadoFilter == null
           ? visitasGrupo
           : visitasGrupo
               .where((v) => VisitaEstadoMapper.toValue(v.estadoVisita) == _estadoFilter)
@@ -177,9 +177,14 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
         final coincideCabecera = chofer.toLowerCase().contains(query) ||
             vendedor.toLowerCase().contains(query) ||
             zona.toLowerCase().contains(query);
-        final coincideCliente =
-            visitasVisibles.any((v) => _clienteNombre(v).toLowerCase().contains(query));
-        if (!coincideCabecera && !coincideCliente) return;
+
+        if (coincideCabecera) {
+        } else {
+          visitasVisibles = visitasVisibles
+              .where((v) => _clienteNombre(v).toLowerCase().contains(query))
+              .toList();
+          if (visitasVisibles.isEmpty) return;
+        }
       }
 
       hojas.add(_HojaRuta(
@@ -564,7 +569,7 @@ class _Tabla extends StatelessWidget {
   });
 
   static const double _wOrden = 72;
-  static const double _wEstado = 140;
+  static const double _wEstado = 140
   static const double _compactBreakpoint = 560;
 
   @override

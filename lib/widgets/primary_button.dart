@@ -23,51 +23,69 @@ class _PrimaryButtonState extends State<PrimaryButton> {
 
   @override
   Widget build(BuildContext context) {
+    final bool inactive = widget.onPressed == null && !widget.isLoading;
     final bool disabled = widget.isLoading || widget.onPressed == null;
 
-    return GestureDetector(
-      onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
-      onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
-      onTapCancel: disabled ? null : () => setState(() => _pressed = false),
-      onTap: disabled ? null : widget.onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        width: double.infinity,
-        height: 56,
-        decoration: BoxDecoration(
-          color: _pressed
-              ? const Color(0xFFD8611A)
-              : AppColors.orange.withOpacity(widget.isLoading ? 0.7 : 1),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: _pressed
-              ? []
-              : [
-                  BoxShadow(
-                    color: AppColors.orange.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+    final Color backgroundColor;
+    if (inactive) {
+      backgroundColor = AppColors.badgeGray.withOpacity(0.55);
+    } else if (_pressed) {
+      backgroundColor = const Color(0xFFD8611A);
+    } else {
+      backgroundColor =
+          AppColors.orange.withOpacity(widget.isLoading ? 0.7 : 1);
+    }
+
+    final Color contentColor =
+        inactive ? Colors.white.withOpacity(0.9) : AppColors.white;
+
+    return MouseRegion(
+      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
+        onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
+        onTapCancel: disabled ? null : () => setState(() => _pressed = false),
+        onTap: disabled ? null : widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: (_pressed || inactive)
+                ? []
+                : [
+                    BoxShadow(
+                      color: AppColors.orange.withOpacity(0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+          ),
+          child: widget.isLoading
+              ? const Center(
+                  child: SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation(AppColors.white),
+                    ),
                   ),
-                ],
-        ),
-        child: widget.isLoading
-            ? const Center(
-                child: SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.4,
-                    valueColor: AlwaysStoppedAnimation(AppColors.white),
-                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.text.toUpperCase(),
+                      style: AppTextStyles.button.copyWith(color: contentColor),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.chevron_right, color: contentColor, size: 20),
+                  ],
                 ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(widget.text.toUpperCase(), style: AppTextStyles.button),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.chevron_right, color: AppColors.white, size: 20),
-                ],
-              ),
+        ),
       ),
     );
   }

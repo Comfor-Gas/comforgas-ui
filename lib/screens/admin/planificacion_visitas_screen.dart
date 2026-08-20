@@ -251,15 +251,19 @@ class _PlanificacionVisitasScreenState
   }
 
   int _siguienteOrden(String idChofer, DateTime fecha) {
-    final visitasDelDia = [..._draftVisitas, ..._serverVisitas].where((v) {
+    var maxOrden = 0;
+    for (final v in [..._draftVisitas, ..._serverVisitas]) {
       final f = v.fecha;
-      return v.idUsuario == idChofer &&
+      final mismoChoferYDia = v.idUsuario == idChofer &&
           f != null &&
           f.year == fecha.year &&
           f.month == fecha.month &&
           f.day == fecha.day;
-    });
-    return visitasDelDia.length + 1;
+      if (mismoChoferYDia && v.ordenVisita > maxOrden) {
+        maxOrden = v.ordenVisita;
+      }
+    }
+    return maxOrden + 1;
   }
 
   void _handleGuardar() {
@@ -302,6 +306,22 @@ class _PlanificacionVisitasScreenState
       _formRuta = null;
       _formError = null;
     });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.steelBlue,
+            content: Text(
+              'Visita agregada a la lista como borrador. '
+              'Publicá la agenda del día para confirmarla.',
+              style: AppTextStyles.input.copyWith(color: Colors.white),
+            ),
+          ),
+        );
+    }
   }
 
   Future<void> _handlePublicar() async {
@@ -516,6 +536,64 @@ class _PlanificacionVisitasScreenState
     }
   }
 
+  Widget _buildPublicarSection() {
+    final count = _draftVisitas.length;
+    final hay = count > 0;
+    final plural = count == 1 ? '' : 's';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: hay
+                ? AppColors.orange.withOpacity(0.08)
+                : AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hay
+                  ? AppColors.orange.withOpacity(0.4)
+                  : AppColors.inputBorder,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                hay ? Icons.playlist_add_check : Icons.info_outline,
+                size: 18,
+                color: hay ? AppColors.orange : AppColors.graphiteGray,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  hay
+                      ? 'Tenés $count visita$plural en borrador sin publicar. '
+                          'Revisá la lista y publicá para confirmar la agenda del día.'
+                      : 'No hay visitas en borrador. Agregá visitas con '
+                          '"Agregar a la lista" y luego publicá la agenda del día.',
+                  style: AppTextStyles.link.copyWith(
+                    color: AppColors.graphiteGray,
+                    fontSize: 12.5,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        PrimaryButton(
+          text: hay
+              ? 'Publicar $count visita$plural del día'
+              : 'Publicar Visitas del Día',
+          isLoading: _publishing,
+          onPressed: hay ? _handlePublicar : null,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
@@ -601,11 +679,7 @@ class _PlanificacionVisitasScreenState
                         children: [
                           formulario,
                           const SizedBox(height: 20),
-                          PrimaryButton(
-                            text: 'Publicar Visitas del Día',
-                            isLoading: _publishing,
-                            onPressed: _handlePublicar,
-                          ),
+                          _buildPublicarSection(),
                         ],
                       ),
                     ),
@@ -619,11 +693,7 @@ class _PlanificacionVisitasScreenState
                   const SizedBox(height: 20),
                   formulario,
                   const SizedBox(height: 24),
-                  PrimaryButton(
-                    text: 'Publicar Visitas del Día',
-                    isLoading: _publishing,
-                    onPressed: _handlePublicar,
-                  ),
+                  _buildPublicarSection(),
                 ],
               );
             },
@@ -819,7 +889,7 @@ class _ListadoCard extends StatelessWidget {
 Widget _buildTable(BuildContext context) {
     final horizontalScrollController = ScrollController();
     return SizedBox(
-      height: 420,
+      height: 520,
       child: Scrollbar(
         child: SingleChildScrollView(
           scrollDirection: Axis.vertical,
@@ -1141,8 +1211,34 @@ class _FormularioCard extends StatelessWidget {
         children: [
           Text('Asignar choferes', style: AppTextStyles.title.copyWith(fontSize: 17)),
           const SizedBox(height: 4),
-          Text('Nueva Asignación', style: AppTextStyles.desktopSubtitle),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.steelBlue.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline,
+                    size: 16, color: AppColors.steelBlue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '"Agregar a la lista": deja como borrador en el listado.'
+                    ' Usá "Publicar Visitas del Día" para confirmarlas en el sistema.',
+                    style: AppTextStyles.link.copyWith(
+                      color: AppColors.steelBlue,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Text('Campos', style: AppTextStyles.label),
           const SizedBox(height: 10),
           if (loadingCatalogos) ...[
@@ -1227,15 +1323,16 @@ class _FormularioCard extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: onGuardar,
+                icon: const Icon(Icons.playlist_add, size: 18),
+                label: const Text('Agregar a la lista'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.steelBlue,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text('Guardar'),
               ),
             ],
           ),

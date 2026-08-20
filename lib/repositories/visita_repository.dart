@@ -114,8 +114,27 @@ class VisitaRepository {
     );
   }
 
+  static const int _pageSize = 200;
+
+  static const int _maxPaginas = 100;
   Future<List<VisitaModel>> listarTodas() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.visitasPath}');
+    final acumulado = <VisitaModel>[];
+
+    for (var page = 0; page < _maxPaginas; page++) {
+      final pagina = await _listarPagina(page: page, size: _pageSize);
+      acumulado.addAll(pagina);
+      if (pagina.length < _pageSize) break;
+    }
+
+    return acumulado;
+  }
+
+  Future<List<VisitaModel>> _listarPagina({
+    required int page,
+    required int size,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.visitasPath}')
+        .replace(queryParameters: {'page': '$page', 'size': '$size'});
 
     http.Response response;
     try {

@@ -300,6 +300,63 @@ class _FiltroBar extends StatelessWidget {
     required this.onRefrescar,
   });
 
+  Widget _buscador() {
+    return LabeledTextField(
+      label: 'Buscar hoja de ruta',
+      hint: 'Chofer, vendedor, zona o cliente',
+      icon: Icons.search,
+      controller: controller,
+    );
+  }
+
+  Widget _estadoDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Estado', style: AppTextStyles.label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.inputBorder, width: 1.2),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              isExpanded: true,
+              value: estadoFilter,
+              hint: Text('Todos', style: AppTextStyles.hint),
+              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
+              style: AppTextStyles.input,
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+                for (final (value, label) in estados)
+                  DropdownMenuItem<String?>(value: value, child: Text(label)),
+              ],
+              onChanged: onEstadoChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _botonActualizar({bool expandido = false}) {
+    final boton = OutlinedButton.icon(
+      onPressed: onRefrescar,
+      icon: const Icon(Icons.refresh, size: 18),
+      label: const Text('Actualizar'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.steelBlue,
+        side: const BorderSide(color: AppColors.steelBlue),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    return expandido ? SizedBox(width: double.infinity, child: boton) : boton;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -310,67 +367,37 @@ class _FiltroBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.inputBorder),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: LabeledTextField(
-              label: 'Buscar hoja de ruta',
-              hint: 'Chofer, vendedor, zona o cliente',
-              icon: Icons.search,
-              controller: controller,
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 180,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 640;
+
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Estado', style: AppTextStyles.label),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.inputBorder, width: 1.2),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String?>(
-                      isExpanded: true,
-                      value: estadoFilter,
-                      hint: Text('Todos', style: AppTextStyles.hint),
-                      icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
-                      style: AppTextStyles.input,
-                      items: [
-                        const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
-                        for (final (value, label) in estados)
-                          DropdownMenuItem<String?>(value: value, child: Text(label)),
-                      ],
-                      onChanged: onEstadoChanged,
-                    ),
-                  ),
-                ),
+                _buscador(),
+                const SizedBox(height: 12),
+                _estadoDropdown(),
+                const SizedBox(height: 12),
+                _botonActualizar(expandido: true),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: OutlinedButton.icon(
-              onPressed: onRefrescar,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Actualizar'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.steelBlue,
-                side: const BorderSide(color: AppColors.steelBlue),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: _buscador()),
+              const SizedBox(width: 12),
+              SizedBox(width: 180, child: _estadoDropdown()),
+              const SizedBox(width: 12),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: _botonActualizar(),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -538,9 +565,20 @@ class _Tabla extends StatelessWidget {
 
   static const double _wOrden = 72;
   static const double _wEstado = 140;
+  static const double _compactBreakpoint = 560;
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return constraints.maxWidth < _compactBreakpoint
+            ? _buildCompact(context)
+            : _buildTabla(context);
+      },
+    );
+  }
+
+  Widget _buildTabla(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -597,6 +635,93 @@ class _Tabla extends StatelessWidget {
               ],
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildCompact(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (int i = 0; i < visitas.length; i++)
+          Container(
+            margin: EdgeInsets.only(
+              top: i == 0 ? 8 : 0,
+              bottom: i == visitas.length - 1 ? 0 : 10,
+            ),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.inputBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _OrdenChip(orden: visitas[i].ordenVisita),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        clienteNombre(visitas[i]),
+                        style: AppTextStyles.input.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _LineaCompacta(label: 'Domicilio', valor: domicilio(visitas[i])),
+                const SizedBox(height: 4),
+                _LineaCompacta(label: 'Barrio', valor: barrio(visitas[i])),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: EstadoVisitaBadge(estado: visitas[i].estadoVisita),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LineaCompacta extends StatelessWidget {
+  final String label;
+  final String valor;
+
+  const _LineaCompacta({required this.label, required this.valor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 78,
+          child: Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.graphiteGray,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            valor,
+            style: AppTextStyles.input.copyWith(fontSize: 13),
+          ),
+        ),
       ],
     );
   }

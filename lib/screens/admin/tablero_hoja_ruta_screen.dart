@@ -569,7 +569,7 @@ class _Tabla extends StatelessWidget {
   });
 
   static const double _wOrden = 72;
-  static const double _wEstado = 140
+  static const double _wEstado = 140;
   static const double _compactBreakpoint = 560;
 
   @override

@@ -149,6 +149,10 @@ class AgendaItemModel {
       if (comodato11 != null) 'comodato11': comodato11,
       if (comodato12 != null) 'comodato12': comodato12,
       if (ultimaBajada != null) 'ultimaBajada': ultimaBajada!.toIso8601String(),
+      if (precio10 != null) 'precio10': precio10,
+      if (precio15 != null) 'precio15': precio15,
+      if (precio30 != null) 'precio30': precio30,
+      if (precio45 != null) 'precio45': precio45,
     };
 
     return VisitaModel(

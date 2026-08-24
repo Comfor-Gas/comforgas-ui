@@ -144,6 +144,7 @@ class SincronizacionRepository {
       if (e.archivoBytes != null) 'archivoBase64': base64Encode(e.archivoBytes!),
       if (e.tipoEvidencia != null) 'tipoEvidencia': e.tipoEvidencia,
       if (e.mimeType != null) 'mimeType': e.mimeType,
+      if (e.ventaItemsJson != null) 'items': jsonDecode(e.ventaItemsJson!),
     };
   }
 }

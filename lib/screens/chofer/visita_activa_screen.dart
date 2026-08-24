@@ -1,28 +1,31 @@
 import 'dart:async' show unawaited;
+import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/evidencia_tipo.dart';
+import '../../models/venta_draft.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/evidencia_repository.dart';
 import '../../repositories/network_exception.dart';
+import '../../repositories/venta_repository.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_capture_service.dart';
 import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/formato.dart';
 import '../../widgets/chofer/evidencia_captura_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/primary_button.dart';
+import 'venta/registro_venta_screen.dart';
 
 const _uuid = Uuid();
 
@@ -47,6 +50,7 @@ class VisitaActivaScreen extends StatefulWidget {
 class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   late final VisitaRepository _visitaRepo;
   late final EvidenciaRepository _evidenciaRepo;
+  late final VentaRepository _ventaRepo;
   final _photoService = PhotoCaptureService();
   final _locationService = LocationService.instance;
 
@@ -59,6 +63,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _cancelando = false;
   bool _evidenciaExistente = false;
   bool _checkInPendienteSync = false;
+  VentaDraft? _ventaDraft;
+  bool _ventaRegistrada = false;
+  bool _ventaPendienteSync = false;
   VoidCallback? _colaListener;
 
   @override
@@ -68,6 +75,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     final apiClient = context.read<AuthProvider>().apiClient;
     _visitaRepo = VisitaRepository(apiClient);
     _evidenciaRepo = EvidenciaRepository(apiClient);
+    _ventaRepo = VentaRepository(apiClient);
 
     _colaListener = _actualizarPendienteSync;
     OfflineQueueService.instance.escuchar().addListener(_colaListener!);
@@ -283,6 +291,75 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       // Si falla la consulta no bloqueamos la pantalla: el chofer puede
       // igual sacar una foto nueva para poder finalizar.
     }
+  }
+
+  Future<void> _abrirRegistroVenta() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RegistroVentaScreen(
+          visita: _visita,
+          nombreCliente: widget.nombreCliente,
+          direccionCliente: widget.direccionCliente,
+          inicial: _ventaRegistrada ? null : _ventaDraft,
+          onRegistrar: _registrarVenta,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _registrarVenta(VentaDraft venta) async {
+    final idVisita = _visita.idVisita;
+    final idAgendaItem = _visita.idAgendaItem;
+
+    if (idVisita != null) {
+      try {
+        await _ventaRepo.registrarVenta(idVisita: idVisita, venta: venta);
+        if (!mounted) return;
+        setState(() {
+          _ventaDraft = venta;
+          _ventaRegistrada = true;
+          _ventaPendienteSync = false;
+        });
+        return;
+      } on NetworkException {
+        _ventaPendienteSync = true;
+      }
+    }
+
+    if (idAgendaItem == null) {
+      throw VentaRepositoryException(
+        'La visita no tiene un ítem de agenda para guardar la venta localmente.',
+      );
+    }
+
+    await _encolarVenta(idAgendaItem: idAgendaItem, idVisita: idVisita, venta: venta);
+    if (!mounted) return;
+    setState(() {
+      _ventaDraft = venta;
+      _ventaRegistrada = true;
+      _ventaPendienteSync = true;
+    });
+  }
+
+  Future<void> _encolarVenta({
+    required int idAgendaItem,
+    int? idVisita,
+    required VentaDraft venta,
+  }) async {
+    final ahora = DateTime.now();
+    final items = venta.lineas.map((l) => l.toRequestJson()).toList();
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: _uuid.v4(),
+        tipoEvento: OfflineEventoTipo.venta,
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        timestampOrigen: ahora,
+        creadoEn: ahora,
+        ventaItemsJson: jsonEncode(items),
+      ),
+    );
+    unawaited(SyncManager.instance.sincronizar());
   }
 
   Future<void> _capturarFoto() async {
@@ -594,6 +671,102 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
+  Widget _buildVentaSection() {
+    if (_ventaRegistrada && _ventaDraft != null) {
+      final venta = _ventaDraft!;
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.badgeGreen.withOpacity(0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.check_circle, size: 20, color: AppColors.badgeGreen),
+                const SizedBox(width: 8),
+                Text('Venta registrada', style: AppTextStyles.label.copyWith(fontSize: 15)),
+                const Spacer(),
+                Text(
+                  formatMoneda(venta.montoTotal),
+                  style: AppTextStyles.title.copyWith(fontSize: 18),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              venta.lineas.length == 1
+                  ? '1 producto en el detalle'
+                  : '${venta.lineas.length} productos en el detalle',
+              style: AppTextStyles.link.copyWith(fontSize: 13),
+            ),
+            if (_ventaPendienteSync) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: const [
+                  Icon(Icons.sync, size: 15, color: AppColors.badgeAmber),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Pendiente de sincronizar con el servidor. Se envía solo cuando hay señal.',
+                      style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.point_of_sale_outlined, size: 20, color: AppColors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Registrar venta',
+                  style: AppTextStyles.label.copyWith(fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Cargá las garrafas entregadas (Vacío x Lleno, préstamo o envase). Es opcional si esta visita no tuvo venta.',
+            style: AppTextStyles.footer,
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: _finalizando ? null : _abrirRegistroVenta,
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text('Registrar venta'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.orange,
+              side: const BorderSide(color: AppColors.orange),
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContenido() {
     switch (_fase) {
       case _FaseVisita.verificandoUbicacion:
@@ -660,6 +833,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 ],
               ),
             ],
+            const SizedBox(height: 18),
+            _buildVentaSection(),
             const SizedBox(height: 18),
             EvidenciaCapturaCard(
               titulo: _evidenciaExistente

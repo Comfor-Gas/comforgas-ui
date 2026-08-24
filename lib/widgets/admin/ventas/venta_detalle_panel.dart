@@ -8,8 +8,9 @@ import 'venta_estado_badge.dart';
 
 class VentaDetallePanel extends StatelessWidget {
   final VentaMonitoreo? venta;
+  final bool scrollable;
 
-  const VentaDetallePanel({super.key, required this.venta});
+  const VentaDetallePanel({super.key, required this.venta, this.scrollable = true});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,9 @@ class VentaDetallePanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.inputBorder),
       ),
-      child: venta == null ? const _PanelVacio() : _PanelContenido(venta: venta!),
+      child: venta == null
+          ? const _PanelVacio()
+          : _PanelContenido(venta: venta!, scrollable: scrollable),
     );
   }
 }
@@ -56,14 +59,14 @@ class _PanelVacio extends StatelessWidget {
 
 class _PanelContenido extends StatelessWidget {
   final VentaMonitoreo venta;
+  final bool scrollable;
 
-  const _PanelContenido({required this.venta});
+  const _PanelContenido({required this.venta, this.scrollable = true});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
-      child: Column(
+    const padding = EdgeInsets.fromLTRB(22, 22, 22, 24);
+    final columna = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -138,8 +141,12 @@ class _PanelContenido extends StatelessWidget {
           const SizedBox(height: 16),
           Center(child: ConsistenciaBadge(consistente: venta.consistente)),
         ],
-      ),
     );
+
+    if (!scrollable) {
+      return Padding(padding: padding, child: columna);
+    }
+    return SingleChildScrollView(padding: padding, child: columna);
   }
 
   String _fechaHora(DateTime? fecha) {

@@ -183,11 +183,13 @@ class VentaMonitoreo {
       idVisita: parseInt(json['idVisita']),
       timestamp: parseDate(json['timestampVenta'] ?? json['fechaHora'] ?? json['hora']),
       choferNombre: (choferMap['nombre'] ??
+              json['nombreChofer'] ??
               json['choferNombre'] ??
               json['chofer'] ??
               'Sin chofer')
           .toString(),
       clienteNombre: (clienteMap['nombre'] ??
+              json['nombreCliente'] ??
               json['clienteNombre'] ??
               json['cliente'] ??
               'Sin cliente')

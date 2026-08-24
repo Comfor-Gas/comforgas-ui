@@ -112,6 +112,11 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
     }
   }
 
+  bool get _hayFiltros =>
+      _choferCtrl.text.trim().isNotEmpty ||
+      _clienteCtrl.text.trim().isNotEmpty ||
+      _estadoFiltro != null;
+
   List<VentaMonitoreo> get _ventasFiltradas {
     final chofer = _choferCtrl.text.trim().toLowerCase();
     final cliente = _clienteCtrl.text.trim().toLowerCase();
@@ -167,36 +172,31 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = Responsive.isDesktop(constraints);
-        return Padding(
-          padding: EdgeInsets.all(isDesktop ? 28 : 16),
+        final dosColumnas = constraints.maxWidth >= 1200;
+        final padding = EdgeInsets.all(isDesktop ? 28 : 16);
+
+        if (dosColumnas) {
+          return Padding(
+            padding: padding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ..._encabezadoYFiltros(),
+                const SizedBox(height: 20),
+                Expanded(child: _contenidoDosColumnas()),
+              ],
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: padding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Cabecera(
-                cantidad: _ventasFiltradas.length,
-                montoTotal: _montoTotalDia,
-                onRefrescar: _cargar,
-              ),
+              ..._encabezadoYFiltros(),
               const SizedBox(height: 20),
-              VentasFiltrosBar(
-                choferController: _choferCtrl,
-                clienteController: _clienteCtrl,
-                estadoSeleccionado: _estadoFiltro,
-                onEstadoChanged: (estado) {
-                  setState(() {
-                    _estadoFiltro = estado;
-                    _sincronizarSeleccion();
-                  });
-                },
-                fecha: _fecha,
-                onTapFecha: _elegirFecha,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 16),
-                _AvisoBanner(mensaje: _error!, esEjemplo: _modoEjemplo),
-              ],
-              const SizedBox(height: 20),
-              Expanded(child: _contenido(isDesktop)),
+              _contenidoApilado(),
             ],
           ),
         );
@@ -204,45 +204,77 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
     );
   }
 
-  Widget _contenido(bool isDesktop) {
-    if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.orange),
-      );
-    }
+  List<Widget> _encabezadoYFiltros() {
+    return [
+      _Cabecera(
+        cantidad: _ventasFiltradas.length,
+        montoTotal: _montoTotalDia,
+        onRefrescar: _cargar,
+      ),
+      const SizedBox(height: 20),
+      VentasFiltrosBar(
+        choferController: _choferCtrl,
+        clienteController: _clienteCtrl,
+        estadoSeleccionado: _estadoFiltro,
+        onEstadoChanged: (estado) {
+          setState(() {
+            _estadoFiltro = estado;
+            _sincronizarSeleccion();
+          });
+        },
+        fecha: _fecha,
+        onTapFecha: _elegirFecha,
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 16),
+        _AvisoBanner(mensaje: _error!, esEjemplo: _modoEjemplo),
+      ],
+    ];
+  }
 
-    final tabla = _TarjetaTabla(
+  Widget _tabla(bool scrollInterno) {
+    return _TarjetaTabla(
       cantidad: _ventasFiltradas.length,
-      scrollInterno: isDesktop,
+      scrollInterno: scrollInterno,
       child: VentasTabla(
         ventas: _ventasFiltradas,
         idSeleccionada: _idSeleccionada,
         onSeleccionar: (venta) => setState(() => _idSeleccionada = venta.idVenta),
+        mensajeVacio: _hayFiltros
+            ? 'No hay ventas que coincidan con los filtros.'
+            : 'No hay ventas registradas para esta jornada.',
       ),
     );
+  }
 
-    final panel = VentaDetallePanel(venta: _ventaSeleccionada);
+  Widget _contenidoDosColumnas() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.orange));
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _tabla(true)),
+        const SizedBox(width: 20),
+        SizedBox(width: 340, child: VentaDetallePanel(venta: _ventaSeleccionada)),
+      ],
+    );
+  }
 
-    if (isDesktop) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: tabla),
-          const SizedBox(width: 20),
-          SizedBox(width: 360, child: panel),
-        ],
+  Widget _contenidoApilado() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 80),
+        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
       );
     }
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          tabla,
-          const SizedBox(height: 20),
-          panel,
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tabla(false),
+        const SizedBox(height: 20),
+        VentaDetallePanel(venta: _ventaSeleccionada, scrollable: false),
+      ],
     );
   }
 }

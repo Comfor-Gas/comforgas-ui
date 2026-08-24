@@ -26,6 +26,7 @@ class ApiConfig {
   static const String rutasPath = '/api/rutas';
   static const String visitasPath = '/api/visitas';
   static const String ventasPath = '/api/ventas';
+  static const String adminVentasMonitoreoPath = '/api/admin/ventas/monitoreo';
   static const String visitaCheckInSuffix = '/check-in';
   static const String visitaCheckOutSuffix = '/check-out';
   static const String repartidorVisitasPath = '/api/repartidor/visitas';

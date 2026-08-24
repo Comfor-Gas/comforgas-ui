@@ -3,6 +3,7 @@ import '../../core/responsive.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/admin/admin_topbar.dart';
+import 'consola_ventas_screen.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
 import 'seguimiento_tiempo_real_screen.dart';
@@ -16,7 +17,7 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  int _selectedIndex = 1;
+  int _selectedIndex = 3;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   Widget get _body {
@@ -31,11 +32,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       case 2:
         return const SeguimientoTiempoRealScreen();
       case 3:
+        return const ConsolaVentasScreen();
+      case 4:
         return const PlaceholderAdminSection(
           title: 'Clientes',
           icon: Icons.groups_outlined,
         );
-      case 4:
+      case 5:
         return const TableroHojaRutaScreen();
       default:
         return const PlaceholderAdminSection(

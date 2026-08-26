@@ -16,12 +16,14 @@ import '../../repositories/evidencia_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/venta_repository.dart';
 import '../../repositories/visita_repository.dart';
+import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_capture_service.dart';
 import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
+import '../../widgets/chofer/checkin_forzado_button.dart';
 import '../../widgets/chofer/evidencia_captura_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/primary_button.dart';
@@ -63,6 +65,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _cancelando = false;
   bool _evidenciaExistente = false;
   bool _checkInPendienteSync = false;
+  bool _puedeForzarCheckIn = false;
+  bool _forzandoCheckIn = false;
   VentaDraft? _ventaDraft;
   bool _ventaRegistrada = false;
   bool _ventaPendienteSync = false;
@@ -107,20 +111,34 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  void _entrarEnErrorUbicacion(String mensaje, {bool forzable = true}) {
+    setState(() {
+      _fase = _FaseVisita.errorUbicacion;
+      _errorMensaje = mensaje;
+      _puedeForzarCheckIn = false;
+    });
+    if (!forzable || _visita.idAgendaItem == null) return;
+    ConnectivityService.instance.tieneConexion().then((hayConexion) {
+      if (!mounted || _fase != _FaseVisita.errorUbicacion) return;
+      setState(() => _puedeForzarCheckIn = !hayConexion);
+    });
+  }
+
   Future<void> _iniciarCheckIn() async {
     final idAgendaItem = _visita.idAgendaItem;
     final idVisitaExistente = _visita.idVisita;
     if (idAgendaItem == null && idVisitaExistente == null) {
-      setState(() {
-        _fase = _FaseVisita.errorUbicacion;
-        _errorMensaje = 'La visita no tiene un identificador válido.';
-      });
+      _entrarEnErrorUbicacion(
+        'La visita no tiene un identificador válido.',
+        forzable: false,
+      );
       return;
     }
 
     setState(() {
       _fase = _FaseVisita.verificandoUbicacion;
       _errorMensaje = null;
+      _puedeForzarCheckIn = false;
     });
 
     LocationCheckIn? checkIn;
@@ -133,11 +151,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           lonObjetivo != null &&
           !_locationService.estaCercaDe(checkIn, latObjetivo, lonObjetivo)) {
         if (!mounted) return;
-        setState(() {
-          _fase = _FaseVisita.errorUbicacion;
-          _errorMensaje =
-              'No estás cerca de la ubicación del cliente. Acercate al domicilio para poder registrar el check-in.';
-        });
+        _entrarEnErrorUbicacion(
+          'No estás cerca de la ubicación del cliente. Acercate al domicilio para poder registrar el check-in.',
+        );
         return;
       }
 
@@ -170,10 +186,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       );
     } on LocationServiceException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _fase = _FaseVisita.errorUbicacion;
-        _errorMensaje = e.message;
-      });
+      _entrarEnErrorUbicacion(e.message);
     } on NetworkException {
       // Tenemos la posición del GPS (no depende de la red) pero no hay
       // señal para avisarle al backend: guardamos el check-in localmente
@@ -181,11 +194,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       final idAgendaItemFallback = _visita.idAgendaItem;
       if (idAgendaItemFallback == null) {
         if (!mounted) return;
-        setState(() {
-          _fase = _FaseVisita.errorUbicacion;
-          _errorMensaje =
-              'No hay conexión y la visita no tiene un ítem de agenda asociado para guardarla localmente.';
-        });
+        _entrarEnErrorUbicacion(
+          'No hay conexión y la visita no tiene un ítem de agenda asociado para guardarla localmente.',
+          forzable: false,
+        );
         return;
       }
       await _iniciarViaColaSincronizacion(
@@ -196,16 +208,28 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       );
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _fase = _FaseVisita.errorUbicacion;
-        _errorMensaje = e.message;
-      });
+      _entrarEnErrorUbicacion(e.message);
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _fase = _FaseVisita.errorUbicacion;
-        _errorMensaje = 'No se pudo iniciar la visita. Intentá de nuevo.';
-      });
+      _entrarEnErrorUbicacion('No se pudo iniciar la visita. Intentá de nuevo.');
+    }
+  }
+
+  Future<void> _forzarCheckIn() async {
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idAgendaItem == null || _forzandoCheckIn) return;
+
+    setState(() => _forzandoCheckIn = true);
+    try {
+      await _iniciarViaColaSincronizacion(
+        idAgendaItem: idAgendaItem,
+        idVisita: _visita.idVisita,
+        checkIn: _locationService.ultimoCheckInConocido,
+        porFallaDeRed: true,
+        forzado: true,
+      );
+    } finally {
+      if (mounted) setState(() => _forzandoCheckIn = false);
     }
   }
 
@@ -214,6 +238,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     int? idVisita,
     required LocationCheckIn? checkIn,
     bool porFallaDeRed = false,
+    bool forzado = false,
   }) async {
     final ahora = DateTime.now();
 
@@ -227,6 +252,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         creadoEn: ahora,
         latitud: checkIn?.latitud,
         longitud: checkIn?.longitud,
+        checkInForzado: forzado,
       ),
     );
 
@@ -779,6 +805,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           mensaje: _errorMensaje ?? 'No se pudo verificar tu ubicación.',
           onReintentar: _iniciarCheckIn,
           onCancelar: () => Navigator.of(context).pop(),
+          forzando: _forzandoCheckIn,
+          onCheckinForzado: _puedeForzarCheckIn ? _forzarCheckIn : null,
         );
       case _FaseVisita.enCurso:
         return Column(
@@ -964,11 +992,15 @@ class _ErrorUbicacion extends StatelessWidget {
   final String mensaje;
   final VoidCallback onReintentar;
   final VoidCallback onCancelar;
+  final bool forzando;
+  final Future<void> Function()? onCheckinForzado;
 
   const _ErrorUbicacion({
     required this.mensaje,
     required this.onReintentar,
     required this.onCancelar,
+    this.forzando = false,
+    this.onCheckinForzado,
   });
 
   @override
@@ -982,6 +1014,23 @@ class _ErrorUbicacion extends StatelessWidget {
           Text(mensaje, style: AppTextStyles.input, textAlign: TextAlign.center),
           const SizedBox(height: 22),
           PrimaryButton(text: 'Reintentar', onPressed: onReintentar),
+          if (onCheckinForzado != null) ...[
+            const SizedBox(height: 14),
+            if (forzando)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.orange,
+                  ),
+                ),
+              )
+            else
+              CheckinForzadoButton(onConfirmado: onCheckinForzado!),
+          ],
           const SizedBox(height: 10),
           TextButton(
             onPressed: onCancelar,

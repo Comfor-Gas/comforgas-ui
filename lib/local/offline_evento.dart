@@ -20,6 +20,7 @@ class OfflineEvento {
   // CHECK_IN
   final double? latitud;
   final double? longitud;
+  final bool checkInForzado;
 
   // CHECK_OUT
   final String? observaciones;
@@ -47,6 +48,7 @@ class OfflineEvento {
     required this.creadoEn,
     this.latitud,
     this.longitud,
+    this.checkInForzado = false,
     this.observaciones,
     this.timestampFin,
     this.latitudFin,
@@ -69,6 +71,7 @@ class OfflineEvento {
       creadoEn: creadoEn,
       latitud: latitud,
       longitud: longitud,
+      checkInForzado: checkInForzado,
       observaciones: observaciones,
       timestampFin: timestampFin,
       latitudFin: latitudFin,
@@ -112,13 +115,14 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
       ultimoError: fields[15] as String?,
       idAgendaItem: fields[16] as int? ?? -1,
       ventaItemsJson: fields[17] as String?,
+      checkInForzado: fields[18] as bool? ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, OfflineEvento obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.uuidOffline)
       ..writeByte(1)
@@ -154,6 +158,8 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
       ..writeByte(16)
       ..write(obj.idAgendaItem)
       ..writeByte(17)
-      ..write(obj.ventaItemsJson);
+      ..write(obj.ventaItemsJson)
+      ..writeByte(18)
+      ..write(obj.checkInForzado);
   }
 }

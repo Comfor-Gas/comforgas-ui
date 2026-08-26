@@ -137,6 +137,8 @@ class SincronizacionRepository {
       'timestampOrigen': e.timestampOrigen.toUtc().toIso8601String(),
       if (e.latitud != null) 'latitud': e.latitud,
       if (e.longitud != null) 'longitud': e.longitud,
+      if (e.tipoEvento == OfflineEventoTipo.checkIn && e.checkInForzado)
+        'checkInForzado': true,
       if (e.observaciones != null) 'observaciones': e.observaciones,
       if (e.timestampFin != null) 'timestampFin': e.timestampFin!.toUtc().toIso8601String(),
       if (e.latitudFin != null) 'latitudFin': e.latitudFin,

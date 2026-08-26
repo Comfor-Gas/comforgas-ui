@@ -5,6 +5,7 @@ import 'theme/app_colors.dart';
 import 'providers/auth_provider.dart';
 import 'local/agenda_cache_service.dart';
 import 'local/offline_queue_service.dart';
+import 'local/stock_camion_cache_service.dart';
 import 'services/app_lock_controller.dart';
 import 'services/sync_manager.dart';
 import 'screens/auth_gate.dart';
@@ -20,6 +21,7 @@ void main() async {
   await Hive.initFlutter();
   await OfflineQueueService.instance.init();
   await AgendaCacheService.instance.init();
+  await StockCamionCacheService.instance.init();
   runApp(const ComforGasApp());
 }
 

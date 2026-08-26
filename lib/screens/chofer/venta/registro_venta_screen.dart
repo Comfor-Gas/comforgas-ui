@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../local/stock_camion_cache_service.dart';
 import '../../../models/detalle_venta_draft.dart';
 import '../../../models/producto_sku.dart';
 import '../../../models/venta_draft.dart';
 import '../../../models/visita_model.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../repositories/network_exception.dart';
+import '../../../repositories/stock_repository.dart';
 import '../../../repositories/venta_repository.dart';
+import '../../../services/catalogo_garrafas_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../widgets/chofer/venta/detalle_venta_card.dart';
 import '../../../widgets/chofer/venta/detalle_venta_editor_sheet.dart';
 import '../../../widgets/chofer/venta/sku_catalogo_card.dart';
+import '../../../widgets/chofer/venta/stock_aviso_banner.dart';
 import '../../../widgets/chofer/venta/tipo_operacion_sheet.dart';
 import '../../../widgets/chofer/venta/venta_total_bar.dart';
 
@@ -33,16 +40,70 @@ class RegistroVentaScreen extends StatefulWidget {
 }
 
 class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
+  static const _catalogoService = CatalogoGarrafasService();
+
   late final VentaDraft _venta;
-  late final List<ProductoSku> _catalogo;
+  List<ProductoSku> _catalogo = const [];
+  bool _cargandoCatalogo = true;
   bool _guardando = false;
+  String? _avisoStock;
 
   @override
   void initState() {
     super.initState();
-    _catalogo = ProductoSku.desdeVisita(widget.visita);
     _venta = VentaDraft(
       lineas: widget.inicial?.lineas.map((l) => l.copy()).toList(),
+    );
+    _cargarCatalogo();
+  }
+
+  Future<void> _cargarCatalogo() async {
+    final apiClient = context.read<AuthProvider>().apiClient;
+    final idUsuario = widget.visita.idUsuario;
+
+    List<ProductoSku> catalogo;
+    String? aviso;
+    try {
+      final stock = await StockRepository(apiClient).getStockMiCamion();
+      await StockCamionCacheService.instance.guardar(idUsuario, stock);
+      catalogo = _catalogoService.desdeStock(widget.visita, stock);
+    } on NetworkException {
+      final resultado = _catalogoDesdeCacheOFallback(idUsuario);
+      catalogo = resultado.$1;
+      aviso = resultado.$2;
+    } on StockRepositoryException catch (e) {
+      final resultado = _catalogoDesdeCacheOFallback(idUsuario, motivo: e.message);
+      catalogo = resultado.$1;
+      aviso = resultado.$2;
+    } catch (_) {
+      final resultado = _catalogoDesdeCacheOFallback(idUsuario);
+      catalogo = resultado.$1;
+      aviso = resultado.$2;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _catalogo = catalogo;
+      _avisoStock = aviso;
+      _cargandoCatalogo = false;
+    });
+  }
+
+  (List<ProductoSku>, String?) _catalogoDesdeCacheOFallback(
+    String idUsuario, {
+    String? motivo,
+  }) {
+    final cache = StockCamionCacheService.instance.obtener(idUsuario);
+    if (cache != null) {
+      return (
+        _catalogoService.desdeStock(widget.visita, cache),
+        'Usando el último stock del camión guardado; puede estar desactualizado.',
+      );
+    }
+    return (
+      ProductoSku.desdeVisita(widget.visita),
+      motivo ??
+          'Sin stock del camión disponible: se muestran los precios de la agenda sin control de stock.',
     );
   }
 
@@ -113,13 +174,17 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
               onBack: () => Navigator.of(context).maybePop(),
             ),
             Expanded(
-              child: _catalogo.isEmpty
-                  ? _SinCatalogo()
+              child: _cargandoCatalogo
+                  ? const _CargandoCatalogo()
+                  : _catalogo.isEmpty
+                  ? _SinCatalogo(aviso: _avisoStock)
                   : SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (_avisoStock != null)
+                            StockAvisoBanner(mensaje: _avisoStock!),
                           _Seccion(titulo: 'Productos disponibles'),
                           const SizedBox(height: 12),
                           ..._catalogo.map(
@@ -249,7 +314,37 @@ class _Seccion extends StatelessWidget {
   }
 }
 
+class _CargandoCatalogo extends StatelessWidget {
+  const _CargandoCatalogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            height: 34,
+            width: 34,
+            child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.orange),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Consultando el stock de tu camión…',
+            style: AppTextStyles.link,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SinCatalogo extends StatelessWidget {
+  final String? aviso;
+
+  const _SinCatalogo({this.aviso});
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -262,7 +357,8 @@ class _SinCatalogo extends StatelessWidget {
                 size: 56, color: AppColors.inputHint),
             const SizedBox(height: 16),
             Text(
-              'Este cliente no tiene precios de garrafas cargados en la agenda.',
+              aviso ??
+                  'No hay garrafas llenas disponibles en el stock de tu camión para este cliente.',
               textAlign: TextAlign.center,
               style: AppTextStyles.link,
             ),

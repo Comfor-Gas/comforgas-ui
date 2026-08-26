@@ -43,15 +43,27 @@ class _DetalleVentaEditorSheet extends StatefulWidget {
 
 class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
   late DetalleVentaDraft _draft;
+  bool _mostrarError = false;
+
+  void _intentarGuardar() {
+    if (_draft.esValido) {
+      Navigator.of(context).pop(_draft);
+    } else {
+      setState(() => _mostrarError = true);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     final base = widget.inicial;
+    final stock = widget.producto.stockDisponible;
+    var entregada = base?.cantidadEntregada ?? 1;
+    if (stock != null && entregada > stock) entregada = stock;
     _draft = DetalleVentaDraft(
       producto: widget.producto,
       tipoOperacion: widget.tipoOperacion,
-      cantidadEntregada: base?.cantidadEntregada ?? 1,
+      cantidadEntregada: entregada,
       cantidadRecibida: widget.tipoOperacion == TipoOperacionVenta.prestamo
           ? 0
           : base?.cantidadRecibida ??
@@ -62,8 +74,7 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final info = widget.tipoOperacion.info;
-    final error = _draft.mensajeError;
-    final puedeGuardar = _draft.esValido;
+    final error = _mostrarError ? _draft.mensajeError : null;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -102,12 +113,16 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                     Expanded(
                       child: CantidadStepper(
                         titulo: 'Entregados',
-                        subtitulo: 'Lleno',
+                        subtitulo: widget.producto.stockDisponible != null
+                            ? 'Lleno · máx ${widget.producto.stockDisponible}'
+                            : 'Lleno',
                         icono: Icons.propane_tank,
                         acento: AppColors.orange,
                         valor: _draft.cantidadEntregada,
+                        maximo: widget.producto.stockDisponible ?? 999,
                         onChanged: (v) => setState(() {
                           _draft.cantidadEntregada = v;
+                          _mostrarError = false;
                         }),
                       ),
                     ),
@@ -122,6 +137,7 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                           valor: _draft.cantidadRecibida,
                           onChanged: (v) => setState(() {
                             _draft.cantidadRecibida = v;
+                            _mostrarError = false;
                           }),
                         ),
                       ),
@@ -142,9 +158,7 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: puedeGuardar
-                        ? () => Navigator.of(context).pop(_draft)
-                        : null,
+                    onPressed: _intentarGuardar,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.orange,
                       disabledBackgroundColor: AppColors.inputBorder,

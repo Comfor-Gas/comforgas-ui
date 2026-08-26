@@ -8,6 +8,7 @@ class ProductoSku {
   final int kg;
   final int precioUnitario;
   final String tipoProducto;
+  final int? stockDisponible;
 
   const ProductoSku({
     required this.idProducto,
@@ -15,8 +16,11 @@ class ProductoSku {
     required this.descripcion,
     required this.kg,
     required this.precioUnitario,
-    this.tipoProducto = 'GLP',
+    this.tipoProducto = 'GARRAFA',
+    this.stockDisponible,
   });
+
+  bool get controlaStock => stockDisponible != null;
 
   Map<String, dynamic> toSnapshot() {
     return {
@@ -28,29 +32,35 @@ class ProductoSku {
   }
 
   static List<ProductoSku> desdeVisita(VisitaModel visita) {
-    final snapshot = visita.sucursalSnapshot;
-    final precios = <int, int?>{
-      10: parseInt(snapshot['precio10']),
-      15: parseInt(snapshot['precio15']),
-      30: parseInt(snapshot['precio30']),
-      45: parseInt(snapshot['precio45']),
-    };
-
     final skus = <ProductoSku>[];
-    precios.forEach((kg, precio) {
-      if (precio != null && precio > 0) {
+    precioPorKg(visita).forEach((kg, precio) {
+      if (precio > 0) {
         skus.add(
           ProductoSku(
-            idProducto: 'GLP-${kg}KG',
-            sku: 'GLP-${kg}KG',
-            descripcion: '${kg}kg Gas GLP',
+            idProducto: 'GARRAFA-$kg',
+            sku: 'GARRAFA-$kg',
+            descripcion: 'Garrafa $kg kg',
             kg: kg,
             precioUnitario: precio,
           ),
         );
       }
     });
-
     return skus;
+  }
+
+  static Map<int, int> precioPorKg(VisitaModel visita) {
+    final snapshot = visita.sucursalSnapshot;
+    final crudos = <int, int?>{
+      10: parseInt(snapshot['precio10']),
+      15: parseInt(snapshot['precio15']),
+      30: parseInt(snapshot['precio30']),
+      45: parseInt(snapshot['precio45']),
+    };
+    final precios = <int, int>{};
+    crudos.forEach((kg, precio) {
+      if (precio != null) precios[kg] = precio;
+    });
+    return precios;
   }
 }

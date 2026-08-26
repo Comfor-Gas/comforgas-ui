@@ -44,6 +44,18 @@ class LocationService {
 
   bool get siguiendoEnSegundoPlano => _backgroundSubscription != null;
 
+  LocationCheckIn? get ultimoCheckInConocido {
+    final position = lastKnownPosition;
+    if (position == null) return null;
+    return LocationCheckIn(
+      latitud: position.latitude,
+      longitud: position.longitude,
+      precisionMetros: position.accuracy,
+      esPrecisa: position.accuracy <= _umbralPrecisionMetros,
+      timestamp: position.timestamp,
+    );
+  }
+
   Future<void> _asegurarPermisos() async {
     final servicioActivo = await Geolocator.isLocationServiceEnabled();
     if (!servicioActivo) {

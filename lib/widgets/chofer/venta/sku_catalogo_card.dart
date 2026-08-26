@@ -71,6 +71,26 @@ class SkuCatalogoCard extends StatelessWidget {
                       '${formatMoneda(producto.precioUnitario)} c/u',
                       style: AppTextStyles.link.copyWith(fontSize: 13),
                     ),
+                    if (producto.stockDisponible != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.inventory_2_outlined,
+                            size: 13,
+                            color: AppColors.steelBlue,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Disponibles en el camión: ${producto.stockDisponible}',
+                            style: AppTextStyles.footer.copyWith(
+                              color: AppColors.steelBlue,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (agregado) ...[
                       const SizedBox(height: 6),
                       Row(

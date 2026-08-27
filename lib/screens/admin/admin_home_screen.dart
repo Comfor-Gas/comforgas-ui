@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/admin/admin_topbar.dart';
 import 'consola_ventas_screen.dart';
+import 'gestion_flota_screen.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
 import 'seguimiento_tiempo_real_screen.dart';
@@ -39,6 +40,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           icon: Icons.groups_outlined,
         );
       case 5:
+        return const GestionFlotaScreen();
+      case 6:
         return const TableroHojaRutaScreen();
       default:
         return const PlaceholderAdminSection(

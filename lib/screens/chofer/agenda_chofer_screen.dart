@@ -21,6 +21,7 @@ import '../../widgets/chofer/sync_pendiente_banner.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/chofer/visita_cliente_card.dart';
 import '../../widgets/chofer/visita_estado_chip.dart';
+import '../../widgets/common/estado_conexion_badge.dart';
 import '../../widgets/primary_button.dart';
 import 'visita_activa_screen.dart';
 
@@ -577,6 +578,8 @@ class _AgendaHeader extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 12),
+          const EstadoConexionBadge(compacto: true, claro: true),
         ],
       ),
     );

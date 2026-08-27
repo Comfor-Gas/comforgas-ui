@@ -22,6 +22,10 @@ class ConnectivityService {
     return _algunaConexion(resultados);
   }
 
+  Stream<bool> observarConexion() {
+    return Connectivity().onConnectivityChanged.map(_algunaConexion);
+  }
+
   /// Se suscribe a los cambios de conectividad y llama a [onConectado]
   /// cada vez que el dispositivo pasa de sin-red a con-red. Solo debe
   /// haber un listener activo a la vez: llamar de nuevo reemplaza al

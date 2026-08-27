@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -23,15 +23,23 @@ import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
-import '../../widgets/chofer/checkin_forzado_button.dart';
+import '../../widgets/chofer/datos_desactivados_card.dart';
 import '../../widgets/chofer/evidencia_captura_card.dart';
+import '../../widgets/chofer/inicio_sin_conexion_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
+import '../../widgets/common/estado_conexion_badge.dart';
 import '../../widgets/primary_button.dart';
 import 'venta/registro_venta_screen.dart';
 
 const _uuid = Uuid();
 
-enum _FaseVisita { verificandoUbicacion, errorUbicacion, enCurso }
+enum _FaseVisita {
+  verificandoUbicacion,
+  datosDesactivados,
+  sinConexion,
+  errorUbicacion,
+  enCurso,
+}
 
 class VisitaActivaScreen extends StatefulWidget {
   final VisitaModel visita;
@@ -65,12 +73,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _cancelando = false;
   bool _evidenciaExistente = false;
   bool _checkInPendienteSync = false;
-  bool _puedeForzarCheckIn = false;
-  bool _forzandoCheckIn = false;
+  bool _reintentandoConexion = false;
+  bool _continuandoOffline = false;
   VentaDraft? _ventaDraft;
   bool _ventaRegistrada = false;
   bool _ventaPendienteSync = false;
   VoidCallback? _colaListener;
+  StreamSubscription<bool>? _conexionSub;
 
   @override
   void initState() {
@@ -84,6 +93,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _colaListener = _actualizarPendienteSync;
     OfflineQueueService.instance.escuchar().addListener(_colaListener!);
 
+    _conexionSub = ConnectivityService.instance.observarConexion().listen((online) {
+      if (online && _fase == _FaseVisita.datosDesactivados) {
+        _iniciarCheckIn();
+      }
+    });
+
     if (_visita.estadoVisita == VisitaEstado.enCurso) {
       _reanudarVisita();
     } else {
@@ -96,6 +111,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (_colaListener != null) {
       OfflineQueueService.instance.escuchar().removeListener(_colaListener!);
     }
+    _conexionSub?.cancel();
     _locationService.detenerSeguimientoEnSegundoPlano();
     super.dispose();
   }
@@ -111,16 +127,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
-  void _entrarEnErrorUbicacion(String mensaje, {bool forzable = true}) {
+  void _entrarEnErrorUbicacion(String mensaje) {
     setState(() {
       _fase = _FaseVisita.errorUbicacion;
       _errorMensaje = mensaje;
-      _puedeForzarCheckIn = false;
-    });
-    if (!forzable || _visita.idAgendaItem == null) return;
-    ConnectivityService.instance.tieneConexion().then((hayConexion) {
-      if (!mounted || _fase != _FaseVisita.errorUbicacion) return;
-      setState(() => _puedeForzarCheckIn = !hayConexion);
     });
   }
 
@@ -128,18 +138,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     final idAgendaItem = _visita.idAgendaItem;
     final idVisitaExistente = _visita.idVisita;
     if (idAgendaItem == null && idVisitaExistente == null) {
-      _entrarEnErrorUbicacion(
-        'La visita no tiene un identificador válido.',
-        forzable: false,
-      );
+      _entrarEnErrorUbicacion('La visita no tiene un identificador válido.');
       return;
     }
 
     setState(() {
       _fase = _FaseVisita.verificandoUbicacion;
       _errorMensaje = null;
-      _puedeForzarCheckIn = false;
     });
+
+    final hayConexion = await ConnectivityService.instance.tieneConexion();
+    if (!mounted) return;
+    if (!hayConexion) {
+      setState(() => _fase = _FaseVisita.datosDesactivados);
+      return;
+    }
 
     LocationCheckIn? checkIn;
     try {
@@ -180,7 +193,6 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         _fase = _FaseVisita.enCurso;
       });
 
-      // Arranca el seguimiento en segundo plano (no bloquea la UI).
       unawaited(
         _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
       );
@@ -188,24 +200,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       if (!mounted) return;
       _entrarEnErrorUbicacion(e.message);
     } on NetworkException {
-      // Tenemos la posición del GPS (no depende de la red) pero no hay
-      // señal para avisarle al backend: guardamos el check-in localmente
-      // y seguimos como si hubiera funcionado, para no frenar al chofer.
-      final idAgendaItemFallback = _visita.idAgendaItem;
-      if (idAgendaItemFallback == null) {
-        if (!mounted) return;
+      if (!mounted) return;
+      if (_visita.idAgendaItem == null) {
         _entrarEnErrorUbicacion(
           'No hay conexión y la visita no tiene un ítem de agenda asociado para guardarla localmente.',
-          forzable: false,
         );
         return;
       }
-      await _iniciarViaColaSincronizacion(
-        idAgendaItem: idAgendaItemFallback,
-        idVisita: idVisitaExistente,
-        checkIn: checkIn,
-        porFallaDeRed: true,
-      );
+      setState(() => _fase = _FaseVisita.sinConexion);
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
       _entrarEnErrorUbicacion(e.message);
@@ -215,21 +217,47 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
-  Future<void> _forzarCheckIn() async {
-    final idAgendaItem = _visita.idAgendaItem;
-    if (idAgendaItem == null || _forzandoCheckIn) return;
-
-    setState(() => _forzandoCheckIn = true);
-    try {
-      await _iniciarViaColaSincronizacion(
-        idAgendaItem: idAgendaItem,
-        idVisita: _visita.idVisita,
-        checkIn: _locationService.ultimoCheckInConocido,
-        porFallaDeRed: true,
-        forzado: true,
+  Future<void> _reintentarConexion() async {
+    if (_reintentandoConexion || _continuandoOffline) return;
+    setState(() => _reintentandoConexion = true);
+    final hayConexion = await ConnectivityService.instance.tieneConexion();
+    if (!mounted) return;
+    setState(() => _reintentandoConexion = false);
+    if (hayConexion) {
+      _iniciarCheckIn();
+    } else {
+      _mostrarAviso(
+        'Seguís sin conexión. Podés continuar offline o volver a intentar.',
       );
-    } finally {
-      if (mounted) setState(() => _forzandoCheckIn = false);
+    }
+  }
+
+  Future<void> _continuarOffline() async {
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idAgendaItem == null) {
+      _mostrarError(
+        'La visita no tiene un ítem de agenda para guardarla localmente.',
+      );
+      return;
+    }
+    if (_continuandoOffline || _reintentandoConexion) return;
+    setState(() => _continuandoOffline = true);
+    final checkIn = await _obtenerUbicacionBestEffort();
+    await _iniciarViaColaSincronizacion(
+      idAgendaItem: idAgendaItem,
+      idVisita: _visita.idVisita,
+      checkIn: checkIn,
+      porFallaDeRed: true,
+      forzado: true,
+    );
+    if (mounted) setState(() => _continuandoOffline = false);
+  }
+
+  Future<LocationCheckIn?> _obtenerUbicacionBestEffort() async {
+    try {
+      return await _locationService.obtenerUbicacionActual();
+    } catch (_) {
+      return _locationService.ultimoCheckInConocido;
     }
   }
 
@@ -800,13 +828,26 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           nombreCliente: widget.nombreCliente,
           direccionCliente: widget.direccionCliente,
         );
+      case _FaseVisita.datosDesactivados:
+        return DatosDesactivadosCard(
+          nombreCliente: widget.nombreCliente,
+          direccionCliente: widget.direccionCliente,
+          onReintentar: _iniciarCheckIn,
+        );
+      case _FaseVisita.sinConexion:
+        return InicioSinConexionCard(
+          nombreCliente: widget.nombreCliente,
+          direccionCliente: widget.direccionCliente,
+          reintentando: _reintentandoConexion,
+          continuando: _continuandoOffline,
+          onReintentarConexion: _reintentarConexion,
+          onContinuarOffline: _continuarOffline,
+        );
       case _FaseVisita.errorUbicacion:
         return _ErrorUbicacion(
           mensaje: _errorMensaje ?? 'No se pudo verificar tu ubicación.',
           onReintentar: _iniciarCheckIn,
           onCancelar: () => Navigator.of(context).pop(),
-          forzando: _forzandoCheckIn,
-          onCheckinForzado: _puedeForzarCheckIn ? _forzarCheckIn : null,
         );
       case _FaseVisita.enCurso:
         return Column(
@@ -949,6 +990,7 @@ class _TopBar extends StatelessWidget {
               style: AppTextStyles.title.copyWith(fontSize: 18),
             ),
           ),
+          const EstadoConexionBadge(compacto: true),
         ],
       ),
     );
@@ -992,15 +1034,11 @@ class _ErrorUbicacion extends StatelessWidget {
   final String mensaje;
   final VoidCallback onReintentar;
   final VoidCallback onCancelar;
-  final bool forzando;
-  final Future<void> Function()? onCheckinForzado;
 
   const _ErrorUbicacion({
     required this.mensaje,
     required this.onReintentar,
     required this.onCancelar,
-    this.forzando = false,
-    this.onCheckinForzado,
   });
 
   @override
@@ -1014,23 +1052,6 @@ class _ErrorUbicacion extends StatelessWidget {
           Text(mensaje, style: AppTextStyles.input, textAlign: TextAlign.center),
           const SizedBox(height: 22),
           PrimaryButton(text: 'Reintentar', onPressed: onReintentar),
-          if (onCheckinForzado != null) ...[
-            const SizedBox(height: 14),
-            if (forzando)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: AppColors.orange,
-                  ),
-                ),
-              )
-            else
-              CheckinForzadoButton(onConfirmado: onCheckinForzado!),
-          ],
           const SizedBox(height: 10),
           TextButton(
             onPressed: onCancelar,

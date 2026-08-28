@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/venta_draft.dart';
+import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
 class VentaRepositoryException implements Exception {
@@ -17,7 +18,7 @@ class VentaRepository {
 
   VentaRepository([http.Client? client]) : _client = client ?? http.Client();
 
-  Future<void> registrarVenta({
+  Future<int?> registrarVenta({
     required int idVisita,
     required VentaDraft venta,
   }) async {
@@ -40,7 +41,11 @@ class VentaRepository {
     }
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      return;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return parseInt(decoded['idVenta']);
+      } catch (_) {}
+      return null;
     }
 
     if (response.statusCode == 400 || response.statusCode == 409) {

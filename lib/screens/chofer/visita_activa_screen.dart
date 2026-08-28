@@ -23,12 +23,15 @@ import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
+import '../../models/credito_cliente.dart';
+import '../../widgets/chofer/cobro/morosidad_banner.dart';
 import '../../widgets/chofer/datos_desactivados_card.dart';
 import '../../widgets/chofer/evidencia_captura_card.dart';
 import '../../widgets/chofer/inicio_sin_conexion_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/common/estado_conexion_badge.dart';
 import '../../widgets/primary_button.dart';
+import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
 
 const _uuid = Uuid();
@@ -78,6 +81,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   VentaDraft? _ventaDraft;
   bool _ventaRegistrada = false;
   bool _ventaPendienteSync = false;
+  int? _idVentaRegistrada;
+  bool _cobroRegistrado = false;
   VoidCallback? _colaListener;
   StreamSubscription<bool>? _conexionSub;
 
@@ -361,18 +366,33 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
+  Future<Object?> _abrirCobro() {
+    final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
+    return Navigator.of(context).push<Object?>(
+      MaterialPageRoute(
+        builder: (_) => RegistroCobroScreen(
+          idVenta: _idVentaRegistrada!,
+          nombreCliente: widget.nombreCliente,
+          montoSugerido: _ventaDraft?.montoTotal ?? 0,
+          credito: credito,
+        ),
+      ),
+    );
+  }
+
   Future<void> _registrarVenta(VentaDraft venta) async {
     final idVisita = _visita.idVisita;
     final idAgendaItem = _visita.idAgendaItem;
 
     if (idVisita != null) {
       try {
-        await _ventaRepo.registrarVenta(idVisita: idVisita, venta: venta);
+        final idVenta = await _ventaRepo.registrarVenta(idVisita: idVisita, venta: venta);
         if (!mounted) return;
         setState(() {
           _ventaDraft = venta;
           _ventaRegistrada = true;
           _ventaPendienteSync = false;
+          _idVentaRegistrada = idVenta;
         });
         return;
       } on NetworkException {
@@ -465,6 +485,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (idVisita == null && idAgendaItem == null) {
       _mostrarError('La visita no tiene un identificador válido.');
       return;
+    }
+
+    if (_ventaRegistrada && _idVentaRegistrada != null && !_cobroRegistrado) {
+      final resultado = await _abrirCobro();
+      if (!mounted) return;
+      if (resultado != null) setState(() => _cobroRegistrado = true);
     }
 
     setState(() => _finalizando = true);
@@ -850,9 +876,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           onCancelar: () => Navigator.of(context).pop(),
         );
       case _FaseVisita.enCurso:
+        final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (credito.tieneAlerta) ...[
+              MorosidadBanner(credito: credito),
+              const SizedBox(height: 12),
+            ],
             if (_checkInPendienteSync) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

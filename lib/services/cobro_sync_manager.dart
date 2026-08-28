@@ -4,6 +4,7 @@ import '../local/cobro_offline_service.dart';
 import '../repositories/cobro_repository.dart';
 import '../repositories/network_exception.dart';
 import 'connectivity_service.dart';
+import 'sync_manager.dart';
 
 class CobroSyncManager {
   CobroSyncManager._();
@@ -15,7 +16,9 @@ class CobroSyncManager {
 
   CobroRepository? _repo;
   StreamSubscription<bool>? _conexionSub;
+  StreamSubscription<bool>? _ventaSyncSub;
   bool _sincronizando = false;
+  bool _pendienteReintento = false;
 
   final _estadoController = StreamController<bool>.broadcast();
 
@@ -23,16 +26,30 @@ class CobroSyncManager {
 
   void configurar(http.Client apiClient) {
     _repo = CobroRepository(apiClient);
+
     _conexionSub?.cancel();
     _conexionSub = _connectivity.observarConexion().listen((online) {
       if (online) sincronizar();
     });
+
+    // Reintenta los cobros cada vez que termina un ciclo de sincronización de
+    // ventas/checkins. Un cobro offline referencia a su venta por uuid_offline;
+    // hasta que esa venta no se sincroniza, el backend lo rechaza con "venta no
+    // sincronizada". Al reintentar justo después del sync de ventas, el cobro se
+    // manda recién cuando la venta ya está materializada.
+    _ventaSyncSub?.cancel();
+    _ventaSyncSub = SyncManager.instance.sincronizando.listen((enCurso) {
+      if (!enCurso) sincronizar();
+    });
+
     sincronizar();
   }
 
   void detener() {
     _conexionSub?.cancel();
     _conexionSub = null;
+    _ventaSyncSub?.cancel();
+    _ventaSyncSub = null;
     _repo = null;
   }
 
@@ -40,7 +57,11 @@ class CobroSyncManager {
 
   Future<void> sincronizar() async {
     final repo = _repo;
-    if (_sincronizando || repo == null) return;
+    if (repo == null) return;
+    if (_sincronizando) {
+      _pendienteReintento = true;
+      return;
+    }
 
     final pendientes = _queue.listarPendientes();
     if (pendientes.isEmpty) return;
@@ -63,11 +84,16 @@ class CobroSyncManager {
     } finally {
       _sincronizando = false;
       _estadoController.add(false);
+      if (_pendienteReintento) {
+        _pendienteReintento = false;
+        unawaited(sincronizar());
+      }
     }
   }
 
   void dispose() {
     _conexionSub?.cancel();
+    _ventaSyncSub?.cancel();
     _estadoController.close();
   }
 }

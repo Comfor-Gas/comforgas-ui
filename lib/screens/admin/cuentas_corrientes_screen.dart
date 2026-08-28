@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../core/responsive.dart';
 import '../../data/mock_cobranza_data.dart';
 import '../../models/cuenta_corriente_resumen.dart';
@@ -91,10 +90,23 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   }
 
   void _verDetalle(CuentaCorrienteResumen cliente) {
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DetalleSheet(cliente: cliente),
+      barrierDismissible: true,
+      barrierLabel: 'Detalle de ${cliente.nombreCliente}',
+      barrierColor: Colors.black.withOpacity(0.35),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (_, __, ___) => Align(
+        alignment: Alignment.centerRight,
+        child: _DetallePanel(cliente: cliente),
+      ),
+      transitionBuilder: (_, animacion, __, child) {
+        final curva = CurvedAnimation(parent: animacion, curve: Curves.easeOutCubic);
+        return SlideTransition(
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(curva),
+          child: child,
+        );
+      },
     );
   }
 
@@ -368,50 +380,69 @@ class _TarjetaTabla extends StatelessWidget {
   }
 }
 
-class _DetalleSheet extends StatelessWidget {
+class _DetallePanel extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
 
-  const _DetalleSheet({required this.cliente});
+  const _DetallePanel({required this.cliente});
 
   @override
   Widget build(BuildContext context) {
     final disponible = cliente.limiteCredito - cliente.saldoUsado;
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, 14, 20, 24 + MediaQuery.of(context).padding.bottom),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.inputBorder,
-                borderRadius: BorderRadius.circular(4),
-              ),
+    final anchoPantalla = MediaQuery.of(context).size.width;
+    final ancho = anchoPantalla < 480
+        ? anchoPantalla
+        : (anchoPantalla * 0.34).clamp(360.0, 460.0);
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: ancho.toDouble(),
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          cliente.nombreCliente,
+                          style: AppTextStyles.title.copyWith(fontSize: 20),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.graphiteGray),
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: 'Cerrar',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _LineaDetalle(etiqueta: 'Límite de crédito', valor: formatMoneda(cliente.limiteCredito)),
+                _LineaDetalle(etiqueta: 'Saldo usado', valor: formatMoneda(cliente.saldoUsado)),
+                _LineaDetalle(
+                  etiqueta: 'Disponible',
+                  valor: formatMoneda(disponible),
+                  acento: disponible < 0 ? AppColors.error : AppColors.badgeGreen,
+                ),
+                _LineaDetalle(
+                  etiqueta: 'Vencido',
+                  valor: cliente.tieneVencido ? formatMoneda(cliente.montoVencido) : '—',
+                  acento: cliente.tieneVencido ? AppColors.error : null,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          Text(cliente.nombreCliente, style: AppTextStyles.title.copyWith(fontSize: 20)),
-          const SizedBox(height: 14),
-          _LineaDetalle(etiqueta: 'Límite de crédito', valor: formatMoneda(cliente.limiteCredito)),
-          _LineaDetalle(etiqueta: 'Saldo usado', valor: formatMoneda(cliente.saldoUsado)),
-          _LineaDetalle(
-            etiqueta: 'Disponible',
-            valor: formatMoneda(disponible),
-            acento: disponible < 0 ? AppColors.error : AppColors.badgeGreen,
-          ),
-          _LineaDetalle(
-            etiqueta: 'Vencido',
-            valor: cliente.tieneVencido ? formatMoneda(cliente.montoVencido) : '—',
-            acento: cliente.tieneVencido ? AppColors.error : null,
-          ),
-        ],
+        ),
       ),
     );
   }

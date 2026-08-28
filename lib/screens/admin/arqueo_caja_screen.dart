@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/responsive.dart';
@@ -12,6 +13,7 @@ import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/date_format_utils.dart';
+import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/arqueo_resumen_card.dart';
 import '../../widgets/admin/cobranza/arqueo_tabla.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
@@ -86,6 +88,9 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
         _arqueo = arqueo;
         _modoEjemplo = false;
         _loading = false;
+        // Refleja el estado real que devuelve el backend: si ya estaba cerrado,
+        // la pantalla lo muestra como cerrado aunque recién entremos.
+        _cerrado = arqueo.cerrado;
       });
     } on NetworkException {
       _usarEjemplo('No se pudo conectar con el servidor: mostrando datos de ejemplo.');
@@ -137,13 +142,41 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
     }
   }
 
+  int _totalSistema(String metodo) {
+    for (final m in _arqueo?.totalesPorMetodo ?? const <ArqueoMetodoTotal>[]) {
+      if (m.metodoPago == metodo) return m.total;
+    }
+    return 0;
+  }
+
   Future<void> _cerrarArqueo() async {
     final idUsuario = _choferId;
     if (idUsuario == null || _cerrando) return;
+
+    // El cierre exige los montos declarados (arqueo auditado). Los pedimos
+    // prellenados con lo que calculó el sistema, para que el admin confirme
+    // o ajuste según lo contado físicamente.
+    final declarado = await showDialog<_MontosDeclarados>(
+      context: context,
+      builder: (_) => _CierreArqueoDialog(
+        efectivoSistema: _totalSistema('EFECTIVO'),
+        chequeSistema: _totalSistema('CHEQUE'),
+        transferenciaSistema: _totalSistema('TRANSFERENCIA'),
+      ),
+    );
+    if (declarado == null || !mounted) return;
+
     setState(() => _cerrando = true);
     try {
       if (!_modoEjemplo) {
-        await _repo.cerrarArqueo(idUsuario: idUsuario, fecha: _fecha);
+        await _repo.cerrarArqueo(
+          idUsuario: idUsuario,
+          fecha: _fecha,
+          efectivoDeclarado: declarado.efectivo,
+          chequeDeclarado: declarado.cheque,
+          transferenciaDeclarada: declarado.transferencia,
+          observacion: declarado.observacion,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -428,6 +461,169 @@ class _AvisoBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Resultado del diálogo de cierre: los montos que el admin declara haber
+/// contado físicamente, más una observación opcional.
+class _MontosDeclarados {
+  final int efectivo;
+  final int cheque;
+  final int transferencia;
+  final String? observacion;
+
+  const _MontosDeclarados({
+    required this.efectivo,
+    required this.cheque,
+    required this.transferencia,
+    this.observacion,
+  });
+}
+
+class _CierreArqueoDialog extends StatefulWidget {
+  final int efectivoSistema;
+  final int chequeSistema;
+  final int transferenciaSistema;
+
+  const _CierreArqueoDialog({
+    required this.efectivoSistema,
+    required this.chequeSistema,
+    required this.transferenciaSistema,
+  });
+
+  @override
+  State<_CierreArqueoDialog> createState() => _CierreArqueoDialogState();
+}
+
+class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
+  late final TextEditingController _efectivo;
+  late final TextEditingController _cheque;
+  late final TextEditingController _transferencia;
+  final _observacion = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _efectivo = TextEditingController(text: '${widget.efectivoSistema}');
+    _cheque = TextEditingController(text: '${widget.chequeSistema}');
+    _transferencia = TextEditingController(text: '${widget.transferenciaSistema}');
+  }
+
+  @override
+  void dispose() {
+    _efectivo.dispose();
+    _cheque.dispose();
+    _transferencia.dispose();
+    _observacion.dispose();
+    super.dispose();
+  }
+
+  int _leer(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
+
+  void _confirmar() {
+    Navigator.of(context).pop(_MontosDeclarados(
+      efectivo: _leer(_efectivo),
+      cheque: _leer(_cheque),
+      transferencia: _leer(_transferencia),
+      observacion: _observacion.text,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Cerrar arqueo auditado', style: AppTextStyles.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Ingresá los montos contados físicamente. Vienen prellenados con '
+              'lo que registró el sistema; ajustalos si hay diferencia.',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5),
+            ),
+            const SizedBox(height: 16),
+            _campo('Efectivo', _efectivo, widget.efectivoSistema),
+            const SizedBox(height: 14),
+            _campo('Cheque', _cheque, widget.chequeSistema),
+            const SizedBox(height: 14),
+            _campo('Transferencia', _transferencia, widget.transferenciaSistema),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _observacion,
+              maxLines: 2,
+              cursorColor: AppColors.orange,
+              decoration: InputDecoration(
+                labelText: 'Observación (opcional)',
+                isDense: true,
+                enabledBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.inputBorder),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.orange),
+                ),
+                floatingLabelStyle: const TextStyle(color: AppColors.orange),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancelar',
+            style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray),
+          ),
+        ),
+        TextButton(
+          onPressed: _confirmar,
+          child: Text(
+            'Cerrar arqueo',
+            style: AppTextStyles.button.copyWith(color: AppColors.orange),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _campo(String label, TextEditingController controller, int sistema) {
+    final declarado = _leer(controller);
+    final dif = declarado - sistema;
+    final Color colorDif = dif == 0
+        ? AppColors.badgeGreen
+        : (dif > 0 ? AppColors.steelBlue : AppColors.error);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTextStyles.label.copyWith(fontSize: 13)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => setState(() {}),
+          cursorColor: AppColors.orange,
+          decoration: const InputDecoration(
+            prefixText: '\$ ',
+            isDense: true,
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.inputBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.orange),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Sistema: ${formatMoneda(sistema)}  ·  Diferencia: ${formatMoneda(dif)}',
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: colorDif),
+        ),
+      ],
     );
   }
 }

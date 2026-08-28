@@ -76,6 +76,15 @@ class ArqueoCaja {
   final List<ArqueoMetodoTotal> totalesPorMetodo;
   final List<ArqueoMovimiento> movimientos;
 
+  /// Estado del cierre (viene del backend). Si [cerrado] es true, el arqueo ya
+  /// fue auditado y no debe volver a cerrarse.
+  final bool cerrado;
+  final String? correlativo;
+  final DateTime? cerradoEn;
+  final int efectivoDeclarado;
+  final int chequeDeclarado;
+  final int transferenciaDeclarada;
+
   const ArqueoCaja({
     required this.idUsuario,
     required this.nombreUsuario,
@@ -86,6 +95,12 @@ class ArqueoCaja {
     this.cantidadCobros = 0,
     this.totalesPorMetodo = const [],
     this.movimientos = const [],
+    this.cerrado = false,
+    this.correlativo,
+    this.cerradoEn,
+    this.efectivoDeclarado = 0,
+    this.chequeDeclarado = 0,
+    this.transferenciaDeclarada = 0,
   });
 
   factory ArqueoCaja.fromJson(Map<String, dynamic> json) {
@@ -105,6 +120,12 @@ class ArqueoCaja {
           .whereType<Map<String, dynamic>>()
           .map(ArqueoMovimiento.fromJson)
           .toList(),
+      cerrado: json['cerrado'] == true,
+      correlativo: json['correlativo']?.toString(),
+      cerradoEn: parseDate(json['cerradoAt']),
+      efectivoDeclarado: parseInt(json['efectivoDeclarado']) ?? 0,
+      chequeDeclarado: parseInt(json['chequeDeclarado']) ?? 0,
+      transferenciaDeclarada: parseInt(json['transferenciaDeclarada']) ?? 0,
     );
   }
 }

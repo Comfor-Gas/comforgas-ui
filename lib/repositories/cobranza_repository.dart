@@ -58,14 +58,28 @@ class CobranzaRepository {
   Future<void> cerrarArqueo({
     required String idUsuario,
     required DateTime fecha,
+    required int efectivoDeclarado,
+    required int chequeDeclarado,
+    required int transferenciaDeclarada,
+    String? observacion,
   }) async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}/api/admin/cobranzas/arqueo/$idUsuario/${_fechaIso(fecha)}/cerrar',
     );
+    final obs = observacion?.trim();
     http.Response response;
     try {
       response = await _client
-          .post(uri, headers: _jsonHeaders)
+          .post(
+            uri,
+            headers: _jsonHeaders,
+            body: jsonEncode({
+              'efectivoDeclarado': efectivoDeclarado,
+              'chequeDeclarado': chequeDeclarado,
+              'transferenciaDeclarada': transferenciaDeclarada,
+              if (obs != null && obs.isNotEmpty) 'observacion': obs,
+            }),
+          )
           .timeout(const Duration(seconds: 20));
     } catch (_) {
       throw NetworkException();

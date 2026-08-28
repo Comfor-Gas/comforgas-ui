@@ -116,13 +116,19 @@ class CobroRepository {
   }
 
   Map<String, dynamic> _itemToJson(CobroPendiente c) {
-    return {
-      'idVenta': c.idVenta,
+    final json = <String, dynamic>{
       'metodoPago': c.metodoPago,
       'montoCobrado': c.monto,
       'timestampCobro': c.timestampCobro.toUtc().toIso8601String(),
       'uuidTransaccionOffline': c.uuidOffline,
     };
+    // El backend exige exactamente uno entre idVenta y uuidVentaOffline.
+    if (c.uuidVentaOffline != null) {
+      json['uuidVentaOffline'] = c.uuidVentaOffline;
+    } else {
+      json['idVenta'] = c.idVenta;
+    }
+    return json;
   }
 
   String? _mensajeError(String body) {

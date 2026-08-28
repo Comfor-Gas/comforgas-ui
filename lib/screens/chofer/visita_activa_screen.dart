@@ -77,11 +77,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _evidenciaExistente = false;
   bool _checkInPendienteSync = false;
   bool _reintentandoConexion = false;
+  bool _reintentandoDatos = false;
   bool _continuandoOffline = false;
   VentaDraft? _ventaDraft;
   bool _ventaRegistrada = false;
   bool _ventaPendienteSync = false;
   int? _idVentaRegistrada;
+  String? _uuidVentaOfflineRegistrada;
   bool _cobroRegistrado = false;
   VoidCallback? _colaListener;
   StreamSubscription<bool>? _conexionSub;
@@ -225,6 +227,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   Future<void> _reintentarConexion() async {
     if (_reintentandoConexion || _continuandoOffline) return;
     setState(() => _reintentandoConexion = true);
+    // Mantenemos la rueda girando 3s en cada reintento para dar un feedback
+    // visible al chofer antes de volver a chequear la conexión.
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
     final hayConexion = await ConnectivityService.instance.tieneConexion();
     if (!mounted) return;
     setState(() => _reintentandoConexion = false);
@@ -235,6 +241,17 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         'Seguís sin conexión. Podés continuar offline o volver a intentar.',
       );
     }
+  }
+
+  Future<void> _reintentarDatos() async {
+    if (_reintentandoDatos) return;
+    setState(() => _reintentandoDatos = true);
+    // La rueda gira 3s en cada reintento antes de volver a chequear los datos
+    // móviles / WiFi y reiniciar el check-in.
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    setState(() => _reintentandoDatos = false);
+    _iniciarCheckIn();
   }
 
   Future<void> _continuarOffline() async {
@@ -371,7 +388,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     return Navigator.of(context).push<Object?>(
       MaterialPageRoute(
         builder: (_) => RegistroCobroScreen(
-          idVenta: _idVentaRegistrada!,
+          idVenta: _idVentaRegistrada,
+          uuidVentaOffline:
+              _idVentaRegistrada == null ? _uuidVentaOfflineRegistrada : null,
           nombreCliente: widget.nombreCliente,
           montoSugerido: _ventaDraft?.montoTotal ?? 0,
           credito: credito,
@@ -422,9 +441,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }) async {
     final ahora = DateTime.now();
     final items = venta.lineas.map((l) => l.toRequestJson()).toList();
+    // El backend persiste este UUID como uuid_offline de la venta, así que lo
+    // guardamos para poder referenciar el cobro por él mientras la venta no
+    // tenga id del servidor.
+    final uuidVenta = _uuid.v4();
+    _uuidVentaOfflineRegistrada = uuidVenta;
     await OfflineQueueService.instance.encolar(
       OfflineEvento(
-        uuidOffline: _uuid.v4(),
+        uuidOffline: uuidVenta,
         tipoEvento: OfflineEventoTipo.venta,
         idAgendaItem: idAgendaItem,
         idVisita: idVisita,
@@ -487,7 +511,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       return;
     }
 
-    if (_ventaRegistrada && _idVentaRegistrada != null && !_cobroRegistrado) {
+    // Se abre el cobro tanto si la venta ya tiene id del servidor como si se
+    // registró offline (en cuyo caso se referencia por su uuid_offline).
+    if (_ventaRegistrada &&
+        !_cobroRegistrado &&
+        (_idVentaRegistrada != null || _uuidVentaOfflineRegistrada != null)) {
       final resultado = await _abrirCobro();
       if (!mounted) return;
       if (resultado != null) setState(() => _cobroRegistrado = true);
@@ -858,7 +886,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         return DatosDesactivadosCard(
           nombreCliente: widget.nombreCliente,
           direccionCliente: widget.direccionCliente,
-          onReintentar: _iniciarCheckIn,
+          reintentando: _reintentandoDatos,
+          onReintentar: _reintentarDatos,
         );
       case _FaseVisita.sinConexion:
         return InicioSinConexionCard(

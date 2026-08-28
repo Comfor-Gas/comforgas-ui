@@ -25,18 +25,31 @@ import '../../../widgets/primary_button.dart';
 const _uuid = Uuid();
 
 class RegistroCobroScreen extends StatefulWidget {
-  final int idVenta;
+  /// PK de la venta cuando ya está confirmada por el servidor.
+  final int? idVenta;
+
+  /// UUID offline de la venta cuando todavía no sincronizó. Debe informarse
+  /// exactamente uno entre [idVenta] y [uuidVentaOffline].
+  final String? uuidVentaOffline;
   final String nombreCliente;
   final int montoSugerido;
   final CreditoCliente credito;
 
   const RegistroCobroScreen({
     super.key,
-    required this.idVenta,
+    this.idVenta,
+    this.uuidVentaOffline,
     required this.nombreCliente,
     required this.montoSugerido,
     this.credito = const CreditoCliente(),
-  });
+  }) : assert(
+          (idVenta == null) != (uuidVentaOffline == null),
+          'Informá exactamente uno entre idVenta y uuidVentaOffline',
+        );
+
+  /// La venta asociada todavía no fue confirmada por el servidor: el cobro se
+  /// guarda local y se liga por UUID al sincronizar.
+  bool get ventaPendienteDeSync => idVenta == null;
 
   @override
   State<RegistroCobroScreen> createState() => _RegistroCobroScreenState();
@@ -88,26 +101,22 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
     final ahora = DateTime.now();
     final cobro = CobroDraft(
       idVenta: widget.idVenta,
+      uuidVentaOffline: widget.uuidVentaOffline,
       metodo: _metodo,
       monto: monto,
       timestampCobro: ahora,
     );
 
     bool pendienteSync;
-    try {
-      await _repo.registrar(
-        idVenta: widget.idVenta,
-        metodoPago: _metodo.codigoBackend,
-        monto: monto,
-        timestampCobro: ahora,
-        uuidOffline: uuid,
-      );
-      pendienteSync = false;
-    } on NetworkException {
+
+    if (widget.ventaPendienteDeSync) {
+      // La venta todavía no tiene id del servidor: el endpoint individual solo
+      // acepta idVenta, así que el cobro se encola y se liga a la venta por su
+      // uuid_offline en la sincronización por lote.
       await CobroOfflineService.instance.encolar(
         CobroPendiente(
           uuidOffline: uuid,
-          idVenta: widget.idVenta,
+          uuidVentaOffline: widget.uuidVentaOffline,
           metodoPago: _metodo.codigoBackend,
           monto: monto,
           timestampCobro: ahora,
@@ -116,16 +125,40 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
       );
       unawaited(CobroSyncManager.instance.sincronizar());
       pendienteSync = true;
-    } on CobroRepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() => _guardando = false);
-      _mostrarError(e.message);
-      return;
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _guardando = false);
-      _mostrarError('No se pudo guardar el cobro. Intentá de nuevo.');
-      return;
+    } else {
+      try {
+        await _repo.registrar(
+          idVenta: widget.idVenta!,
+          metodoPago: _metodo.codigoBackend,
+          monto: monto,
+          timestampCobro: ahora,
+          uuidOffline: uuid,
+        );
+        pendienteSync = false;
+      } on NetworkException {
+        await CobroOfflineService.instance.encolar(
+          CobroPendiente(
+            uuidOffline: uuid,
+            idVenta: widget.idVenta,
+            metodoPago: _metodo.codigoBackend,
+            monto: monto,
+            timestampCobro: ahora,
+            creadoEn: ahora,
+          ),
+        );
+        unawaited(CobroSyncManager.instance.sincronizar());
+        pendienteSync = true;
+      } on CobroRepositoryException catch (e) {
+        if (!mounted) return;
+        setState(() => _guardando = false);
+        _mostrarError(e.message);
+        return;
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _guardando = false);
+        _mostrarError('No se pudo guardar el cobro. Intentá de nuevo.');
+        return;
+      }
     }
 
     if (!mounted) return;
@@ -171,7 +204,10 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           MorosidadBanner(credito: widget.credito),
           const SizedBox(height: 14),
         ],
-        if (!_online) ...[
+        if (widget.ventaPendienteDeSync) ...[
+          const _VentaPendienteAviso(),
+          const SizedBox(height: 14),
+        ] else if (!_online) ...[
           const _SinConexionAviso(),
           const SizedBox(height: 14),
         ],
@@ -187,7 +223,9 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
         _MontoField(controller: _montoCtrl),
         const SizedBox(height: 24),
         PrimaryButton(
-          text: _online ? 'Guardar Cobro' : 'Registro Local Seguro',
+          text: (_online && !widget.ventaPendienteDeSync)
+              ? 'Guardar Cobro'
+              : 'Registro Local Seguro',
           isLoading: _guardando,
           onPressed: _guardando ? null : _guardar,
         ),
@@ -370,6 +408,35 @@ class _SinConexionAviso extends StatelessWidget {
           Expanded(
             child: Text(
               'Sin conexión: el cobro se guardará localmente y se enviará al recuperar señal.',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VentaPendienteAviso extends StatelessWidget {
+  const _VentaPendienteAviso();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.badgeAmber.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.sync_problem_outlined, size: 18, color: AppColors.badgeAmber),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'La venta todavía no se sincronizó. El cobro se guarda localmente '
+              'y se envía cuando la venta se registre en el servidor.',
               style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
             ),
           ),

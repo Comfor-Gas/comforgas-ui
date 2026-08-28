@@ -86,7 +86,12 @@ class ComprobanteCobro extends StatelessWidget {
             child: Column(
               children: [
                 _Linea(etiqueta: 'Cliente', valor: nombreCliente),
-                _Linea(etiqueta: 'Venta', valor: '#${cobro.idVenta}'),
+                _Linea(
+                  etiqueta: 'Venta',
+                  valor: cobro.idVenta != null
+                      ? '#${cobro.idVenta}'
+                      : 'Offline (pendiente de sync)',
+                ),
                 _Linea(etiqueta: 'Método', valor: cobro.metodo.etiqueta),
                 _Linea(etiqueta: 'Fecha', valor: fechaHoraTexto(cobro.timestampCobro)),
                 const Divider(height: 22, color: AppColors.inputBorder),

@@ -2,7 +2,15 @@ import 'package:hive/hive.dart';
 
 class CobroPendiente {
   final String uuidOffline;
-  final int idVenta;
+
+  /// PK de la venta cuando ya está confirmada por el servidor. Es `null`
+  /// cuando la venta se registró offline y todavía no sincronizó; en ese caso
+  /// la referencia viaja en [uuidVentaOffline].
+  final int? idVenta;
+
+  /// UUID offline de la venta aún no materializada. El backend liga el cobro a
+  /// la venta por este UUID durante la sincronización por lote.
+  final String? uuidVentaOffline;
   final String metodoPago;
   final int monto;
   final DateTime timestampCobro;
@@ -12,7 +20,8 @@ class CobroPendiente {
 
   const CobroPendiente({
     required this.uuidOffline,
-    required this.idVenta,
+    this.idVenta,
+    this.uuidVentaOffline,
     required this.metodoPago,
     required this.monto,
     required this.timestampCobro,
@@ -25,6 +34,7 @@ class CobroPendiente {
     return CobroPendiente(
       uuidOffline: uuidOffline,
       idVenta: idVenta,
+      uuidVentaOffline: uuidVentaOffline,
       metodoPago: metodoPago,
       monto: monto,
       timestampCobro: timestampCobro,
@@ -47,7 +57,10 @@ class CobroPendienteAdapter extends TypeAdapter<CobroPendiente> {
     };
     return CobroPendiente(
       uuidOffline: fields[0] as String,
-      idVenta: fields[1] as int,
+      // Retrocompatible: los registros viejos guardaban idVenta como int no
+      // nulo y no tenían el campo 8 (uuidVentaOffline).
+      idVenta: fields[1] as int?,
+      uuidVentaOffline: fields[8] as String?,
       metodoPago: fields[2] as String,
       monto: fields[3] as int,
       timestampCobro: fields[4] as DateTime,
@@ -60,7 +73,7 @@ class CobroPendienteAdapter extends TypeAdapter<CobroPendiente> {
   @override
   void write(BinaryWriter writer, CobroPendiente obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.uuidOffline)
       ..writeByte(1)
@@ -76,6 +89,8 @@ class CobroPendienteAdapter extends TypeAdapter<CobroPendiente> {
       ..writeByte(6)
       ..write(obj.intentos)
       ..writeByte(7)
-      ..write(obj.ultimoError);
+      ..write(obj.ultimoError)
+      ..writeByte(8)
+      ..write(obj.uuidVentaOffline);
   }
 }

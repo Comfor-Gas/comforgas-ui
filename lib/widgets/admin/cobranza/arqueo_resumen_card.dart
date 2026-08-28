@@ -70,7 +70,6 @@ class ArqueoResumenCard extends StatelessWidget {
             children: [
               const Icon(Icons.receipt_long_outlined, size: 15, color: AppColors.graphiteGray),
               const SizedBox(width: 6),
-              Text('Audit trail', style: AppTextStyles.footer),
             ],
           ),
         ],

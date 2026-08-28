@@ -3,7 +3,9 @@ import '../../core/responsive.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/admin/admin_topbar.dart';
+import 'arqueo_caja_screen.dart';
 import 'consola_ventas_screen.dart';
+import 'cuentas_corrientes_screen.dart';
 import 'gestion_flota_screen.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
@@ -42,6 +44,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       case 5:
         return const GestionFlotaScreen();
       case 6:
+        return const ArqueoCajaScreen();
+      case 7:
+        return const CuentasCorrientesScreen();
+      case 8:
         return const TableroHojaRutaScreen();
       default:
         return const PlaceholderAdminSection(

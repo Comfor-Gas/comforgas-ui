@@ -376,12 +376,15 @@ class _FilaHistorial extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _LineaDato(icono: Icons.person_outline, texto: choferNombre),
+                  _LineaDato(
+                    icono: Icons.person_outline,
+                    texto: movimiento.chofer ?? choferNombre,
+                  ),
                   const SizedBox(height: 4),
                   _LineaDato(
                     icono: Icons.warehouse_outlined,
-                    texto: movimiento.usuario.isNotEmpty
-                        ? 'Bodega: ${movimiento.usuario}'
+                    texto: movimiento.operador.isNotEmpty
+                        ? 'Bodega: ${movimiento.operador}'
                         : 'Operador de bodega no registrado',
                   ),
                   if (movimiento.observaciones != null &&

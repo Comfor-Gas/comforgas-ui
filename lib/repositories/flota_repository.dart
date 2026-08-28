@@ -19,6 +19,13 @@ class FlotaRepositoryException implements Exception {
   String toString() => message;
 }
 
+class ResumenFlota {
+  final List<DepositoCamion> camiones;
+  final int vaciasRetornadasHoy;
+
+  const ResumenFlota({required this.camiones, this.vaciasRetornadasHoy = 0});
+}
+
 class FlotaRepository {
   final http.Client _client;
 
@@ -28,12 +35,34 @@ class FlotaRepository {
     'Content-Type': 'application/json',
   };
 
+  Future<ResumenFlota> getResumenFlota({DateTime? fecha}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/flota/resumen').replace(
+      queryParameters: fecha != null ? {'fecha': _fechaIso(fecha)} : null,
+    );
+    final response = await _get(uri);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return const ResumenFlota(camiones: []);
+    final filas = decoded.whereType<Map<String, dynamic>>().toList();
+    final camiones = filas.map(DepositoCamion.fromResumenJson).toList();
+    final vacias = filas.isNotEmpty
+        ? (int.tryParse('${filas.first['vaciasRetornadasHoy'] ?? 0}') ?? 0)
+        : 0;
+    return ResumenFlota(camiones: camiones, vaciasRetornadasHoy: vacias);
+  }
+
   Future<List<DepositoCamion>> listarCamiones() async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/depositos').replace(
       queryParameters: {'tipo': 'CAMION', 'activo': 'true'},
     );
     final response = await _get(uri);
     return _parseList(response.body, DepositoCamion.fromJson);
+  }
+
+  String _fechaIso(DateTime fecha) {
+    final y = fecha.year.toString().padLeft(4, '0');
+    final m = fecha.month.toString().padLeft(2, '0');
+    final d = fecha.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
   }
 
   Future<List<DepositoCamion>> listarDepositosCentrales() async {
@@ -101,7 +130,7 @@ class FlotaRepository {
 
   Future<List<MovimientoStock>> recargarCamion(
     int idCamion, {
-    required int depositoCentralId,
+    int? depositoCentralId,
     required List<Map<String, dynamic>> items,
     String? observaciones,
   }) async {

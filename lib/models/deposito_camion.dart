@@ -4,6 +4,19 @@ const int kCupoBaseCamion = 200;
 
 enum EstadoCamion { enRuta, enEspera, enDeposito }
 
+EstadoCamion? estadoCamionDesdeBackend(String? valor) {
+  switch (valor?.toUpperCase()) {
+    case 'EN_RUTA':
+      return EstadoCamion.enRuta;
+    case 'EN_ESPERA':
+      return EstadoCamion.enEspera;
+    case 'EN_DEPOSITO':
+      return EstadoCamion.enDeposito;
+    default:
+      return null;
+  }
+}
+
 class RepartidorInfo {
   final String id;
   final String nombre;
@@ -35,6 +48,8 @@ class DepositoCamion {
   final int llenos;
   final int vacios;
   final bool stockCargado;
+  final int? cupoBaseBackend;
+  final EstadoCamion? estadoBackend;
 
   const DepositoCamion({
     required this.id,
@@ -47,9 +62,12 @@ class DepositoCamion {
     this.llenos = 0,
     this.vacios = 0,
     this.stockCargado = false,
+    this.cupoBaseBackend,
+    this.estadoBackend,
   });
 
-  int get cupoBase => kCupoBaseCamion;
+  int get cupoBase =>
+      (cupoBaseBackend != null && cupoBaseBackend! > 0) ? cupoBaseBackend! : kCupoBaseCamion;
 
   int get faltante {
     final f = cupoBase - llenos;
@@ -73,6 +91,7 @@ class DepositoCamion {
       patente?.isNotEmpty == true ? patente! : 'Sin patente';
 
   EstadoCamion get estado {
+    if (estadoBackend != null) return estadoBackend!;
     if (!tieneChofer) return EstadoCamion.enDeposito;
     if (stockCargado && llenos <= 0) return EstadoCamion.enEspera;
     return EstadoCamion.enRuta;
@@ -89,6 +108,8 @@ class DepositoCamion {
     int? llenos,
     int? vacios,
     bool? stockCargado,
+    int? cupoBaseBackend,
+    EstadoCamion? estadoBackend,
   }) {
     return DepositoCamion(
       id: id,
@@ -101,6 +122,8 @@ class DepositoCamion {
       llenos: llenos ?? this.llenos,
       vacios: vacios ?? this.vacios,
       stockCargado: stockCargado ?? this.stockCargado,
+      cupoBaseBackend: cupoBaseBackend ?? this.cupoBaseBackend,
+      estadoBackend: estadoBackend ?? this.estadoBackend,
     );
   }
 
@@ -114,6 +137,25 @@ class DepositoCamion {
       descripcion: json['descripcion']?.toString(),
       activo: json['activo'] == true,
       repartidor: rep is Map<String, dynamic> ? RepartidorInfo.fromJson(rep) : null,
+      cupoBaseBackend: parseInt(json['cupoBase']),
+      estadoBackend: estadoCamionDesdeBackend(json['estadoOperativo']?.toString()),
+    );
+  }
+
+  factory DepositoCamion.fromResumenJson(Map<String, dynamic> json) {
+    final rep = json['repartidor'];
+    return DepositoCamion(
+      id: parseInt(json['id']) ?? 0,
+      nombre: (json['nombre'] ?? '').toString(),
+      patente: json['vehiculoPatente']?.toString(),
+      numeroMovil: parseInt(json['numeroMovil']),
+      activo: json['activo'] == true,
+      repartidor: rep is Map<String, dynamic> ? RepartidorInfo.fromJson(rep) : null,
+      llenos: parseInt(json['llenos']) ?? 0,
+      vacios: parseInt(json['vacios']) ?? 0,
+      stockCargado: true,
+      cupoBaseBackend: parseInt(json['cupoBase']),
+      estadoBackend: estadoCamionDesdeBackend(json['estadoOperativo']?.toString()),
     );
   }
 }

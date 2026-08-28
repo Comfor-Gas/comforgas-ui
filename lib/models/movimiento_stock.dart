@@ -7,6 +7,8 @@ class MovimientoStock {
   final String productoDescripcion;
   final int cantidad;
   final String usuario;
+  final String? usuarioNombre;
+  final String? repartidorNombre;
   final DateTime? fecha;
   final String? observaciones;
   final String? origenNombre;
@@ -19,6 +21,8 @@ class MovimientoStock {
     required this.productoDescripcion,
     required this.cantidad,
     required this.usuario,
+    this.usuarioNombre,
+    this.repartidorNombre,
     this.fecha,
     this.observaciones,
     this.origenNombre,
@@ -26,6 +30,12 @@ class MovimientoStock {
   });
 
   bool get esCarga => tipoMovimiento.toUpperCase() == 'CARGA_CAMION';
+
+  String get operador =>
+      (usuarioNombre != null && usuarioNombre!.isNotEmpty) ? usuarioNombre! : usuario;
+
+  String? get chofer =>
+      (repartidorNombre != null && repartidorNombre!.isNotEmpty) ? repartidorNombre : null;
 
   factory MovimientoStock.fromJson(Map<String, dynamic> json) {
     final producto = json['producto'];
@@ -42,6 +52,8 @@ class MovimientoStock {
           : '',
       cantidad: parseInt(json['cantidad']) ?? 0,
       usuario: (json['usuario'] ?? '').toString(),
+      usuarioNombre: json['usuarioNombre']?.toString(),
+      repartidorNombre: json['repartidorNombre']?.toString(),
       fecha: parseDate(json['fecha']),
       observaciones: json['observaciones']?.toString(),
       origenNombre:

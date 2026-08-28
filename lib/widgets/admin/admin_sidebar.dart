@@ -15,6 +15,8 @@ const List<AdminNavItem> adminNavItems = [
   AdminNavItem(icon: Icons.point_of_sale_outlined, label: 'Ventas'),
   AdminNavItem(icon: Icons.groups_outlined, label: 'Clientes'),
   AdminNavItem(icon: Icons.local_shipping_outlined, label: 'Flota'),
+  AdminNavItem(icon: Icons.savings_outlined, label: 'Cobranzas'),
+  AdminNavItem(icon: Icons.account_balance_outlined, label: 'Cuentas Ctes'),
   AdminNavItem(icon: Icons.alt_route_outlined, label: 'Rutas'),
   AdminNavItem(icon: Icons.settings_outlined, label: 'Configuración'),
 ];

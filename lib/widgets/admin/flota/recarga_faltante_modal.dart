@@ -4,11 +4,11 @@ import '../../../models/deposito_camion.dart';
 import '../../../models/producto_catalogo.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
+import '../../chofer/venta/cantidad_stepper.dart';
 import 'flota_form_controls.dart';
 
 typedef RecargaConfirmada = Future<bool> Function({
-  required String productoId,
-  required int cantidad,
+  required List<Map<String, dynamic>> items,
   String? observaciones,
 });
 
@@ -46,19 +46,23 @@ class RecargaFaltanteModal extends StatefulWidget {
 }
 
 class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
-  late int _cantidad;
-  late String _productoId;
+  final Map<String, int> _desglose = {};
   final _obsCtrl = TextEditingController();
   bool _guardando = false;
 
   int get _faltante => widget.camion.faltante;
+  int get _total => _desglose.values.fold(0, (a, b) => a + b);
+  bool get _valido => _total > 0 && _total <= _faltante;
 
   @override
   void initState() {
     super.initState();
-    _cantidad = _faltante > 0 ? _faltante : 0;
-    _productoId =
-        widget.productos.isNotEmpty ? widget.productos.first.idProducto : '';
+    for (final p in widget.productos) {
+      _desglose[p.idProducto] = 0;
+    }
+    if (widget.productos.isNotEmpty && _faltante > 0) {
+      _desglose[widget.productos.first.idProducto] = _faltante;
+    }
   }
 
   @override
@@ -67,16 +71,26 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
     super.dispose();
   }
 
-  void _setCantidad(int valor) {
-    setState(() => _cantidad = valor.clamp(0, 999));
+  void _completarFaltante() {
+    if (widget.productos.isEmpty) return;
+    setState(() {
+      for (final p in widget.productos) {
+        _desglose[p.idProducto] = 0;
+      }
+      _desglose[widget.productos.first.idProducto] = _faltante;
+    });
   }
 
   Future<void> _confirmar() async {
-    if (_cantidad <= 0 || _productoId.isEmpty || _guardando) return;
+    if (!_valido || _guardando) return;
+    final items = _desglose.entries
+        .where((e) => e.value > 0)
+        .map((e) => {'productoId': e.key, 'cantidad': e.value})
+        .toList();
+
     setState(() => _guardando = true);
     final ok = await widget.onConfirmar(
-      productoId: _productoId,
-      cantidad: _cantidad,
+      items: items,
       observaciones: _obsCtrl.text.trim().isEmpty ? null : _obsCtrl.text.trim(),
     );
     if (!mounted) return;
@@ -91,10 +105,10 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 560),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
           child: Column(
@@ -117,31 +131,64 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                 faltante: _faltante,
               ),
               const SizedBox(height: 18),
-              if (widget.productos.length > 1) ...[
-                const FlotaCampoLabel('Tipo de garrafa a recargar'),
-                FlotaDropdown<String>(
-                  value: _productoId.isNotEmpty ? _productoId : null,
-                  hint: 'Seleccionar tipo de garrafa',
-                  prefijo: Icons.propane_tank_outlined,
-                  items: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Cantidad a recargar por tipo de garrafa',
+                      style: AppTextStyles.label.copyWith(fontSize: 13),
+                    ),
+                  ),
+                  if (_faltante > 0)
+                    TextButton.icon(
+                      onPressed: _completarFaltante,
+                      icon: const Icon(Icons.auto_fix_high, size: 16, color: AppColors.orange),
+                      label: Text(
+                        'Completar faltante ($_faltante)',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.orange,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (widget.productos.isEmpty)
+                Text(
+                  'No hay productos en el catálogo para recargar.',
+                  style: AppTextStyles.footer,
+                )
+              else
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
                     for (final p in widget.productos)
-                      DropdownMenuItem(
-                        value: p.idProducto,
-                        child: Text('${p.sku} · ${p.etiquetaKg}'),
+                      SizedBox(
+                        width: 158,
+                        child: CantidadStepper(
+                          titulo: 'SKU ${p.sku}',
+                          subtitulo: p.etiquetaKg,
+                          icono: Icons.propane_tank_outlined,
+                          acento: AppColors.orange,
+                          valor: _desglose[p.idProducto] ?? 0,
+                          maximo: _faltante > 0 ? _faltante : 0,
+                          editable: true,
+                          onChanged: (valor) =>
+                              setState(() => _desglose[p.idProducto] = valor),
+                        ),
                       ),
                   ],
-                  onChanged: (id) {
-                    if (id != null) setState(() => _productoId = id);
-                  },
                 ),
-                const SizedBox(height: 16),
-              ],
-              _ContadorRecarga(
-                cantidad: _cantidad,
-                faltante: _faltante,
-                onChanged: _setCantidad,
-                onRellenar: () => _setCantidad(_faltante),
-              ),
+              const SizedBox(height: 12),
+              _TotalRecarga(total: _total, faltante: _faltante),
               const SizedBox(height: 18),
               Text(
                 'Observaciones del Operador de Bodega',
@@ -185,9 +232,7 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                     child: FlotaBotonPrimario(
                       texto: 'Confirmar Recarga de Stock',
                       cargando: _guardando,
-                      onTap: (_cantidad > 0 && _productoId.isNotEmpty && !_guardando)
-                          ? _confirmar
-                          : null,
+                      onTap: (_valido && !_guardando) ? _confirmar : null,
                     ),
                   ),
                 ],
@@ -275,109 +320,44 @@ class _SeparadorCupo extends StatelessWidget {
   }
 }
 
-class _ContadorRecarga extends StatelessWidget {
-  final int cantidad;
+class _TotalRecarga extends StatelessWidget {
+  final int total;
   final int faltante;
-  final ValueChanged<int> onChanged;
-  final VoidCallback onRellenar;
 
-  const _ContadorRecarga({
-    required this.cantidad,
-    required this.faltante,
-    required this.onChanged,
-    required this.onRellenar,
-  });
+  const _TotalRecarga({required this.total, required this.faltante});
 
   @override
   Widget build(BuildContext context) {
+    final excede = total > faltante;
+    final vacio = total == 0;
+    final color = excede
+        ? AppColors.error
+        : (vacio ? AppColors.graphiteGray : AppColors.badgeGreen);
+    final mensaje = excede
+        ? 'La recarga supera el faltante de $faltante.'
+        : (vacio
+            ? 'Ingresá la cantidad por tipo de garrafa.'
+            : 'Total a recargar en esta operación');
+
     return Row(
       children: [
-        _CirculoStep(
-          icono: Icons.remove,
-          onTap: cantidad > 0 ? () => onChanged(cantidad - 1) : null,
+        Icon(
+          excede ? Icons.error_outline : Icons.inventory_2_outlined,
+          size: 17,
+          color: color,
         ),
+        const SizedBox(width: 8),
         Expanded(
-          child: Center(
-            child: Text(
-              '$cantidad',
-              style: const TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
-                color: AppColors.steelBlue,
-              ),
-            ),
+          child: Text(
+            mensaje,
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: color),
           ),
         ),
-        _CirculoStep(
-          icono: Icons.add,
-          acento: AppColors.orange,
-          onTap: cantidad < 999 ? () => onChanged(cantidad + 1) : null,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 3,
-          child: GestureDetector(
-            onTap: faltante > 0 ? onRellenar : null,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-              decoration: BoxDecoration(
-                color: faltante > 0
-                    ? AppColors.orange
-                    : AppColors.badgeGray.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '+$faltante Garrafas Llenas',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.white,
-                ),
-              ),
-            ),
-          ),
+        Text(
+          '$total',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color),
         ),
       ],
     );
   }
 }
-
-class _CirculoStep extends StatelessWidget {
-  final IconData icono;
-  final VoidCallback? onTap;
-  final Color? acento;
-
-  const _CirculoStep({required this.icono, this.onTap, this.acento});
-
-  @override
-  Widget build(BuildContext context) {
-    final habilitado = onTap != null;
-    final color = acento ?? AppColors.steelBlue;
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: habilitado ? color : AppColors.inputBorder,
-              width: 1.4,
-            ),
-          ),
-          child: Icon(
-            icono,
-            color: habilitado ? color : AppColors.inputHint,
-            size: 22,
-          ),
-        ),
-      ),
-    );
-  }
-}
-

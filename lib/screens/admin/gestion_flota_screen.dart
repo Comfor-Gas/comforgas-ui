@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/responsive.dart';
 import '../../data/mock_flota_data.dart';
 import '../../models/deposito_camion.dart';
@@ -40,7 +41,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   List<DepositoCamion> _camiones = [];
   List<UsuarioModel> _choferes = [];
   List<ProductoCatalogo> _productos = [];
-  int? _depositoCentralId;
+  int _vaciasRetornadasHoy = 0;
 
   @override
   void initState() {
@@ -67,12 +68,12 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     });
 
     try {
-      final camiones = await _flotaRepo.listarCamiones();
-      final conStock = await Future.wait(camiones.map(_conStock));
+      final resumen = await _flotaRepo.getResumenFlota();
       await _cargarCatalogos();
       if (!mounted) return;
       setState(() {
-        _camiones = conStock;
+        _camiones = resumen.camiones;
+        _vaciasRetornadasHoy = resumen.vaciasRetornadasHoy;
         _modoEjemplo = false;
         _loading = false;
       });
@@ -91,25 +92,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     }
   }
 
-  Future<DepositoCamion> _conStock(DepositoCamion camion) async {
-    try {
-      final stock = await _flotaRepo.getStockCamion(camion.id);
-      int llenos = 0;
-      int vacios = 0;
-      for (final item in stock.items) {
-        final estado = item.estadoCodigo.toUpperCase();
-        if (estado == 'LLENA') {
-          llenos += item.cantidad;
-        } else if (estado == 'VACIA') {
-          vacios += item.cantidad;
-        }
-      }
-      return camion.copyWith(llenos: llenos, vacios: vacios, stockCargado: true);
-    } catch (_) {
-      return camion;
-    }
-  }
-
   Future<void> _cargarCatalogos() async {
     try {
       _choferes = await _catalogoRepo.listarUsuarios(rol: 'CHOFER');
@@ -122,10 +104,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
     }
     if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
-    try {
-      final centrales = await _flotaRepo.listarDepositosCentrales();
-      if (centrales.isNotEmpty) _depositoCentralId = centrales.first.id;
-    } catch (_) {}
   }
 
   List<UsuarioModel> _choferesDesdeCamiones() {
@@ -146,6 +124,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       _camiones = camionesFlotaDeEjemplo();
       _productos = productosFlotaDeEjemplo();
       _choferes = _choferesDesdeCamiones();
+      _vaciasRetornadasHoy = _camiones.fold(0, (a, c) => a + c.vacios);
       _modoEjemplo = true;
       _aviso = mensaje;
       _loading = false;
@@ -167,7 +146,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   }
 
   int get _totalLlenos => _camiones.fold(0, (a, c) => a + c.llenos);
-  int get _totalVacios => _camiones.fold(0, (a, c) => a + c.vacios);
 
   void _mostrarSnack(String mensaje, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -200,11 +178,9 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     }
     try {
       await _flotaRepo.asignarChofer(camion, repartidorId: choferId);
-      final central = _depositoCentralId;
-      if (items.isNotEmpty && central != null) {
+      if (items.isNotEmpty) {
         await _flotaRepo.recargarCamion(
           camion.id,
-          depositoCentralId: central,
           items: items,
           observaciones: 'Carga inicial de despacho',
         );
@@ -253,23 +229,23 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       context,
       camion: camion,
       productos: _productos,
-      onConfirmar: ({required productoId, required cantidad, observaciones}) =>
-          _confirmarRecarga(camion, productoId, cantidad, observaciones),
+      onConfirmar: ({required items, observaciones}) =>
+          _confirmarRecarga(camion, items, observaciones),
     );
   }
 
   Future<bool> _confirmarRecarga(
     DepositoCamion camion,
-    String productoId,
-    int cantidad,
+    List<Map<String, dynamic>> items,
     String? observaciones,
   ) async {
+    final total = items.fold<int>(0, (a, i) => a + ((i['cantidad'] as int?) ?? 0));
     if (_modoEjemplo) {
       setState(() {
         _camiones = [
           for (final c in _camiones)
             if (c.id == camion.id)
-              c.copyWith(llenos: c.llenos + cantidad, stockCargado: true)
+              c.copyWith(llenos: c.llenos + total, stockCargado: true)
             else
               c,
         ];
@@ -277,21 +253,10 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       _mostrarSnack('Recarga registrada (ejemplo).');
       return true;
     }
-    final central = _depositoCentralId;
-    if (central == null) {
-      _mostrarSnack(
-        'No hay un depósito central configurado para originar la carga.',
-        error: true,
-      );
-      return false;
-    }
     try {
       await _flotaRepo.recargarCamion(
         camion.id,
-        depositoCentralId: central,
-        items: [
-          {'productoId': productoId, 'cantidad': cantidad},
-        ],
+        items: items,
         observaciones: observaciones,
       );
       _mostrarSnack('Recarga registrada.');
@@ -337,7 +302,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
               _StatsFlota(
                 camiones: _camiones.length,
                 llenos: _totalLlenos,
-                vacios: _totalVacios,
+                vaciasRetornadas: _vaciasRetornadasHoy,
               ),
               if (_aviso != null) ...[
                 const SizedBox(height: 16),
@@ -488,12 +453,12 @@ class _CampoBusqueda extends StatelessWidget {
 class _StatsFlota extends StatelessWidget {
   final int camiones;
   final int llenos;
-  final int vacios;
+  final int vaciasRetornadas;
 
   const _StatsFlota({
     required this.camiones,
     required this.llenos,
-    required this.vacios,
+    required this.vaciasRetornadas,
   });
 
   @override
@@ -516,8 +481,8 @@ class _StatsFlota extends StatelessWidget {
           ),
           FlotaStatCard(
             icon: Icons.replay_outlined,
-            etiqueta: 'Vacías en Ruta',
-            valor: '$vacios',
+            etiqueta: 'Vacías Retornadas Hoy',
+            valor: '$vaciasRetornadas',
             acento: AppColors.orange,
           ),
         ];

@@ -39,6 +39,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   String? _aviso;
   bool _cerrando = false;
   bool _cerrado = false;
+  bool _reabriendo = false;
 
   @override
   void initState() {
@@ -203,6 +204,39 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
     }
   }
 
+  Future<void> _reabrirArqueo() async {
+    final idUsuario = _choferId;
+    if (idUsuario == null || _reabriendo) return;
+
+    final motivo = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ReaperturaArqueoDialog(),
+    );
+    if (motivo == null || !mounted) return;
+
+    setState(() => _reabriendo = true);
+    try {
+      if (!_modoEjemplo) {
+        await _repo.reabrirArqueo(idUsuario: idUsuario, fecha: _fecha, motivo: motivo);
+        if (!mounted) return;
+        await _cargarArqueo();
+      } else {
+        setState(() => _cerrado = false);
+      }
+      if (!mounted) return;
+      setState(() => _reabriendo = false);
+      _snack('Arqueo reabierto. Ya podés volver a auditarlo.');
+    } on CobranzaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() => _reabriendo = false);
+      _snack(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _reabriendo = false);
+      _snack('No se pudo reabrir el arqueo.', error: true);
+    }
+  }
+
   void _snack(String mensaje, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -312,7 +346,9 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
       totalGeneral: arqueo.totalGeneral,
       cerrado: _cerrado,
       cerrando: _cerrando,
+      reabriendo: _reabriendo,
       onCerrar: _cerrarArqueo,
+      onReabrir: _reabrirArqueo,
     );
   }
 }
@@ -622,6 +658,83 @@ class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
         Text(
           'Sistema: ${formatMoneda(sistema)}  ·  Diferencia: ${formatMoneda(dif)}',
           style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: colorDif),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReaperturaArqueoDialog extends StatefulWidget {
+  const _ReaperturaArqueoDialog();
+
+  @override
+  State<_ReaperturaArqueoDialog> createState() => _ReaperturaArqueoDialogState();
+}
+
+class _ReaperturaArqueoDialogState extends State<_ReaperturaArqueoDialog> {
+  final _motivo = TextEditingController();
+
+  @override
+  void dispose() {
+    _motivo.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final texto = _motivo.text.trim();
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Reabrir arqueo', style: AppTextStyles.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'La reapertura queda registrada (quién y cuándo). Indicá el motivo. '
+              'Los cobros que hayan llegado después del cierre vuelven a contarse '
+              'en el arqueo.',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _motivo,
+              maxLines: 3,
+              maxLength: 500,
+              cursorColor: AppColors.orange,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Motivo de la reapertura',
+                isDense: true,
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.inputBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.orange),
+                ),
+                floatingLabelStyle: TextStyle(color: AppColors.orange),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancelar',
+            style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray),
+          ),
+        ),
+        TextButton(
+          onPressed: texto.isEmpty ? null : () => Navigator.of(context).pop(texto),
+          child: Text(
+            'Reabrir',
+            style: AppTextStyles.button.copyWith(
+              color: texto.isEmpty ? AppColors.badgeGray : AppColors.orange,
+            ),
+          ),
         ),
       ],
     );

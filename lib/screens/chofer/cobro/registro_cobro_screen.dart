@@ -107,8 +107,7 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
   int get _total => widget.montoSugerido;
   int get _asignado => _lineas.fold(0, (a, l) => a + l.monto);
   int get _restante => _total - _asignado;
-  bool get _hayExceso => _total > 0 && _asignado > _total;
-  bool get _puedeGuardar => _asignado > 0 && !_hayExceso;
+  bool get _puedeGuardar => _total > 0 ? _asignado == _total : _asignado > 0;
 
   void _agregarLinea(MetodoPago metodo, int monto) {
     setState(() => _lineas.add(_LineaPago(metodo: metodo, monto: monto)));
@@ -165,8 +164,10 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
       _mostrarError('Ingresá al menos un pago.');
       return;
     }
-    if (_hayExceso) {
-      _mostrarError('La suma de los pagos supera el total de la venta.');
+    if (_total > 0 && _asignado != _total) {
+      _mostrarError(_asignado > _total
+          ? 'La suma de los pagos supera el total de la venta.'
+          : 'Falta asignar ${formatMoneda(_total - _asignado)}. Sumá un pago o poné el resto en Cuenta Corriente.');
       return;
     }
 
@@ -271,6 +272,20 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
               icon: const Icon(Icons.account_balance_outlined, size: 18),
               label: Text('Poner el resto en Cuenta Corriente (${formatMoneda(_restante)})'),
               style: TextButton.styleFrom(foregroundColor: AppColors.orange),
+            ),
+          ),
+        ],
+        if (_total > 0 && _restante != 0) ...[
+          const SizedBox(height: 16),
+          Text(
+            _restante > 0
+                ? 'Falta asignar ${formatMoneda(_restante)} para llegar al total. Sumá un pago o poné el resto en Cuenta Corriente.'
+                : 'La suma supera el total en ${formatMoneda(-_restante)}.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: _restante > 0 ? AppColors.badgeAmber : AppColors.error,
             ),
           ),
         ],

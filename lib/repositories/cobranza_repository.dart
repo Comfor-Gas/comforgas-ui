@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import '../config/api_config.dart';
 import '../models/arqueo_caja.dart';
 import '../models/cuenta_corriente_resumen.dart';
@@ -102,6 +103,37 @@ class CobranzaRepository {
             uri,
             headers: _jsonHeaders,
             body: jsonEncode({'motivo': motivo.trim()}),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw NetworkException();
+    }
+    _validar(response);
+  }
+
+  Future<void> registrarPagoCuentaCorriente({
+    required int idCliente,
+    required int monto,
+    String? referencia,
+    String? observacion,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/admin/clientes/$idCliente/cuenta-corriente/pagos',
+    );
+    final ref = referencia?.trim();
+    final obs = observacion?.trim();
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: _jsonHeaders,
+            body: jsonEncode({
+              'monto': monto,
+              'uuidOperacion': const Uuid().v4(),
+              if (ref != null && ref.isNotEmpty) 'referencia': ref,
+              if (obs != null && obs.isNotEmpty) 'observacion': obs,
+            }),
           )
           .timeout(const Duration(seconds: 20));
     } catch (_) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/responsive.dart';
 import '../../data/mock_cobranza_data.dart';
@@ -98,7 +99,10 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (_, __, ___) => Align(
         alignment: Alignment.centerRight,
-        child: _DetallePanel(cliente: cliente),
+        child: _DetallePanel(
+          cliente: cliente,
+          onRegistrarPago: () => _registrarPago(cliente),
+        ),
       ),
       transitionBuilder: (_, animacion, __, child) {
         final curva = CurvedAnimation(parent: animacion, curve: Curves.easeOutCubic);
@@ -107,6 +111,48 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
           child: child,
         );
       },
+    );
+  }
+
+  Future<void> _registrarPago(CuentaCorrienteResumen cliente) async {
+    if (_modoEjemplo) {
+      _snack('En modo de ejemplo no se pueden registrar pagos.', error: true);
+      return;
+    }
+    final datos = await showDialog<_DatosPago>(
+      context: context,
+      builder: (_) => _RegistrarPagoDialog(cliente: cliente),
+    );
+    if (datos == null || !mounted) return;
+    try {
+      await _repo.registrarPagoCuentaCorriente(
+        idCliente: cliente.idCliente,
+        monto: datos.monto,
+        referencia: datos.referencia,
+        observacion: datos.observacion,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _snack('Pago registrado. Saldo actualizado.');
+      await _cargar();
+    } on NetworkException {
+      if (!mounted) return;
+      _snack('Sin conexión: no se pudo registrar el pago.', error: true);
+    } on CobranzaRepositoryException catch (e) {
+      if (!mounted) return;
+      _snack(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      _snack('No se pudo registrar el pago.', error: true);
+    }
+  }
+
+  void _snack(String mensaje, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
+      ),
     );
   }
 
@@ -382,8 +428,9 @@ class _TarjetaTabla extends StatelessWidget {
 
 class _DetallePanel extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
+  final VoidCallback? onRegistrarPago;
 
-  const _DetallePanel({required this.cliente});
+  const _DetallePanel({required this.cliente, this.onRegistrarPago});
 
   @override
   Widget build(BuildContext context) {
@@ -439,6 +486,14 @@ class _DetallePanel extends StatelessWidget {
                   valor: cliente.tieneVencido ? formatMoneda(cliente.montoVencido) : '—',
                   acento: cliente.tieneVencido ? AppColors.error : null,
                 ),
+                if (onRegistrarPago != null && cliente.saldoUsado > 0) ...[
+                  const Spacer(),
+                  FlotaBotonPrimario(
+                    texto: 'Registrar pago',
+                    icono: Icons.payments_outlined,
+                    onTap: onRegistrarPago,
+                  ),
+                ],
               ],
             ),
           ),
@@ -504,6 +559,168 @@ class _AvisoBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DatosPago {
+  final int monto;
+  final String? referencia;
+  final String? observacion;
+
+  const _DatosPago({required this.monto, this.referencia, this.observacion});
+}
+
+class _RegistrarPagoDialog extends StatefulWidget {
+  final CuentaCorrienteResumen cliente;
+
+  const _RegistrarPagoDialog({required this.cliente});
+
+  @override
+  State<_RegistrarPagoDialog> createState() => _RegistrarPagoDialogState();
+}
+
+class _RegistrarPagoDialogState extends State<_RegistrarPagoDialog> {
+  late final TextEditingController _monto;
+  final _referencia = TextEditingController();
+  final _observacion = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _monto = TextEditingController(
+      text: widget.cliente.saldoUsado > 0 ? '${widget.cliente.saldoUsado}' : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _monto.dispose();
+    _referencia.dispose();
+    _observacion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final deuda = widget.cliente.saldoUsado;
+    final monto = int.tryParse(_monto.text.trim()) ?? 0;
+    final excede = monto > deuda;
+    final valido = monto > 0 && !excede;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Registrar pago', style: AppTextStyles.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.cliente.nombreCliente,
+              style: AppTextStyles.label.copyWith(fontSize: 15),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Deuda actual: ${formatMoneda(deuda)}',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _monto,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (_) => setState(() {}),
+              cursorColor: AppColors.orange,
+              style: AppTextStyles.title.copyWith(fontSize: 22),
+              decoration: InputDecoration(
+                labelText: 'Monto del pago',
+                prefixText: '\$ ',
+                isDense: true,
+                enabledBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.inputBorder),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.orange),
+                ),
+                floatingLabelStyle: const TextStyle(color: AppColors.orange),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              excede
+                  ? 'No puede superar la deuda (${formatMoneda(deuda)}).'
+                  : 'Se descuenta del saldo del cliente.',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: excede ? AppColors.error : AppColors.graphiteGray,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _referencia,
+              maxLength: 255,
+              cursorColor: AppColors.orange,
+              decoration: const InputDecoration(
+                labelText: 'Referencia (opcional)',
+                hintText: 'Ej: transferencia #1234',
+                isDense: true,
+                counterText: '',
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.inputBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.orange),
+                ),
+                floatingLabelStyle: TextStyle(color: AppColors.orange),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _observacion,
+              maxLines: 2,
+              maxLength: 2000,
+              cursorColor: AppColors.orange,
+              decoration: const InputDecoration(
+                labelText: 'Observación (opcional)',
+                isDense: true,
+                counterText: '',
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.inputBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.orange),
+                ),
+                floatingLabelStyle: TextStyle(color: AppColors.orange),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancelar',
+            style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray),
+          ),
+        ),
+        TextButton(
+          onPressed: valido
+              ? () => Navigator.of(context).pop(_DatosPago(
+                    monto: monto,
+                    referencia: _referencia.text,
+                    observacion: _observacion.text,
+                  ))
+              : null,
+          child: Text(
+            'Registrar pago',
+            style: AppTextStyles.button.copyWith(
+              color: valido ? AppColors.orange : AppColors.badgeGray,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

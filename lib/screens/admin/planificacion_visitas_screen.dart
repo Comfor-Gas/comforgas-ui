@@ -52,6 +52,7 @@ class _PlanificacionVisitasScreenState
   final _choferFilterCtrl = TextEditingController();
   final _clienteFilterCtrl = TextEditingController();
   DateTime? _fechaFilter;
+  bool _fechaPorCreacion = false;
 
   int _sortColumnIndex = 1;
   bool _sortAsc = true;
@@ -220,7 +221,7 @@ class _PlanificacionVisitasScreenState
       }
 
       if (_fechaFilter != null) {
-        final fecha = row.visita.fecha;
+        final fecha = _fechaPorCreacion ? row.visita.createdAt : row.visita.fecha;
         if (fecha == null ||
             fecha.year != _fechaFilter!.year ||
             fecha.month != _fechaFilter!.month ||
@@ -625,6 +626,8 @@ class _PlanificacionVisitasScreenState
             clienteCtrl: _clienteFilterCtrl,
             fecha: _fechaFilter,
             onFechaChanged: (d) => setState(() => _fechaFilter = d),
+            porCreacion: _fechaPorCreacion,
+            onModoChanged: (v) => setState(() => _fechaPorCreacion = v),
           ),
           const SizedBox(height: 20),
           LayoutBuilder(
@@ -740,12 +743,16 @@ class _FiltrosCard extends StatelessWidget {
   final TextEditingController clienteCtrl;
   final DateTime? fecha;
   final ValueChanged<DateTime?> onFechaChanged;
+  final bool porCreacion;
+  final ValueChanged<bool> onModoChanged;
 
   const _FiltrosCard({
     required this.choferCtrl,
     required this.clienteCtrl,
     required this.fecha,
     required this.onFechaChanged,
+    required this.porCreacion,
+    required this.onModoChanged,
   });
 
   @override
@@ -755,6 +762,27 @@ class _FiltrosCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Filtros de Búsqueda', style: AppTextStyles.title.copyWith(fontSize: 17)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(
+                'Filtrar fecha por:',
+                style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+              ),
+              const SizedBox(width: 10),
+              _ModoFechaChip(
+                texto: 'Planificada',
+                activo: !porCreacion,
+                onTap: () => onModoChanged(false),
+              ),
+              const SizedBox(width: 8),
+              _ModoFechaChip(
+                texto: 'Creación',
+                activo: porCreacion,
+                onTap: () => onModoChanged(true),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -767,11 +795,12 @@ class _FiltrosCard extends StatelessWidget {
                   controller: choferCtrl,
                 ),
                 _DatePickerField(
-                  label: 'Calendario de Fecha',
+                  label: porCreacion ? 'Fecha de creación' : 'Fecha planificada',
                   value: fecha,
                   hint: 'Todas las fechas',
                   onChanged: onFechaChanged,
                   clearable: true,
+                  permitirPasado: true,
                 ),
                 LabeledTextField(
                   label: 'Buscador de Cliente',
@@ -806,6 +835,41 @@ class _FiltrosCard extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ModoFechaChip extends StatelessWidget {
+  final String texto;
+  final bool activo;
+  final VoidCallback onTap;
+
+  const _ModoFechaChip({required this.texto, required this.activo, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: activo ? AppColors.orange.withOpacity(0.10) : AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: activo ? AppColors.orange : AppColors.inputBorder,
+            width: activo ? 1.4 : 1,
+          ),
+        ),
+        child: Text(
+          texto,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: activo ? AppColors.orange : AppColors.graphiteGray,
+          ),
+        ),
       ),
     );
   }
@@ -1361,6 +1425,7 @@ class _DatePickerField extends StatelessWidget {
   final DateTime? value;
   final ValueChanged<DateTime?> onChanged;
   final bool clearable;
+  final bool permitirPasado;
 
   const _DatePickerField({
     required this.label,
@@ -1369,6 +1434,7 @@ class _DatePickerField extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.clearable = false,
+    this.permitirPasado = false,
   });
 
   @override
@@ -1385,12 +1451,24 @@ class _DatePickerField extends StatelessWidget {
           onTap: () async {
             final now = DateTime.now();
             final hoy = DateTime(now.year, now.month, now.day);
+            final firstDate = permitirPasado ? DateTime(now.year - 2, 1, 1) : hoy;
             final fechaInicial = value ?? now;
+            final inicial = fechaInicial.isBefore(firstDate) ? firstDate : fechaInicial;
             final picked = await showDatePicker(
               context: context,
-              initialDate: fechaInicial.isBefore(hoy) ? hoy : fechaInicial,
-              firstDate: hoy,
+              initialDate: inicial,
+              firstDate: firstDate,
               lastDate: now.add(const Duration(days: 365)),
+              builder: (context, child) => Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: Theme.of(context).colorScheme.copyWith(
+                        primary: AppColors.orange,
+                        onPrimary: AppColors.white,
+                        onSurface: AppColors.graphiteGray,
+                      ),
+                ),
+                child: child!,
+              ),
             );
             if (picked != null) onChanged(picked);
           },

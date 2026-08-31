@@ -188,7 +188,7 @@ class _ChoferPerfilTabState extends State<_ChoferPerfilTab> {
                   child: SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
                   ),
                 ),
               )

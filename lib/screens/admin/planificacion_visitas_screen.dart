@@ -863,7 +863,7 @@ class _ListadoCard extends StatelessWidget {
           if (loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
             )
           else if (error != null)
             Padding(
@@ -1257,7 +1257,7 @@ class _FormularioCard extends StatelessWidget {
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
               ),
             ),
           ] else if (catalogoError != null) ...[
@@ -1324,7 +1324,7 @@ class _FormularioCard extends StatelessWidget {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
                       )
                     : const Icon(Icons.sync, size: 18),
                 label: const Text('Sincronizar agenda'),

@@ -68,7 +68,7 @@ class EvidenciaCapturaCard extends StatelessWidget {
                         width: 30,
                         child: CircularProgressIndicator(
                           strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                          valueColor: AlwaysStoppedAnimation(AppColors.white),
                         ),
                       ),
                     ),

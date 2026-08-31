@@ -317,7 +317,7 @@ class _SeguimientoTiempoRealScreenState
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange));
     }
 
     if (_loadError != null) {

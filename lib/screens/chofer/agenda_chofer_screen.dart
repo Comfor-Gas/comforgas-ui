@@ -376,6 +376,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
             _AgendaHeader(nombreChofer: nombreChofer, patente: patente),
             Expanded(
               child: RefreshIndicator(
+                color: AppColors.orange,
                 onRefresh: _load,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -436,7 +437,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                       if (_loading)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
                         )
                       else if (_error != null)
                         Padding(

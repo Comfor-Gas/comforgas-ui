@@ -68,7 +68,7 @@ class AppLockScreen extends StatelessWidget {
                     ? const SizedBox(
                         height: 120,
                         width: 120,
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
                       )
                     : FingerprintButton(onTap: onRetry),
                 const SizedBox(height: 32),

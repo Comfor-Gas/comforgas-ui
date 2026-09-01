@@ -127,7 +127,7 @@ class _Fila extends StatelessWidget {
           Expanded(
             flex: _colCliente,
             child: Text(
-              cliente.nombreCliente,
+              cliente.nombreMostrado,
               style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.steelBlue),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -222,7 +222,7 @@ class _ClienteCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(cliente.nombreCliente, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
+                  child: Text(cliente.nombreMostrado, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
                 ),
                 CreditoEstadoBadge(moroso: cliente.moroso),
               ],

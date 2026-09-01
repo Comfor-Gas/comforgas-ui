@@ -66,6 +66,7 @@ class _PlanificacionVisitasScreenState
   @override
   void initState() {
     super.initState();
+    _fechaFilter = _hoyFechaSola();
     _repo = VisitaRepository(context.read<AuthProvider>().apiClient);
     _catalogoRepo = CatalogoRepository(context.read<AuthProvider>().apiClient);
     _choferFilterCtrl.addListener(() => setState(() {}));

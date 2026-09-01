@@ -20,7 +20,7 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  int _selectedIndex = 3;
+  int _selectedIndex = 1;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   Widget get _body {

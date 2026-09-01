@@ -19,6 +19,9 @@ class CuentaCorrienteResumen {
 
   bool get tieneVencido => montoVencido > 0;
 
+  String get nombreMostrado =>
+      nombreCliente.trim().isNotEmpty ? nombreCliente : 'Cliente #$idCliente';
+
   factory CuentaCorrienteResumen.fromJson(Map<String, dynamic> json) {
     return CuentaCorrienteResumen(
       idCliente: parseInt(json['idClienteExterno']) ?? parseInt(json['idCliente']) ?? 0,

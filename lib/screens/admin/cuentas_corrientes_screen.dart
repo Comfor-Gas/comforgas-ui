@@ -94,7 +94,7 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
     showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Detalle de ${cliente.nombreCliente}',
+      barrierLabel: 'Detalle de ${cliente.nombreMostrado}',
       barrierColor: Colors.black.withOpacity(0.35),
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (_, __, ___) => Align(
@@ -461,7 +461,7 @@ class _DetallePanel extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          cliente.nombreCliente,
+                          cliente.nombreMostrado,
                           style: AppTextStyles.title.copyWith(fontSize: 20),
                         ),
                       ),
@@ -616,7 +616,7 @@ class _RegistrarPagoDialogState extends State<_RegistrarPagoDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              widget.cliente.nombreCliente,
+              widget.cliente.nombreMostrado,
               style: AppTextStyles.label.copyWith(fontSize: 15),
             ),
             const SizedBox(height: 4),

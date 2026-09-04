@@ -43,7 +43,7 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
         );
       case TipoOperacionVenta.envaseSolo:
         return const TipoOperacionVentaInfo(
-          label: 'Envase solo',
+          label: 'Envase',
           descripcion: 'Movimiento de envases sin intercambio uno a uno.',
           icono: Icons.propane_tank_outlined,
         );

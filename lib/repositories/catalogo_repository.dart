@@ -28,8 +28,8 @@ class CatalogoRepository {
     return _parseList(response.body, UsuarioModel.fromJson);
   }
 
-  Future<List<SucursalModel>> listarSucursales() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.sucursalesPath}');
+  Future<List<SucursalModel>> listarClientes() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.clientesPath}');
     final response = await _get(uri);
     return _parseList(response.body, SucursalModel.fromJson);
   }

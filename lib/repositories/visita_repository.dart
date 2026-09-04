@@ -244,7 +244,7 @@ class VisitaRepository {
       if (decoded is! Map<String, dynamic>) {
         throw VisitaRepositoryException('Respuesta inesperada del servidor.');
       }
-      return ImportAgendaResult.fromJson(decoded);
+      return _syncResultToImport(decoded);
     }
 
     if (response.statusCode == 400) {
@@ -264,6 +264,81 @@ class VisitaRepository {
     throw VisitaRepositoryException(
       _extractErrorMessage(response.body) ??
           'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
+  Future<ImportAgendaResult> sincronizarAgendaTodos({
+    required DateTime fecha,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.adminAgendaSyncAllPath}');
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'fecha': formatDateOnly(fecha)}),
+          )
+          .timeout(const Duration(seconds: 60));
+    } catch (_) {
+      throw VisitaRepositoryException(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return _syncResultToImport(decoded);
+      }
+      if (decoded is! List) {
+        throw VisitaRepositoryException('Respuesta inesperada del servidor.');
+      }
+      int insertadas = 0;
+      int omitidas = 0;
+      final errores = <String>[];
+      for (final item in decoded.whereType<Map<String, dynamic>>()) {
+        final r = _syncResultToImport(item);
+        insertadas += r.insertadas;
+        omitidas += r.omitidas;
+        errores.addAll(r.errores);
+      }
+      return ImportAgendaResult(
+        totalRecibidas: insertadas + omitidas,
+        insertadas: insertadas,
+        omitidas: omitidas,
+        errores: errores,
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para sincronizar la agenda.',
+      );
+    }
+
+    throw VisitaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
+  ImportAgendaResult _syncResultToImport(Map<String, dynamic> json) {
+    final insertadas =
+        parseInt(json['itemsInsertados']) ?? parseInt(json['insertadas']) ?? 0;
+    final actualizadas = parseInt(json['itemsActualizados']) ?? 0;
+    final sinCambio =
+        parseInt(json['sinCambio']) ?? parseInt(json['omitidas']) ?? 0;
+    final omitidas = actualizadas + sinCambio;
+    final errores =
+        (json['errores'] as List?)?.whereType<String>().toList() ?? const [];
+    return ImportAgendaResult(
+      totalRecibidas: parseInt(json['totalRecibidas']) ?? insertadas + omitidas,
+      insertadas: insertadas,
+      omitidas: omitidas,
+      errores: errores,
     );
   }
 

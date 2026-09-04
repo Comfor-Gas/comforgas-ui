@@ -90,7 +90,7 @@ class _PlanificacionVisitasScreenState
     try {
       final results = await Future.wait([
         _catalogoRepo.listarUsuarios(rol: 'CHOFER'),
-        _catalogoRepo.listarSucursales(),
+        _catalogoRepo.listarClientes(),
         _catalogoRepo.listarRutas(),
       ]);
       if (!mounted) return;
@@ -110,7 +110,7 @@ class _PlanificacionVisitasScreenState
       if (!mounted) return;
       setState(() {
         _catalogoError =
-            'No se pudieron cargar los catálogos de choferes/sucursales/rutas.';
+            'No se pudieron cargar los catálogos de choferes/clientes/rutas.';
         _loadingCatalogos = false;
       });
     }
@@ -149,7 +149,7 @@ class _PlanificacionVisitasScreenState
       final value = snapshot[key];
       if (value is String && value.trim().isNotEmpty) return value;
     }
-    return 'Sucursal #${v.idSucursal}';
+    return 'Cliente #${v.idSucursal}';
   }
 
   String _rutaNombre(VisitaModel v) {
@@ -290,7 +290,12 @@ class _PlanificacionVisitasScreenState
       idRuta: ruta.idRuta,
       sucursalSnapshot: {
         'nombre': sucursal.nombre,
-        'direccion': sucursal.direccion,
+        if (sucursal.direccion != null) 'direccion': sucursal.direccion,
+        if (sucursal.barrio != null) 'barrio': sucursal.barrio,
+        if (sucursal.ciudad != null) 'ciudad': sucursal.ciudad,
+        if (sucursal.telefono != null) 'telefono': sucursal.telefono,
+        if (sucursal.latitud != null) 'latitud': sucursal.latitud,
+        if (sucursal.longitud != null) 'longitud': sucursal.longitud,
       },
       rutaSnapshot: {
         'nombre': ruta.nombre,
@@ -373,100 +378,62 @@ class _PlanificacionVisitasScreenState
   }
 
   Future<void> _handleSincronizar() async {
-    final camposCompletos = [
-      _formChofer != null,
-      _formFecha != null,
-      _formSucursal != null,
-      _formRuta != null,
-    ];
-    final completos = camposCompletos.where((c) => c).length;
-
-    if (completos != camposCompletos.length) {
-      setState(() => _formError = completos == 0
-          ? 'Completá Chofer, Fecha, Sucursal y Ruta para sincronizar la agenda.'
-          : 'Para sincronizar completá todos los campos (Chofer, Fecha, '
-              'Sucursal y Ruta) o dejálos todos vacíos.');
-      return;
-    }
     setState(() => _formError = null);
 
-    final chofer = _formChofer!;
-    final fecha = _formFecha!;
+    final chofer = _formChofer;
+    final fecha = _formFecha ?? _fechaFilter ?? _hoyFechaSola();
+    final fechaTexto = _formatDisplayDate(fecha);
+    final quien = chofer != null ? chofer.fullName : 'todos los choferes';
 
     setState(() => _publishing = true);
 
     try {
-      final result = await _repo.sincronizarAgenda(
-        choferId: chofer.id,
-        fecha: fecha,
-      );
+      final result = chofer != null
+          ? await _repo.sincronizarAgenda(choferId: chofer.id, fecha: fecha)
+          : await _repo.sincronizarAgendaTodos(fecha: fecha);
       if (!mounted) return;
       setState(() {
         _publishing = false;
-        // Los borradores locales de este chofer+fecha quedan redundantes:
-        // la sincronización ya los subió (o ya existían) en el servidor.
         _draftVisitas.removeWhere((v) =>
-            v.idUsuario == chofer.id &&
             v.fecha != null &&
-            _esMismoDia(v.fecha!, fecha));
+            _esMismoDia(v.fecha!, fecha) &&
+            (chofer == null || v.idUsuario == chofer.id));
       });
       await _loadVisitas();
       if (!mounted) return;
 
-      final fechaTexto = _formatDisplayDate(fecha);
-
-      // Todo se pudo insertar: sin duplicados ni errores.
-      if (result.omitidas == 0) {
+      if (result.insertadas > 0 && result.omitidas == 0) {
         await showAppAlert(
           context: context,
           title: 'Agenda sincronizada',
-          message:
-              'Se cargaron ${result.insertadas} visita(s) para ${chofer.fullName} el $fechaTexto.',
+          message: 'Se cargaron ${result.insertadas} visita(s) para $quien el $fechaTexto.',
         );
-        return;
-      }
-
-      if (result.insertadas == 0) {
+      } else if (result.insertadas == 0) {
         await showAppAlert(
           context: context,
-          title: 'No se pudo sincronizar',
-          message:
-              'No se ha podido sincronizar a ${chofer.fullName} para el $fechaTexto '
-              'porque su agenda ya se encuentra cargada en el sistema.',
+          title: 'Sin novedades',
+          message: 'No hay visitas nuevas para $quien el $fechaTexto. '
+              'Lo que había ya estaba cargado en el sistema.',
         );
-        return;
+      } else {
+        await showAppAlert(
+          context: context,
+          title: 'Agenda sincronizada parcialmente',
+          message: 'Se cargaron ${result.insertadas} visita(s) nuevas para $quien el $fechaTexto. '
+              'Las otras ${result.omitidas} ya se encontraban cargadas.',
+        );
       }
-
-      await showAppAlert(
-        context: context,
-        title: 'Agenda sincronizada parcialmente',
-        message:
-            'Se cargaron ${result.insertadas} visita(s) nuevas para ${chofer.fullName} el $fechaTexto. '
-            'Las otras ${result.omitidas} ya se encontraban cargadas en el sistema.',
-      );
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _publishing = false;
-        _draftVisitas.removeWhere((v) =>
-            v.idUsuario == chofer.id &&
-            v.fecha != null &&
-            _esMismoDia(v.fecha!, fecha));
-      });
+      setState(() => _publishing = false);
       await showAppAlert(context: context, title: 'Error', message: e.message);
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _publishing = false;
-        _draftVisitas.removeWhere((v) =>
-            v.idUsuario == chofer.id &&
-            v.fecha != null &&
-            _esMismoDia(v.fecha!, fecha));
-      });
+      setState(() => _publishing = false);
       await showAppAlert(
         context: context,
         title: 'Error',
-        message: 'No se pudo sincronizar la agenda del chofer.',
+        message: 'No se pudo sincronizar la agenda.',
       );
     }
   }
@@ -1355,6 +1322,29 @@ class _FormularioCard extends StatelessWidget {
               onChanged: onFechaChanged,
             ),
             const SizedBox(height: 14),
+            if (sucursales.isEmpty) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.badgeAmber.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 18, color: AppColors.badgeAmber),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'No hay clientes cargados. Cargá o sincronizá clientes para poder asignar visitas.',
+                        style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             _StyledDropdown<SucursalModel>(
               hint: 'Selección de Sucursal/Cliente',
               icon: Icons.storefront_outlined,

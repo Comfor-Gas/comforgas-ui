@@ -108,12 +108,10 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
   }
 
   Future<void> _onAgregarSku(ProductoSku producto) async {
-    final index = _venta.indexDe(producto.idProducto);
-    final existente = index >= 0 ? _venta.lineas[index] : null;
-
-    final tipo =
-        existente?.tipoOperacion ?? await mostrarTipoOperacionSheet(context);
+    final tipo = await mostrarTipoOperacionSheet(context);
     if (tipo == null || !mounted) return;
+
+    final existente = _venta.buscar(producto.idProducto, tipo);
 
     final detalle = await mostrarDetalleVentaEditor(
       context,
@@ -126,12 +124,20 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
     setState(() => _venta.guardarLinea(detalle));
   }
 
-  void _onEditarLinea(DetalleVentaDraft linea) {
-    _onAgregarSku(linea.producto);
+  Future<void> _onEditarLinea(DetalleVentaDraft linea) async {
+    final detalle = await mostrarDetalleVentaEditor(
+      context,
+      producto: linea.producto,
+      tipoOperacion: linea.tipoOperacion,
+      inicial: linea,
+    );
+    if (detalle == null || !mounted) return;
+
+    setState(() => _venta.guardarLinea(detalle));
   }
 
   void _onEliminarLinea(DetalleVentaDraft linea) {
-    setState(() => _venta.eliminar(linea.producto.idProducto));
+    setState(() => _venta.eliminarLinea(linea));
   }
 
   Future<void> _guardarVenta() async {
@@ -190,7 +196,7 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
                           ..._catalogo.map(
                             (sku) => SkuCatalogoCard(
                               producto: sku,
-                              agregado: _venta.indexDe(sku.idProducto) >= 0,
+                              agregado: _venta.contieneProducto(sku.idProducto),
                               onTap: () => _onAgregarSku(sku),
                             ),
                           ),

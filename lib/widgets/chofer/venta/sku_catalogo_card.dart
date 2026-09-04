@@ -127,8 +127,8 @@ class SkuCatalogoCard extends StatelessWidget {
                     right: Radius.circular(16),
                   ),
                 ),
-                child: Icon(
-                  agregado ? Icons.edit_outlined : Icons.add,
+                child: const Icon(
+                  Icons.add,
                   color: Colors.white,
                   size: 24,
                 ),

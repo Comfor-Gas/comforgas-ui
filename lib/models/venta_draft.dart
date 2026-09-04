@@ -1,4 +1,5 @@
 import 'detalle_venta_draft.dart';
+import 'tipo_operacion_venta.dart';
 
 class VentaDraft {
   final List<DetalleVentaDraft> lineas;
@@ -14,11 +15,21 @@ class VentaDraft {
 
   bool get puedeGuardar => !vacio && !hayInconsistencias;
 
-  int indexDe(String idProducto) =>
-      lineas.indexWhere((linea) => linea.producto.idProducto == idProducto);
+  bool contieneProducto(String idProducto) =>
+      lineas.any((linea) => linea.producto.idProducto == idProducto);
+
+  int _indexDe(String idProducto, TipoOperacionVenta tipo) =>
+      lineas.indexWhere((linea) =>
+          linea.producto.idProducto == idProducto &&
+          linea.tipoOperacion == tipo);
+
+  DetalleVentaDraft? buscar(String idProducto, TipoOperacionVenta tipo) {
+    final index = _indexDe(idProducto, tipo);
+    return index >= 0 ? lineas[index] : null;
+  }
 
   void guardarLinea(DetalleVentaDraft linea) {
-    final index = indexDe(linea.producto.idProducto);
+    final index = _indexDe(linea.producto.idProducto, linea.tipoOperacion);
     if (index >= 0) {
       lineas[index] = linea;
     } else {
@@ -26,8 +37,9 @@ class VentaDraft {
     }
   }
 
-  void eliminar(String idProducto) {
-    lineas.removeWhere((linea) => linea.producto.idProducto == idProducto);
+  void eliminarLinea(DetalleVentaDraft linea) {
+    final index = _indexDe(linea.producto.idProducto, linea.tipoOperacion);
+    if (index >= 0) lineas.removeAt(index);
   }
 
   Map<String, dynamic> toRequestJson(int idVisita) {

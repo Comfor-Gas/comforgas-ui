@@ -1305,8 +1305,9 @@ class _FormularioCard extends StatelessWidget {
               ),
             ),
           ] else ...[
-            _StyledDropdown<UsuarioModel>(
+            _SearchableDropdown<UsuarioModel>(
               hint: 'Selección de Chofer',
+              searchHint: 'Buscar chofer por nombre...',
               icon: Icons.person_outline,
               value: chofer,
               items: choferes,
@@ -1345,8 +1346,9 @@ class _FormularioCard extends StatelessWidget {
                 ),
               ),
             ],
-            _StyledDropdown<SucursalModel>(
+            _SearchableDropdown<SucursalModel>(
               hint: 'Selección de Sucursal/Cliente',
+              searchHint: 'Buscar cliente por nombre...',
               icon: Icons.storefront_outlined,
               value: sucursal,
               items: sucursales,
@@ -1354,8 +1356,9 @@ class _FormularioCard extends StatelessWidget {
               onChanged: onSucursalChanged,
             ),
             const SizedBox(height: 14),
-            _StyledDropdown<RutaModel>(
+            _SearchableDropdown<RutaModel>(
               hint: 'Selección de Ruta',
+              searchHint: 'Buscar ruta por nombre...',
               icon: Icons.alt_route_outlined,
               value: ruta,
               items: rutas,
@@ -1497,16 +1500,18 @@ class _DatePickerField extends StatelessWidget {
   }
 }
 
-class _StyledDropdown<T> extends StatelessWidget {
+class _SearchableDropdown<T> extends StatefulWidget {
   final String hint;
+  final String searchHint;
   final IconData icon;
   final T? value;
   final List<T> items;
   final String Function(T) labelOf;
   final ValueChanged<T?> onChanged;
 
-  const _StyledDropdown({
+  const _SearchableDropdown({
     required this.hint,
+    required this.searchHint,
     required this.icon,
     required this.value,
     required this.items,
@@ -1515,36 +1520,254 @@ class _StyledDropdown<T> extends StatelessWidget {
   });
 
   @override
+  State<_SearchableDropdown<T>> createState() => _SearchableDropdownState<T>();
+}
+
+class _SearchableDropdownState<T> extends State<_SearchableDropdown<T>> {
+  final LayerLink _link = LayerLink();
+  final GlobalKey _fieldKey = GlobalKey();
+  OverlayEntry? _overlay;
+  bool _open = false;
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _toggle() {
+    if (_open) {
+      _close();
+    } else {
+      _openOverlay();
+    }
+  }
+
+  double get _fieldWidth {
+    final box = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+    return box?.size.width ?? 280;
+  }
+
+  void _openOverlay() {
+    if (widget.items.isEmpty) return;
+    final width = _fieldWidth;
+    _overlay = OverlayEntry(
+      builder: (ctx) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _close,
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 6),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.white,
+                  child: SizedBox(
+                    width: width,
+                    child: _SearchablePanel<T>(
+                      searchHint: widget.searchHint,
+                      items: widget.items,
+                      labelOf: widget.labelOf,
+                      selected: widget.value,
+                      onSelected: _select,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    Overlay.of(context).insert(_overlay!);
+    setState(() => _open = true);
+  }
+
+  void _close() {
+    _removeOverlay();
+    if (mounted) setState(() => _open = false);
+  }
+
+  void _removeOverlay() {
+    _overlay?.remove();
+    _overlay = null;
+  }
+
+  void _select(T item) {
+    widget.onChanged(item);
+    _close();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    final hasValue = widget.value != null;
+    final enabled = widget.items.isNotEmpty;
+    return CompositedTransformTarget(
+      link: _link,
+      child: InkWell(
+        key: _fieldKey,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder, width: 1.2),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          isExpanded: true,
-          value: value,
-          hint: Row(
+        onTap: enabled ? _toggle : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _open ? AppColors.steelBlue : AppColors.inputBorder,
+              width: _open ? 1.4 : 1.2,
+            ),
+          ),
+          child: Row(
             children: [
-              Icon(icon, size: 18, color: AppColors.inputHint),
+              Icon(widget.icon, size: 18, color: AppColors.inputHint),
               const SizedBox(width: 10),
-              Text(hint, style: AppTextStyles.hint),
+              Expanded(
+                child: Text(
+                  hasValue ? widget.labelOf(widget.value as T) : widget.hint,
+                  overflow: TextOverflow.ellipsis,
+                  style: hasValue ? AppTextStyles.input : AppTextStyles.hint,
+                ),
+              ),
+              Icon(
+                _open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                color: AppColors.inputHint,
+              ),
             ],
           ),
-          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
-          style: AppTextStyles.input,
-          items: items
-              .map((item) => DropdownMenuItem<T>(
-                    value: item,
-                    child: Text(labelOf(item)),
-                  ))
-              .toList(),
-          onChanged: onChanged,
         ),
       ),
+    );
+  }
+}
+
+class _SearchablePanel<T> extends StatefulWidget {
+  final String searchHint;
+  final List<T> items;
+  final String Function(T) labelOf;
+  final T? selected;
+  final ValueChanged<T> onSelected;
+
+  const _SearchablePanel({
+    required this.searchHint,
+    required this.items,
+    required this.labelOf,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  State<_SearchablePanel<T>> createState() => _SearchablePanelState<T>();
+}
+
+class _SearchablePanelState<T> extends State<_SearchablePanel<T>> {
+  final TextEditingController _controller = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final filtrados = q.isEmpty
+        ? widget.items
+        : widget.items
+            .where((item) => widget.labelOf(item).toLowerCase().contains(q))
+            .toList();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            style: AppTextStyles.input,
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: widget.searchHint,
+              hintStyle: AppTextStyles.hint,
+              prefixIcon:
+                  const Icon(Icons.search, size: 18, color: AppColors.inputHint),
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.inputBorder, width: 1.2),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.inputBorder, width: 1.2),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.steelBlue, width: 1.4),
+              ),
+            ),
+          ),
+        ),
+        if (filtrados.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            child: Text('Sin resultados', style: AppTextStyles.hint),
+          )
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: 6),
+              itemCount: filtrados.length,
+              separatorBuilder: (_, __) => Divider(
+                height: 1,
+                color: AppColors.inputBorder.withOpacity(0.5),
+              ),
+              itemBuilder: (ctx, i) {
+                final item = filtrados[i];
+                final isSel = item == widget.selected;
+                return InkWell(
+                  onTap: () => widget.onSelected(item),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    color: isSel
+                        ? AppColors.steelBlue.withOpacity(0.08)
+                        : Colors.transparent,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.labelOf(item),
+                            style: AppTextStyles.input,
+                          ),
+                        ),
+                        if (isSel)
+                          const Icon(Icons.check,
+                              size: 18, color: AppColors.steelBlue),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

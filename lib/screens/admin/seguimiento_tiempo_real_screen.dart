@@ -90,6 +90,7 @@ class _SeguimientoTiempoRealScreenState
 
   List<VisitaModel> _visitas = [];
   final Map<int, VisitaAlertaTipo> _alertaPorVisita = {};
+  final Map<String, LatLng> _posicionEnVivo = {};
 
   int? _selectedVisitaId;
   String? _estadoFilter;
@@ -201,6 +202,11 @@ class _SeguimientoTiempoRealScreenState
           _alertaPorVisita.remove(message.idVisita);
         }
       });
+    } else if (message is PosicionChoferMessage) {
+      setState(() {
+        _posicionEnVivo[message.idChofer] =
+            LatLng(message.latitud, message.longitud);
+      });
     }
   }
 
@@ -281,9 +287,10 @@ class _SeguimientoTiempoRealScreenState
           break;
         }
       }
-      final posicionActual = enCurso != null
-          ? _posicionDe(enCurso)
-          : (puntos.isNotEmpty ? puntos.last : null);
+      final posicionActual = _posicionEnVivo[idChofer] ??
+          (enCurso != null
+              ? _posicionDe(enCurso)
+              : (puntos.isNotEmpty ? puntos.last : null));
 
       rutas.add(_ChoferRuta(
         choferId: idChofer,

@@ -1,8 +1,10 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_colors.dart';
 import 'providers/auth_provider.dart';
+import 'models/user_role.dart';
 import 'local/agenda_cache_service.dart';
 import 'local/cobro_offline_service.dart';
 import 'local/comodato_offline_service.dart';
@@ -12,6 +14,7 @@ import 'services/app_lock_controller.dart';
 import 'services/cobro_sync_manager.dart';
 import 'services/comodato_sync_manager.dart';
 import 'services/sync_manager.dart';
+import 'services/ubicacion_tracking_service.dart';
 import 'screens/auth_gate.dart';
 import 'screens/login_screen.dart';
 import 'widgets/app_lock_screen.dart';
@@ -102,12 +105,16 @@ class _AppShellState extends State<_AppShell> {
       SyncManager.instance.configurar(auth.apiClient);
       CobroSyncManager.instance.configurar(auth.apiClient);
       ComodatoSyncManager.instance.configurar(auth.apiClient);
+      if (auth.role == UserRole.chofer) {
+        unawaited(UbicacionTrackingService.instance.iniciar(auth.apiClient));
+      }
     } else if (previousStatus == AuthStatus.authenticated &&
         status == AuthStatus.unauthenticated) {
       lock.onSessionChanged(isAuthenticated: false);
       SyncManager.instance.detener();
       CobroSyncManager.instance.detener();
       ComodatoSyncManager.instance.detener();
+      unawaited(UbicacionTrackingService.instance.detener());
       rootNavigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,

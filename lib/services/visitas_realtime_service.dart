@@ -45,6 +45,38 @@ class VisitaEstadoActualizadoMessage extends VisitaRealtimeMessage {
   }
 }
 
+class PosicionChoferMessage extends VisitaRealtimeMessage {
+  final String idChofer;
+  final String? nombreChofer;
+  final double latitud;
+  final double longitud;
+  final double? precisionMetros;
+  final DateTime? timestamp;
+  final int? idVisita;
+
+  PosicionChoferMessage({
+    required this.idChofer,
+    this.nombreChofer,
+    required this.latitud,
+    required this.longitud,
+    this.precisionMetros,
+    this.timestamp,
+    this.idVisita,
+  });
+
+  factory PosicionChoferMessage.fromJson(Map<String, dynamic> json) {
+    return PosicionChoferMessage(
+      idChofer: (json['idChofer'] ?? '').toString(),
+      nombreChofer: json['nombreChofer'] as String?,
+      latitud: parseDouble(json['latitud']) ?? 0,
+      longitud: parseDouble(json['longitud']) ?? 0,
+      precisionMetros: parseDouble(json['precisionMetros']),
+      timestamp: parseDate(json['timestamp']),
+      idVisita: parseInt(json['idVisita']),
+    );
+  }
+}
+
 class AlertaCreadaMessage extends VisitaRealtimeMessage {
   final int idAlerta;
   final int idVisita;
@@ -143,6 +175,8 @@ class VisitasRealtimeService {
           _messagesController.add(VisitaEstadoActualizadoMessage.fromJson(decoded));
         case 'ALERTA_CREADA':
           _messagesController.add(AlertaCreadaMessage.fromJson(decoded));
+        case 'POSICION_CHOFER':
+          _messagesController.add(PosicionChoferMessage.fromJson(decoded));
       }
     } catch (_) {
       return;

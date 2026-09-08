@@ -2,6 +2,7 @@ import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../local/comodato_offline_service.dart';
@@ -25,6 +26,7 @@ import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_capture_service.dart';
 import '../../services/sync_manager.dart';
+import '../../services/ubicacion_tracking_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
@@ -73,6 +75,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   late final EvidenciaRepository _evidenciaRepo;
   late final VentaRepository _ventaRepo;
   late final ComodatoRepository _comodatoRepo;
+  late final http.Client _apiClient;
   final _photoService = PhotoCaptureService();
   final _locationService = LocationService.instance;
 
@@ -112,6 +115,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _evidenciaRepo = EvidenciaRepository(apiClient);
     _ventaRepo = VentaRepository(apiClient);
     _comodatoRepo = ComodatoRepository(apiClient);
+    _apiClient = apiClient;
 
     _colaListener = _actualizarPendienteSync;
     OfflineQueueService.instance.escuchar().addListener(_colaListener!);
@@ -141,7 +145,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       ComodatoOfflineService.instance.escuchar().removeListener(_comodatoListener!);
     }
     _conexionSub?.cancel();
-    _locationService.detenerSeguimientoEnSegundoPlano();
+    UbicacionTrackingService.instance.setVisitaActual(null);
     super.dispose();
   }
 
@@ -436,9 +440,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         _fase = _FaseVisita.enCurso;
       });
 
-      unawaited(
-        _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
-      );
+      unawaited(UbicacionTrackingService.instance.iniciar(_apiClient));
+      UbicacionTrackingService.instance.setVisitaActual(_visita.idVisita);
       unawaited(_prepararComodato());
     } on LocationServiceException catch (e) {
       if (!mounted) return;
@@ -559,9 +562,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     // Arranca igual el seguimiento en segundo plano; si la señal vuelve
     // durante la visita, el SyncManager va a mandar la cola sin que el
     // chofer tenga que hacer nada.
-    unawaited(
-      _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
-    );
+    unawaited(UbicacionTrackingService.instance.iniciar(_apiClient));
+    UbicacionTrackingService.instance.setVisitaActual(_visita.idVisita);
     unawaited(SyncManager.instance.sincronizar());
     unawaited(_prepararComodato());
 
@@ -586,9 +588,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               .any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
     });
 
-    unawaited(
-      _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
-    );
+    unawaited(UbicacionTrackingService.instance.iniciar(_apiClient));
+    UbicacionTrackingService.instance.setVisitaActual(_visita.idVisita);
     unawaited(_prepararComodato());
 
     final idVisita = _visita.idVisita;
@@ -807,7 +808,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         latitudFin: latitudFin,
         longitudFin: longitudFin,
       );
-      await _locationService.detenerSeguimientoEnSegundoPlano();
+      UbicacionTrackingService.instance.setVisitaActual(null);
 
       if (!mounted) return;
       Navigator.of(context).pop(finalizada.copyWith(idAgendaItem: idAgendaItem));
@@ -865,7 +866,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         'CANCELADA',
         observaciones: motivo.isEmpty ? null : motivo,
       );
-      await _locationService.detenerSeguimientoEnSegundoPlano();
+      UbicacionTrackingService.instance.setVisitaActual(null);
       if (!mounted) return;
       Navigator.of(context).pop(cancelada.copyWith(idAgendaItem: _visita.idAgendaItem));
     } on NetworkException {
@@ -970,7 +971,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       ),
     );
 
-    await _locationService.detenerSeguimientoEnSegundoPlano();
+    UbicacionTrackingService.instance.setVisitaActual(null);
     unawaited(SyncManager.instance.sincronizar());
 
     // Actualización optimista: reflejamos VISITADO ya mismo para que la

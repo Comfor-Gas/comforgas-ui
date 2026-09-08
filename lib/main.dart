@@ -5,10 +5,12 @@ import 'theme/app_colors.dart';
 import 'providers/auth_provider.dart';
 import 'local/agenda_cache_service.dart';
 import 'local/cobro_offline_service.dart';
+import 'local/comodato_offline_service.dart';
 import 'local/offline_queue_service.dart';
 import 'local/stock_camion_cache_service.dart';
 import 'services/app_lock_controller.dart';
 import 'services/cobro_sync_manager.dart';
+import 'services/comodato_sync_manager.dart';
 import 'services/sync_manager.dart';
 import 'screens/auth_gate.dart';
 import 'screens/login_screen.dart';
@@ -23,6 +25,7 @@ void main() async {
   await Hive.initFlutter();
   await OfflineQueueService.instance.init();
   await CobroOfflineService.instance.init();
+  await ComodatoOfflineService.instance.init();
   await AgendaCacheService.instance.init();
   await StockCamionCacheService.instance.init();
   runApp(const ComforGasApp());
@@ -98,11 +101,13 @@ class _AppShellState extends State<_AppShell> {
       lock.onSessionChanged(isAuthenticated: true, userEmail: auth.user?.email);
       SyncManager.instance.configurar(auth.apiClient);
       CobroSyncManager.instance.configurar(auth.apiClient);
+      ComodatoSyncManager.instance.configurar(auth.apiClient);
     } else if (previousStatus == AuthStatus.authenticated &&
         status == AuthStatus.unauthenticated) {
       lock.onSessionChanged(isAuthenticated: false);
       SyncManager.instance.detener();
       CobroSyncManager.instance.detener();
+      ComodatoSyncManager.instance.detener();
       rootNavigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,

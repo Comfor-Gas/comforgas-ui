@@ -53,4 +53,9 @@ class ApiConfig {
 
   static const String seguimientoWsPath = '/ws/visitas';
   static const String adminAlertasPath = '/api/admin/visitas/alertas';
+
+  static const String comodatoClientePath = '/api/comodatos/cliente';
+  static const String visitaComodatoSuffix = '/comodato';
+  static const String adminComodatosAuditoriaPath = '/api/admin/comodatos/auditoria';
+  static const String adminComodatosContratosPath = '/api/admin/comodatos/contratos';
 }

@@ -4,18 +4,23 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import '../../local/comodato_offline_service.dart';
+import '../../local/comodato_pendiente.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
 import '../../models/cliente_ficha.dart';
+import '../../models/control_comodato.dart';
 import '../../models/evidencia_tipo.dart';
 import '../../models/venta_draft.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/comodato_repository.dart';
 import '../../repositories/evidencia_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/venta_repository.dart';
 import '../../repositories/visita_repository.dart';
+import '../../services/comodato_sync_manager.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_capture_service.dart';
@@ -23,7 +28,9 @@ import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
+import '../../utils/json_parsing.dart';
 import '../../models/credito_cliente.dart';
+import '../../widgets/chofer/comodato/control_comodato_card.dart';
 import '../../widgets/chofer/cobro/morosidad_banner.dart';
 import '../../widgets/chofer/datos_desactivados_card.dart';
 import '../../widgets/chofer/evidencia_captura_card.dart';
@@ -31,6 +38,7 @@ import '../../widgets/chofer/inicio_sin_conexion_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/common/estado_conexion_badge.dart';
 import '../../widgets/primary_button.dart';
+import 'comodato/auditoria_comodato_screen.dart';
 import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
 
@@ -64,6 +72,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   late final VisitaRepository _visitaRepo;
   late final EvidenciaRepository _evidenciaRepo;
   late final VentaRepository _ventaRepo;
+  late final ComodatoRepository _comodatoRepo;
   final _photoService = PhotoCaptureService();
   final _locationService = LocationService.instance;
 
@@ -85,7 +94,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   int? _idVentaRegistrada;
   String? _uuidVentaOfflineRegistrada;
   bool _cobroRegistrado = false;
+  ContratoComodato? _contratoComodato;
+  bool _cargandoContrato = false;
+  ControlComodatoDraft? _controlComodato;
+  bool _comodatoPendienteSync = false;
+  bool _comodatoPreparado = false;
   VoidCallback? _colaListener;
+  VoidCallback? _comodatoListener;
   StreamSubscription<bool>? _conexionSub;
 
   @override
@@ -96,9 +111,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _visitaRepo = VisitaRepository(apiClient);
     _evidenciaRepo = EvidenciaRepository(apiClient);
     _ventaRepo = VentaRepository(apiClient);
+    _comodatoRepo = ComodatoRepository(apiClient);
 
     _colaListener = _actualizarPendienteSync;
     OfflineQueueService.instance.escuchar().addListener(_colaListener!);
+
+    _comodatoListener = _actualizarComodatoPendienteSync;
+    ComodatoOfflineService.instance.escuchar().addListener(_comodatoListener!);
 
     _conexionSub = ConnectivityService.instance.observarConexion().listen((online) {
       if (online && _fase == _FaseVisita.datosDesactivados) {
@@ -118,6 +137,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (_colaListener != null) {
       OfflineQueueService.instance.escuchar().removeListener(_colaListener!);
     }
+    if (_comodatoListener != null) {
+      ComodatoOfflineService.instance.escuchar().removeListener(_comodatoListener!);
+    }
     _conexionSub?.cancel();
     _locationService.detenerSeguimientoEnSegundoPlano();
     super.dispose();
@@ -132,6 +154,220 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (mounted && sigoPendiente != _checkInPendienteSync) {
       setState(() => _checkInPendienteSync = sigoPendiente);
     }
+  }
+
+  ClienteFicha get _ficha => ClienteFicha.fromVisita(
+        _visita,
+        nombreResuelto: widget.nombreCliente,
+        domicilioResuelto: widget.direccionCliente,
+      );
+
+  void _actualizarComodatoPendienteSync() {
+    final idVisita = _visita.idVisita;
+    final idAgendaItem = _visita.idAgendaItem;
+    ComodatoPendiente? pendiente;
+    if (idVisita != null) {
+      pendiente = ComodatoOfflineService.instance.pendienteDeVisita(idVisita);
+    }
+    if (pendiente == null && idAgendaItem != null) {
+      pendiente = ComodatoOfflineService.instance.pendienteDeAgendaItem(idAgendaItem);
+    }
+    final sigue = pendiente != null;
+    if (mounted && sigue != _comodatoPendienteSync) {
+      setState(() => _comodatoPendienteSync = sigue);
+    }
+  }
+
+  Future<void> _prepararComodato() async {
+    if (_comodatoPreparado) return;
+    _comodatoPreparado = true;
+    await _hidratarControlComodato();
+    await _cargarContratoComodato();
+  }
+
+  int? get _idClienteExt {
+    final snapshot = _visita.sucursalSnapshot;
+    return parseInt(snapshot['idClienteExt']) ??
+        parseInt(snapshot['clienteId']) ??
+        int.tryParse(_ficha.clienteId);
+  }
+
+  Future<void> _hidratarControlComodato() async {
+    final idAgendaItem = _visita.idAgendaItem;
+    final idVisita = _visita.idVisita;
+
+    ComodatoPendiente? pendiente;
+    if (idVisita != null) {
+      pendiente = ComodatoOfflineService.instance.pendienteDeVisita(idVisita);
+    }
+    if (pendiente == null && idAgendaItem != null) {
+      pendiente = ComodatoOfflineService.instance.pendienteDeAgendaItem(idAgendaItem);
+    }
+    if (pendiente != null) {
+      if (!mounted) return;
+      setState(() {
+        _controlComodato = _draftDePendiente(pendiente!);
+        _comodatoPendienteSync = true;
+      });
+      return;
+    }
+
+    if (idVisita == null) return;
+    try {
+      final control = await _comodatoRepo.getControlDeVisita(idVisita);
+      if (!mounted || control == null) return;
+      setState(() {
+        _controlComodato = _draftDeControl(control);
+        _comodatoPendienteSync = false;
+      });
+    } on NetworkException {
+      return;
+    } on ComodatoRepositoryException {
+      return;
+    }
+  }
+
+  Future<void> _cargarContratoComodato() async {
+    final idExt = _idClienteExt;
+    if (idExt == null) return;
+    if (mounted) setState(() => _cargandoContrato = true);
+    try {
+      final contrato = await _comodatoRepo.getContratoCliente(idExt);
+      if (!mounted) return;
+      setState(() => _contratoComodato = contrato);
+    } on NetworkException {
+      return;
+    } on ComodatoRepositoryException {
+      return;
+    } finally {
+      if (mounted) setState(() => _cargandoContrato = false);
+    }
+  }
+
+  ControlComodatoDraft _draftDeControl(ControlComodato c) {
+    return ControlComodatoDraft(
+      idVisita: c.idVisita ?? _visita.idVisita,
+      idAgendaItem: _visita.idAgendaItem,
+      idUsuario: _visita.idUsuario,
+      fecha: _visita.fecha,
+      idClienteExt: c.idClienteExt ?? _idClienteExt,
+      uuidOffline: c.uuidOffline ?? '',
+      timestampCaptura: c.timestampCaptura ?? DateTime.now(),
+      observaciones: c.observaciones,
+      detalles: c.detalles
+          .map((d) => DetalleControlDraft(
+                tipoEnvase: d.tipoEnvase,
+                cantidadContratada: d.cantidadContratada,
+                cantidadFisicaActual: d.cantidadFisicaActual,
+              ))
+          .toList(),
+    );
+  }
+
+  ControlComodatoDraft _draftDePendiente(ComodatoPendiente p) {
+    return ControlComodatoDraft(
+      idVisita: p.idVisita,
+      idAgendaItem: p.idAgendaItem,
+      idUsuario: p.idUsuario,
+      fecha: p.fecha,
+      idClienteExt: p.idClienteExt,
+      uuidOffline: p.uuidOffline,
+      timestampCaptura: p.timestampCaptura,
+      observaciones: p.observaciones,
+      detalles: ControlComodatoDraft.detallesDesdeStorage(p.detallesJson),
+    );
+  }
+
+  Future<void> _abrirAuditoriaComodato() async {
+    var contrato = _contratoComodato;
+    if (contrato == null) {
+      await _cargarContratoComodato();
+      contrato = _contratoComodato;
+    }
+    if (!mounted) return;
+    if (contrato == null || contrato.detalles.isEmpty) {
+      _mostrarError(
+        'No se pudo cargar el contrato de comodato del cliente. Reintentá cuando tengas conexión.',
+      );
+      return;
+    }
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AuditoriaComodatoScreen(
+          nombreCliente: widget.nombreCliente,
+          contrato: contrato!,
+          controlPrevio: _controlComodato,
+          onGuardar: _registrarControlComodato,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _registrarControlComodato(
+    List<DetalleControlDraft> detalles,
+    String? observaciones,
+  ) async {
+    final idVisita = _visita.idVisita;
+    final idAgendaItem = _visita.idAgendaItem;
+    final ahora = DateTime.now();
+    final draft = ControlComodatoDraft(
+      idVisita: idVisita,
+      idAgendaItem: idAgendaItem,
+      idUsuario: _visita.idUsuario,
+      fecha: _visita.fecha,
+      idClienteExt: _contratoComodato?.idClienteExt ?? _idClienteExt,
+      uuidOffline: _uuid.v4(),
+      timestampCaptura: ahora,
+      observaciones: observaciones,
+      detalles: detalles,
+    );
+
+    if (idVisita != null) {
+      try {
+        final control = await _comodatoRepo.registrarControl(idVisita, draft);
+        if (!mounted) return;
+        setState(() {
+          _controlComodato = _draftDeControl(control);
+          _comodatoPendienteSync = false;
+        });
+        return;
+      } on NetworkException {}
+    }
+
+    if (idAgendaItem == null) {
+      throw ComodatoRepositoryException(
+        'La visita no tiene un ítem de agenda para guardar el control localmente.',
+      );
+    }
+
+    await _encolarControlComodato(draft: draft, idAgendaItem: idAgendaItem);
+    if (!mounted) return;
+    setState(() {
+      _controlComodato = draft;
+      _comodatoPendienteSync = true;
+    });
+  }
+
+  Future<void> _encolarControlComodato({
+    required ControlComodatoDraft draft,
+    required int idAgendaItem,
+  }) async {
+    final ahora = DateTime.now();
+    await ComodatoOfflineService.instance.encolar(
+      ComodatoPendiente(
+        uuidOffline: draft.uuidOffline,
+        idVisita: draft.idVisita,
+        idAgendaItem: idAgendaItem,
+        idUsuario: draft.idUsuario,
+        fecha: draft.fecha,
+        idClienteExt: draft.idClienteExt,
+        timestampCaptura: draft.timestampCaptura,
+        observaciones: draft.observaciones,
+        detallesJson: draft.detallesStorageJson(),
+        creadoEn: ahora,
+      ),
+    );
+    unawaited(ComodatoSyncManager.instance.sincronizar());
   }
 
   void _entrarEnErrorUbicacion(String mensaje) {
@@ -203,6 +439,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       unawaited(
         _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
       );
+      unawaited(_prepararComodato());
     } on LocationServiceException catch (e) {
       if (!mounted) return;
       _entrarEnErrorUbicacion(e.message);
@@ -326,6 +563,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
     );
     unawaited(SyncManager.instance.sincronizar());
+    unawaited(_prepararComodato());
 
     _mostrarAviso(
       porFallaDeRed
@@ -351,6 +589,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     unawaited(
       _locationService.iniciarSeguimientoEnSegundoPlano(onPosition: (_) {}),
     );
+    unawaited(_prepararComodato());
 
     final idVisita = _visita.idVisita;
     if (idVisita == null) return;
@@ -964,6 +1203,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             ],
             const SizedBox(height: 18),
             _buildVentaSection(),
+            const SizedBox(height: 18),
+            ControlComodatoCard(
+              contrato: _contratoComodato,
+              comodatosActivosFallback: _ficha.comodatosActivos,
+              controlRegistrado: _controlComodato,
+              pendienteSync: _comodatoPendienteSync,
+              cargando: _cargandoContrato,
+              onAuditar: _finalizando ? null : _abrirAuditoriaComodato,
+            ),
             const SizedBox(height: 18),
             EvidenciaCapturaCard(
               titulo: _evidenciaExistente

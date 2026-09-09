@@ -36,21 +36,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       case 2:
         return const SeguimientoTiempoRealScreen();
       case 3:
-        return const ConsolaVentasScreen();
-      case 4:
-        return const PlaceholderAdminSection(
-          title: 'Clientes',
-          icon: Icons.groups_outlined,
-        );
-      case 5:
-        return const GestionFlotaScreen();
-      case 6:
-        return const ArqueoCajaScreen();
-      case 7:
-        return const CuentasCorrientesScreen();
-      case 8:
         return const TableroHojaRutaScreen();
-      case 9:
+      case 4:
+        return const GestionFlotaScreen();
+      case 5:
+        return const ArqueoCajaScreen();
+      case 6:
+        return const CuentasCorrientesScreen();
+      case 7:
+        return const ConsolaVentasScreen();
+      case 8:
         return const AuditoriaComodatoAdminScreen();
       default:
         return const PlaceholderAdminSection(

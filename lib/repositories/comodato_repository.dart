@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../data/mock_comodato_data.dart';
 import '../models/control_comodato.dart';
+import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
 class ComodatoRepositoryException implements Exception {
@@ -170,6 +171,72 @@ class ComodatoRepository {
     throw ComodatoRepositoryException(
       _mensajeError(response.body) ??
           'Error del servidor ($code) al registrar el control.',
+    );
+  }
+
+  Future<List<ControlComodato>> buscarAuditoria({
+    DateTime? desde,
+    DateTime? hasta,
+    int? idClienteExt,
+    String? choferId,
+    bool soloFaltantes = true,
+    int page = 0,
+    int size = 200,
+  }) async {
+    if (kComodatoMock) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      return mockAuditoriaComodato(soloFaltantes: soloFaltantes);
+    }
+
+    final params = <String, String>{
+      'soloFaltantes': soloFaltantes.toString(),
+      'page': '$page',
+      'size': '$size',
+      if (desde != null) 'desde': formatDateOnly(desde),
+      if (hasta != null) 'hasta': formatDateOnly(hasta),
+      if (idClienteExt != null) 'idCliente': '$idClienteExt',
+      if (choferId != null && choferId.isNotEmpty) 'choferId': choferId,
+    };
+
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.adminComodatosAuditoriaPath}')
+        .replace(queryParameters: params);
+
+    http.Response response;
+    try {
+      response = await _client
+          .get(uri, headers: _jsonHeaders)
+          .timeout(const Duration(seconds: 30));
+    } catch (_) {
+      throw NetworkException();
+    }
+
+    if (response.statusCode == 200) {
+      if (response.body.isEmpty) return const [];
+      final decoded = jsonDecode(response.body);
+      final List<dynamic> lista;
+      if (decoded is Map<String, dynamic>) {
+        lista = decoded['content'] as List? ?? const [];
+      } else if (decoded is List) {
+        lista = decoded;
+      } else {
+        lista = const [];
+      }
+      return lista
+          .whereType<Map<String, dynamic>>()
+          .map(ControlComodato.fromJson)
+          .toList();
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw ComodatoRepositoryException(
+        _mensajeError(response.body) ??
+            'Tu sesión no tiene permisos para ver la auditoría de comodato.',
+      );
+    }
+
+    throw ComodatoRepositoryException(
+      _mensajeError(response.body) ??
+          'Error del servidor (${response.statusCode}) al consultar la auditoría.',
     );
   }
 

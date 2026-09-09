@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/admin/admin_topbar.dart';
 import 'arqueo_caja_screen.dart';
+import 'auditoria_comodato_screen.dart';
 import 'consola_ventas_screen.dart';
 import 'cuentas_corrientes_screen.dart';
 import 'gestion_flota_screen.dart';
@@ -49,6 +50,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         return const CuentasCorrientesScreen();
       case 8:
         return const TableroHojaRutaScreen();
+      case 9:
+        return const AuditoriaComodatoAdminScreen();
       default:
         return const PlaceholderAdminSection(
           title: 'Configuración',

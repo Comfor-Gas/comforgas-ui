@@ -96,7 +96,9 @@ class ControlComodato {
   final int? idControl;
   final int? idVisita;
   final int? idClienteExt;
+  final String? idChofer;
   final String? nombreChofer;
+  final DateTime? fechaControl;
   final DateTime? timestampCaptura;
   final String? estado;
   final List<DetalleControlComodato> detalles;
@@ -111,7 +113,9 @@ class ControlComodato {
     this.idControl,
     this.idVisita,
     this.idClienteExt,
+    this.idChofer,
     this.nombreChofer,
+    this.fechaControl,
     this.timestampCaptura,
     this.estado,
     required this.detalles,
@@ -133,7 +137,10 @@ class ControlComodato {
       idVisita: parseInt(json['id_visita']) ?? parseInt(json['idVisita']),
       idClienteExt:
           parseInt(json['id_cliente_ext']) ?? parseInt(json['idClienteExt']),
+      idChofer: (json['id_chofer'] ?? json['idChofer'])?.toString(),
       nombreChofer: (json['nombre_chofer'] ?? json['nombreChofer']) as String?,
+      fechaControl:
+          parseDate(json['fecha_control']) ?? parseDate(json['fechaControl']),
       timestampCaptura: parseDate(json['timestamp_captura']) ??
           parseDate(json['timestampCaptura']),
       estado: json['estado'] as String?,

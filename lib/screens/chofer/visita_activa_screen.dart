@@ -407,6 +407,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
       final latObjetivo = _visita.sucursalLatitud;
       final lonObjetivo = _visita.sucursalLongitud;
+      debugPrint(
+        '[CHECKIN] device=(${checkIn.latitud}, ${checkIn.longitud}) '
+        'precision=${checkIn.precisionMetros}m '
+        'objetivo=($latObjetivo, $lonObjetivo) '
+        'distancia=${(latObjetivo != null && lonObjetivo != null) ? _locationService.distanciaMetros(checkIn.latitud, checkIn.longitud, latObjetivo, lonObjetivo).toStringAsFixed(1) : 'sin-objetivo'}m',
+      );
       if (latObjetivo != null &&
           lonObjetivo != null &&
           !_locationService.estaCercaDe(checkIn, latObjetivo, lonObjetivo)) {

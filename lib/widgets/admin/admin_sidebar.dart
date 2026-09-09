@@ -18,6 +18,7 @@ const List<AdminNavItem> adminNavItems = [
   AdminNavItem(icon: Icons.savings_outlined, label: 'Cobranzas'),
   AdminNavItem(icon: Icons.account_balance_outlined, label: 'Cuentas Ctes'),
   AdminNavItem(icon: Icons.alt_route_outlined, label: 'Rutas'),
+  AdminNavItem(icon: Icons.assignment_outlined, label: 'Comodato'),
   AdminNavItem(icon: Icons.settings_outlined, label: 'Configuración'),
 ];
 

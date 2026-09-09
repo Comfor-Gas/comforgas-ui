@@ -97,12 +97,34 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
 
   Future<void> _elegirFecha({required bool desde}) async {
     final ahora = DateTime.now();
-    final inicial = (desde ? _desde : _hasta) ?? ahora;
+    final hoy = DateTime(ahora.year, ahora.month, ahora.day);
+    final firstDate = desde ? DateTime(ahora.year - 2) : (_desde ?? DateTime(ahora.year - 2));
+    final lastDate = desde ? (_hasta ?? hoy) : hoy;
+    var inicial = (desde ? _desde : _hasta) ?? hoy;
+    if (inicial.isBefore(firstDate)) inicial = firstDate;
+    if (inicial.isAfter(lastDate)) inicial = lastDate;
     final elegida = await showDatePicker(
       context: context,
       initialDate: inicial,
-      firstDate: DateTime(ahora.year - 2),
-      lastDate: DateTime(ahora.year + 1),
+      firstDate: firstDate,
+      lastDate: lastDate,
+      builder: (context, child) {
+        final base = Theme.of(context);
+        return Theme(
+          data: base.copyWith(
+            colorScheme: base.colorScheme.copyWith(
+              primary: AppColors.orange,
+              onPrimary: AppColors.white,
+              onSurface: AppColors.steelBlue,
+              surface: AppColors.white,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: AppColors.orange),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (elegida == null) return;
     setState(() {

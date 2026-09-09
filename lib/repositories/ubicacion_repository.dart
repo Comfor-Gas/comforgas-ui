@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../utils/json_parsing.dart';
@@ -33,7 +34,7 @@ class UbicacionRepository {
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.visitaUbicacionPath}');
     try {
-      await _client
+      final resp = await _client
           .post(
             uri,
             headers: _jsonHeaders,
@@ -47,7 +48,9 @@ class UbicacionRepository {
             }),
           )
           .timeout(const Duration(seconds: 10));
-    } catch (_) {
+      debugPrint('[TRACK] POST /api/visitas/ubicacion -> ${resp.statusCode}');
+    } catch (e) {
+      debugPrint('[TRACK] POST /api/visitas/ubicacion falló: $e');
       return;
     }
   }

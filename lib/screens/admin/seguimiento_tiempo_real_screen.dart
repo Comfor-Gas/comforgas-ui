@@ -217,6 +217,11 @@ class _SeguimientoTiempoRealScreenState
         }
       });
     } else if (message is PosicionChoferMessage) {
+      final matchea = _visitas.any((v) => v.idUsuario == message.idChofer);
+      debugPrint(
+        '[TRACK-ADMIN] POSICION_CHOFER idChofer=${message.idChofer} '
+        '(${message.latitud}, ${message.longitud}) matchVisita=$matchea',
+      );
       setState(() {
         _posicionEnVivo[message.idChofer] =
             LatLng(message.latitud, message.longitud);

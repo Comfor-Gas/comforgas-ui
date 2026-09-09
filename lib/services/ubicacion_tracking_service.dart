@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../repositories/ubicacion_repository.dart';
@@ -30,8 +31,10 @@ class UbicacionTrackingService {
         textoNotificacion: 'Compartiendo tu ubicación con la central.',
       );
       _activo = true;
-    } catch (_) {
+      debugPrint('[TRACK] seguimiento iniciado');
+    } catch (e) {
       _activo = false;
+      debugPrint('[TRACK] no se pudo iniciar el seguimiento: $e');
     }
   }
 
@@ -48,12 +51,17 @@ class UbicacionTrackingService {
   }
 
   void _onPosition(Position position) {
+    debugPrint('[TRACK] fix ${position.latitude}, ${position.longitude}');
     final repo = _repo;
     if (repo == null) return;
     final ahora = DateTime.now();
     final ultimo = _ultimoEnvio;
-    if (ultimo != null && ahora.difference(ultimo) < _intervaloEnvio) return;
+    if (ultimo != null && ahora.difference(ultimo) < _intervaloEnvio) {
+      debugPrint('[TRACK] descartado por throttle (${_intervaloEnvio.inSeconds}s)');
+      return;
+    }
     _ultimoEnvio = ahora;
+    debugPrint('[TRACK] enviando ${position.latitude}, ${position.longitude} idVisita=$_idVisitaActual');
     unawaited(repo.enviar(
       latitud: position.latitude,
       longitud: position.longitude,

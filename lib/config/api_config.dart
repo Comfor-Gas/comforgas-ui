@@ -37,6 +37,7 @@ class ApiConfig {
   static const String visitaResultadoSuffix = '/resultado';
   static const String visitasSyncLotePath = '/api/visitas/sync-lote';
   static const String visitaUbicacionPath = '/api/visitas/ubicacion';
+  static const String adminUbicacionesPath = '/api/admin/visitas/ubicaciones';
   static const String adminVisitasPath = '/api/admin/visitas';
   static const String adminVisitasImportPath = '/api/admin/visitas/import';
   static const String adminAgendaSyncPath = '/api/admin/agenda/sync';

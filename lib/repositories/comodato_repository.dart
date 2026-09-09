@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../data/mock_comodato_data.dart';
 import '../models/control_comodato.dart';
 import 'network_exception.dart';
 
@@ -22,6 +23,11 @@ class ComodatoRepository {
   };
 
   Future<ContratoComodato?> getContratoCliente(int idClienteExt) async {
+    if (kComodatoMock) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      return mockContratoComodato(idClienteExt);
+    }
+
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.comodatoClientePath}/$idClienteExt',
     );
@@ -62,6 +68,10 @@ class ComodatoRepository {
   }
 
   Future<ControlComodato?> getControlDeVisita(int idVisita) async {
+    if (kComodatoMock) {
+      return null;
+    }
+
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaComodatoSuffix}',
     );
@@ -105,6 +115,11 @@ class ComodatoRepository {
     int idVisita,
     ControlComodatoDraft draft,
   ) async {
+    if (kComodatoMock) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      return mockControlDesdeDraft(draft);
+    }
+
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaComodatoSuffix}',
     );

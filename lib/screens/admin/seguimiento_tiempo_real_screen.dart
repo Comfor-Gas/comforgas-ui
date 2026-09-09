@@ -10,6 +10,7 @@ import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/alerta_repository.dart';
+import '../../repositories/ubicacion_repository.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/visitas_realtime_service.dart';
 import '../../theme/app_colors.dart';
@@ -79,6 +80,7 @@ class _SeguimientoTiempoRealScreenState
     extends State<SeguimientoTiempoRealScreen> {
   late final VisitaRepository _visitaRepo;
   late final AlertaRepository _alertaRepo;
+  late final UbicacionRepository _ubicacionRepo;
   late final VisitasRealtimeService _realtime;
 
   final MapController _mapController = MapController();
@@ -101,11 +103,13 @@ class _SeguimientoTiempoRealScreenState
     final auth = context.read<AuthProvider>();
     _visitaRepo = VisitaRepository(auth.apiClient);
     _alertaRepo = AlertaRepository(auth.apiClient);
+    _ubicacionRepo = UbicacionRepository(auth.apiClient);
     _realtime = VisitasRealtimeService();
 
     _choferFilterCtrl.addListener(() => setState(() {}));
 
     _cargarDatos();
+    _cargarUbicaciones();
 
     _realtime.connectionState.listen((connected) {
       if (mounted) setState(() => _wsConnected = connected);
@@ -123,6 +127,16 @@ class _SeguimientoTiempoRealScreenState
     _realtime.dispose();
     _choferFilterCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarUbicaciones() async {
+    final posiciones = await _ubicacionRepo.listarActivas();
+    if (!mounted || posiciones.isEmpty) return;
+    setState(() {
+      for (final p in posiciones) {
+        _posicionEnVivo[p.idChofer] = LatLng(p.latitud, p.longitud);
+      }
+    });
   }
 
   Future<void> _cargarDatos() async {
@@ -545,21 +559,15 @@ class _MapaCard extends StatelessWidget {
                     userAgentPackageName: 'com.comforgas.web',
                     tileProvider: CancellableNetworkTileProvider(),
                   ),
-                  PolylineLayer(
-                    polylines: [
-                      for (final r in rutas)
-                        if (r.puntos.length > 1)
-                          Polyline(points: r.puntos, color: r.color, strokeWidth: 4),
-                    ],
-                  ),
                   MarkerLayer(
                     markers: [
                       for (final r in rutas)
                         if (r.posicionActual != null)
                           Marker(
                             point: r.posicionActual!,
-                            width: 44,
-                            height: 44,
+                            width: 40,
+                            height: 62,
+                            alignment: Alignment.bottomCenter,
                             child: _ChoferMarker(color: r.color),
                           ),
                       for (final v in visitas)
@@ -666,14 +674,31 @@ class _ChoferMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.45), blurRadius: 8, spreadRadius: 1)],
-      ),
-      child: const Icon(Icons.local_shipping, color: Colors.white, size: 20),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.white, width: 3),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.35), blurRadius: 5)],
+          ),
+          child: const Icon(Icons.local_shipping, color: AppColors.white, size: 18),
+        ),
+        Container(width: 3, height: 8, color: color),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.white, width: 2),
+          ),
+        ),
+      ],
     );
   }
 }

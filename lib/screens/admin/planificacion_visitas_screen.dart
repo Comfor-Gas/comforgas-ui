@@ -71,8 +71,9 @@ class _PlanificacionVisitasScreenState
     _catalogoRepo = CatalogoRepository(context.read<AuthProvider>().apiClient);
     _choferFilterCtrl.addListener(() => setState(() {}));
     _clienteFilterCtrl.addListener(() => setState(() {}));
-    _loadVisitas();
-    _loadCatalogos();
+    _loadCatalogos().then((_) {
+      if (mounted) _loadVisitas();
+    });
   }
 
   @override
@@ -122,13 +123,28 @@ class _PlanificacionVisitasScreenState
       _loadError = null;
     });
     try {
-      final data = await _repo.listarTodas();
+      if (_choferes.isEmpty) {
+        _choferes = await _catalogoRepo.listarUsuarios(rol: 'CHOFER');
+      }
+      final fecha = _fechaFilter ?? _hoyFechaSola();
+      final resultados = await Future.wait(
+        _choferes.map(
+          (ch) => _repo
+              .getVisitasPorUsuarioYFecha(idUsuario: ch.id, fecha: fecha)
+              .then((items) => items.map((i) => i.toVisitaModel(ch.id)).toList())
+              .catchError((_) => <VisitaModel>[]),
+        ),
+      );
       if (!mounted) return;
+      final agenda = <VisitaModel>[];
+      for (final lista in resultados) {
+        agenda.addAll(lista);
+      }
       setState(() {
-        _serverVisitas = data;
+        _serverVisitas = agenda;
         _loading = false;
       });
-    } on VisitaRepositoryException catch (e) {
+    } on CatalogoRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
         _loadError = e.message;
@@ -137,7 +153,7 @@ class _PlanificacionVisitasScreenState
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _loadError = 'No se pudo cargar el listado de visitas.';
+        _loadError = 'No se pudo cargar la agenda por chofer.';
         _loading = false;
       });
     }
@@ -593,7 +609,10 @@ class _PlanificacionVisitasScreenState
             choferCtrl: _choferFilterCtrl,
             clienteCtrl: _clienteFilterCtrl,
             fecha: _fechaFilter,
-            onFechaChanged: (d) => setState(() => _fechaFilter = d),
+            onFechaChanged: (d) {
+              setState(() => _fechaFilter = d);
+              _loadVisitas();
+            },
             porCreacion: _fechaPorCreacion,
             onModoChanged: (v) => setState(() => _fechaPorCreacion = v),
           ),

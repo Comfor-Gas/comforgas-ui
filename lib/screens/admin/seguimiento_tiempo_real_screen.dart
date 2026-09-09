@@ -1,15 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import '../../models/alerta_model.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/visita_alerta.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
+import '../../models/usuario_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/alerta_repository.dart';
+import '../../repositories/catalogo_repository.dart';
 import '../../repositories/ubicacion_repository.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/visitas_realtime_service.dart';
@@ -81,6 +83,9 @@ class _SeguimientoTiempoRealScreenState
   late final VisitaRepository _visitaRepo;
   late final AlertaRepository _alertaRepo;
   late final UbicacionRepository _ubicacionRepo;
+  late final CatalogoRepository _catalogoRepo;
+  List<UsuarioModel> _choferes = [];
+  Timer? _recargaDebounce;
   late final VisitasRealtimeService _realtime;
 
   final MapController _mapController = MapController();
@@ -104,6 +109,7 @@ class _SeguimientoTiempoRealScreenState
     _visitaRepo = VisitaRepository(auth.apiClient);
     _alertaRepo = AlertaRepository(auth.apiClient);
     _ubicacionRepo = UbicacionRepository(auth.apiClient);
+    _catalogoRepo = CatalogoRepository(auth.apiClient);
     _realtime = VisitasRealtimeService();
 
     _choferFilterCtrl.addListener(() => setState(() {}));
@@ -124,9 +130,17 @@ class _SeguimientoTiempoRealScreenState
 
   @override
   void dispose() {
+    _recargaDebounce?.cancel();
     _realtime.dispose();
     _choferFilterCtrl.dispose();
     super.dispose();
+  }
+
+  void _programarRecargaAgenda() {
+    _recargaDebounce?.cancel();
+    _recargaDebounce = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) _cargarDatos();
+    });
   }
 
   Future<void> _cargarUbicaciones() async {
@@ -145,30 +159,37 @@ class _SeguimientoTiempoRealScreenState
       _loadError = null;
     });
     try {
-      final results = await Future.wait([
-        _visitaRepo.listarTodas(),
-        _alertaRepo.listarAbiertas(),
-      ]);
-      if (!mounted) return;
-      final todasLasVisitas = results[0] as List<VisitaModel>;
+      if (_choferes.isEmpty) {
+        _choferes = await _catalogoRepo.listarUsuarios(rol: 'CHOFER');
+      }
       final hoy = DateTime.now();
+      final agendaListas = await Future.wait(
+        _choferes.map(
+          (ch) => _visitaRepo
+              .getVisitasPorUsuarioYFecha(idUsuario: ch.id, fecha: hoy)
+              .then((items) => items
+                  .map((i) => i.toVisitaModel(ch.id).copyWith(nombreUsuario: ch.fullName))
+                  .toList())
+              .catchError((_) => <VisitaModel>[]),
+        ),
+      );
+      final alertas = await _alertaRepo.listarAbiertas();
+      if (!mounted) return;
+      final agenda = <VisitaModel>[];
+      for (final lista in agendaListas) {
+        agenda.addAll(lista);
+      }
       setState(() {
-        _visitas = todasLasVisitas.where((v) {
-          final f = v.fecha;
-          return f != null &&
-              f.year == hoy.year &&
-              f.month == hoy.month &&
-              f.day == hoy.day;
-        }).toList();
+        _visitas = agenda;
         _alertaPorVisita.clear();
-        for (final alerta in results[1] as List<AlertaModel>) {
+        for (final alerta in alertas) {
           if (alerta.tipo != null) {
             _alertaPorVisita[alerta.idVisita] = alerta.tipo!;
           }
         }
         _loading = false;
       });
-    } on VisitaRepositoryException catch (e) {
+    } on CatalogoRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
         _loadError = e.message;
@@ -192,9 +213,12 @@ class _SeguimientoTiempoRealScreenState
   void _handleRealtimeMessage(VisitaRealtimeMessage message) {
     if (!mounted) return;
     if (message is VisitaEstadoActualizadoMessage) {
+      final idx = _visitas.indexWhere((v) => v.idVisita == message.idVisita);
+      if (idx == -1) {
+        _programarRecargaAgenda();
+        return;
+      }
       setState(() {
-        final idx = _visitas.indexWhere((v) => v.idVisita == message.idVisita);
-        if (idx == -1) return;
         final estado = VisitaEstadoMapper.fromValue(message.estadoNuevo);
         final enCurso = estado == VisitaEstado.enCurso;
         _visitas[idx] = _visitas[idx].copyWith(
@@ -338,6 +362,76 @@ class _SeguimientoTiempoRealScreenState
 
   void _cerrarInfo() => setState(() => _selectedVisitaId = null);
 
+  Future<void> _mostrarClusterVisitas(List<VisitaModel> grupo) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.white,
+        title: Text(
+          'Paradas en este punto (${grupo.length})',
+          style: AppTextStyles.title.copyWith(fontSize: 18),
+        ),
+        content: SizedBox(
+          width: 380,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final v in grupo)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(dialogContext).pop();
+                      _selectVisita(v);
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _clienteNombre(v),
+                                  style: AppTextStyles.label.copyWith(fontSize: 14),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  v.nombreUsuario ?? 'Sin asignar',
+                                  style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          EstadoVisitaBadge(estado: v.estadoVisita),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            style: TextButton.styleFrom(foregroundColor: AppColors.steelBlue),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
@@ -389,6 +483,7 @@ class _SeguimientoTiempoRealScreenState
                     ? _alertaPorVisita[_selectedVisitaId]
                     : null,
                 onMarkerTap: _selectVisita,
+                onClusterTap: _mostrarClusterVisitas,
                 onCerrarInfo: _cerrarInfo,
                 clienteNombreOf: _clienteNombre,
               );
@@ -524,6 +619,7 @@ class _MapaCard extends StatelessWidget {
   final VisitaModel? selectedVisita;
   final VisitaAlertaTipo? selectedVisitaAlerta;
   final ValueChanged<VisitaModel> onMarkerTap;
+  final ValueChanged<List<VisitaModel>> onClusterTap;
   final VoidCallback onCerrarInfo;
   final String Function(VisitaModel) clienteNombreOf;
 
@@ -536,9 +632,21 @@ class _MapaCard extends StatelessWidget {
     required this.selectedVisita,
     required this.selectedVisitaAlerta,
     required this.onMarkerTap,
+    required this.onClusterTap,
     required this.onCerrarInfo,
     required this.clienteNombreOf,
   });
+
+  List<List<VisitaModel>> _agruparPorPunto() {
+    final mapa = <String, List<VisitaModel>>{};
+    for (final v in visitas) {
+      final p = posicionDe(v);
+      if (p == null) continue;
+      final key = '${(p.latitude * 100000).round()}_${(p.longitude * 100000).round()}';
+      mapa.putIfAbsent(key, () => []).add(v);
+    }
+    return mapa.values.toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -575,17 +683,30 @@ class _MapaCard extends StatelessWidget {
                             alignment: Alignment.bottomCenter,
                             child: _ChoferMarker(color: r.color),
                           ),
-                      for (final v in visitas)
-                        if (posicionDe(v) != null)
+                      for (final grupo in _agruparPorPunto())
+                        if (grupo.length == 1)
                           Marker(
-                            point: posicionDe(v)!,
+                            point: posicionDe(grupo.first)!,
                             width: 38,
                             height: 38,
                             child: _VisitaMarker(
-                              visita: v,
-                              alerta: alertaPorVisita[v.idVisita],
-                              selected: v.idVisita == selectedVisita?.idVisita,
-                              onTap: () => onMarkerTap(v),
+                              visita: grupo.first,
+                              alerta: alertaPorVisita[grupo.first.idVisita],
+                              selected: grupo.first.idVisita == selectedVisita?.idVisita,
+                              onTap: () => onMarkerTap(grupo.first),
+                            ),
+                          )
+                        else
+                          Marker(
+                            point: posicionDe(grupo.first)!,
+                            width: 42,
+                            height: 42,
+                            child: _ClusterMarker(
+                              cantidad: grupo.length,
+                              conFaltante: grupo.any(
+                                (v) => alertaPorVisita[v.idVisita] != null,
+                              ),
+                              onTap: () => onClusterTap(grupo),
                             ),
                           ),
                     ],
@@ -704,6 +825,46 @@ class _ChoferMarker extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ClusterMarker extends StatelessWidget {
+  final int cantidad;
+  final bool conFaltante;
+  final VoidCallback onTap;
+
+  const _ClusterMarker({
+    required this.cantidad,
+    required this.conFaltante,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = conFaltante ? AppColors.badgeRed : AppColors.orange;
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.white, width: 2.5),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 6)],
+          ),
+          child: Text(
+            cantidad > 9 ? '9+' : '$cantidad',
+            style: AppTextStyles.label.copyWith(
+              color: AppColors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

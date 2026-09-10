@@ -116,7 +116,7 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Recarga de Faltante de Garrafas',
+                'Registrar Recarga en Ruta',
                 style: AppTextStyles.desktopTitle.copyWith(fontSize: 20),
               ),
               const SizedBox(height: 4),

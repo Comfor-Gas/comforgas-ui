@@ -13,6 +13,8 @@ class MovimientoStock {
   final String? observaciones;
   final String? origenNombre;
   final String? destinoNombre;
+  final String? folio;
+  final String? estadoDestino;
 
   const MovimientoStock({
     required this.id,
@@ -27,6 +29,8 @@ class MovimientoStock {
     this.observaciones,
     this.origenNombre,
     this.destinoNombre,
+    this.folio,
+    this.estadoDestino,
   });
 
   bool get esCarga => tipoMovimiento.toUpperCase() == 'CARGA_CAMION';
@@ -60,6 +64,8 @@ class MovimientoStock {
           origen is Map<String, dynamic> ? origen['nombre']?.toString() : null,
       destinoNombre:
           destino is Map<String, dynamic> ? destino['nombre']?.toString() : null,
+      folio: json['folio']?.toString(),
+      estadoDestino: json['estadoDestino']?.toString(),
     );
   }
 }

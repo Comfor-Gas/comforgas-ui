@@ -68,6 +68,14 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
     });
     try {
       final data = await widget.cargar();
+      data.sort((a, b) {
+        final fa = a.fecha;
+        final fb = b.fecha;
+        if (fa == null && fb == null) return 0;
+        if (fa == null) return 1;
+        if (fb == null) return -1;
+        return fb.compareTo(fa);
+      });
       if (!mounted) return;
       setState(() {
         _movimientos = data;

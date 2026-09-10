@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/deposito_camion.dart';
+import '../models/estado_garrafa.dart';
 import '../models/movimiento_stock.dart';
 import '../models/producto_catalogo.dart';
 import '../models/stock_camion.dart';
@@ -89,6 +90,12 @@ class FlotaRepository {
     return _parseList(response.body, ProductoCatalogo.fromJson);
   }
 
+  Future<List<EstadoGarrafa>> listarEstadosGarrafa() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/estados-garrafa');
+    final response = await _get(uri);
+    return _parseList(response.body, EstadoGarrafa.fromJson);
+  }
+
   Future<List<MovimientoStock>> historialRecargas(int idCamion) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/movimientos').replace(
       queryParameters: {
@@ -135,6 +142,27 @@ class FlotaRepository {
     String? observaciones,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/camiones/$idCamion/carga');
+    final body = jsonEncode({
+      'depositoCentralId': depositoCentralId,
+      'items': items,
+      'observaciones': observaciones,
+    });
+    final response = await _send('POST', uri, body);
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return const [];
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(MovimientoStock.fromJson)
+        .toList();
+  }
+
+  Future<List<MovimientoStock>> descargarCamion(
+    int idCamion, {
+    required int depositoCentralId,
+    required List<Map<String, dynamic>> items,
+    String? observaciones,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/camiones/$idCamion/descarga');
     final body = jsonEncode({
       'depositoCentralId': depositoCentralId,
       'items': items,

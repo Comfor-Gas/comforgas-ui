@@ -9,14 +9,18 @@ import 'estado_camion_badge.dart';
 class FlotaTabla extends StatelessWidget {
   final List<DepositoCamion> camiones;
   final int? idSeleccionado;
-  final ValueChanged<DepositoCamion> onRecargar;
+  final ValueChanged<DepositoCamion> onNota;
+  final ValueChanged<DepositoCamion> onRecargaRuta;
+  final ValueChanged<DepositoCamion> onEntradaMovil;
   final ValueChanged<DepositoCamion> onVerHistorial;
   final String mensajeVacio;
 
   const FlotaTabla({
     super.key,
     required this.camiones,
-    required this.onRecargar,
+    required this.onNota,
+    required this.onRecargaRuta,
+    required this.onEntradaMovil,
     required this.onVerHistorial,
     this.idSeleccionado,
     this.mensajeVacio = 'No hay camiones para mostrar.',
@@ -35,14 +39,16 @@ class FlotaTabla extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 760) {
+        if (constraints.maxWidth < 860) {
           return Column(
             children: [
               for (final camion in camiones)
                 _CamionCard(
                   camion: camion,
                   seleccionado: camion.id == idSeleccionado,
-                  onRecargar: () => onRecargar(camion),
+                  onNota: () => onNota(camion),
+                  onRecargaRuta: () => onRecargaRuta(camion),
+                  onEntradaMovil: () => onEntradaMovil(camion),
                   onVerHistorial: () => onVerHistorial(camion),
                 ),
             ],
@@ -57,7 +63,9 @@ class FlotaTabla extends StatelessWidget {
               _FilaCamion(
                 camion: camion,
                 seleccionado: camion.id == idSeleccionado,
-                onRecargar: () => onRecargar(camion),
+                onNota: () => onNota(camion),
+                onRecargaRuta: () => onRecargaRuta(camion),
+                onEntradaMovil: () => onEntradaMovil(camion),
                 onVerHistorial: () => onVerHistorial(camion),
               ),
           ],
@@ -72,7 +80,7 @@ const _colChofer = 2;
 const _colStock = 3;
 const _colVacias = 1;
 const _colEstado = 2;
-const _colAcciones = 3;
+const _colAcciones = 4;
 
 class _EncabezadoTabla extends StatelessWidget {
   const _EncabezadoTabla();
@@ -81,7 +89,7 @@ class _EncabezadoTabla extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.inputBorder)),
       ),
       child: Row(
@@ -130,13 +138,17 @@ class _CeldaHeader extends StatelessWidget {
 class _FilaCamion extends StatelessWidget {
   final DepositoCamion camion;
   final bool seleccionado;
-  final VoidCallback onRecargar;
+  final VoidCallback onNota;
+  final VoidCallback onRecargaRuta;
+  final VoidCallback onEntradaMovil;
   final VoidCallback onVerHistorial;
 
   const _FilaCamion({
     required this.camion,
     required this.seleccionado,
-    required this.onRecargar,
+    required this.onNota,
+    required this.onRecargaRuta,
+    required this.onEntradaMovil,
     required this.onVerHistorial,
   });
 
@@ -200,7 +212,9 @@ class _FilaCamion extends StatelessWidget {
           Expanded(
             flex: _colAcciones,
             child: _AccionesFila(
-              onRecargar: onRecargar,
+              onNota: onNota,
+              onRecargaRuta: onRecargaRuta,
+              onEntradaMovil: onEntradaMovil,
               onVerHistorial: onVerHistorial,
             ),
           ),
@@ -259,31 +273,88 @@ class _EnlaceTexto extends StatelessWidget {
 }
 
 class _AccionesFila extends StatelessWidget {
-  final VoidCallback onRecargar;
+  final VoidCallback onNota;
+  final VoidCallback onRecargaRuta;
+  final VoidCallback onEntradaMovil;
   final VoidCallback onVerHistorial;
 
-  const _AccionesFila({required this.onRecargar, required this.onVerHistorial});
+  const _AccionesFila({
+    required this.onNota,
+    required this.onRecargaRuta,
+    required this.onEntradaMovil,
+    required this.onVerHistorial,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        FlotaAccionButton(
-          texto: 'Recargar Faltante',
-          icon: Icons.local_shipping_outlined,
-          relleno: true,
-          onTap: onRecargar,
+        Flexible(
+          child: FlotaAccionButton(
+            texto: 'Agregar Stock / Nota Control',
+            icon: Icons.assignment_outlined,
+            relleno: true,
+            onTap: onNota,
+          ),
         ),
-        FlotaAccionButton(
-          texto: 'Ver Historial',
-          icon: Icons.history,
-          relleno: false,
-          onTap: onVerHistorial,
+        const SizedBox(width: 8),
+        _MenuMas(
+          onRecargaRuta: onRecargaRuta,
+          onEntradaMovil: onEntradaMovil,
+          onVerHistorial: onVerHistorial,
         ),
       ],
+    );
+  }
+}
+
+class _MenuMas extends StatelessWidget {
+  final VoidCallback onRecargaRuta;
+  final VoidCallback onEntradaMovil;
+  final VoidCallback onVerHistorial;
+
+  const _MenuMas({
+    required this.onRecargaRuta,
+    required this.onEntradaMovil,
+    required this.onVerHistorial,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'Más acciones',
+      icon: const Icon(Icons.more_vert, color: AppColors.steelBlue),
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (v) {
+        if (v == 0) {
+          onRecargaRuta();
+        } else if (v == 1) {
+          onEntradaMovil();
+        } else {
+          onVerHistorial();
+        }
+      },
+      itemBuilder: (_) => [
+        _item(0, Icons.local_shipping_outlined, 'Registrar Recarga en Ruta'),
+        _item(1, Icons.assignment_return_outlined, 'Entrada del Móvil'),
+        _item(2, Icons.history, 'Ver Historial'),
+      ],
+    );
+  }
+
+  PopupMenuItem<int> _item(int valor, IconData icono, String texto) {
+    return PopupMenuItem<int>(
+      value: valor,
+      child: Row(
+        children: [
+          Icon(icono, size: 17, color: AppColors.steelBlue),
+          const SizedBox(width: 10),
+          Text(texto, style: AppTextStyles.input.copyWith(fontSize: 13.5)),
+        ],
+      ),
     );
   }
 }
@@ -321,12 +392,16 @@ class FlotaAccionButton extends StatelessWidget {
             children: [
               Icon(icon, size: 15, color: relleno ? AppColors.white : color),
               const SizedBox(width: 6),
-              Text(
-                texto,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: relleno ? AppColors.white : color,
+              Flexible(
+                child: Text(
+                  texto,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: relleno ? AppColors.white : color,
+                  ),
                 ),
               ),
             ],
@@ -340,84 +415,95 @@ class FlotaAccionButton extends StatelessWidget {
 class _CamionCard extends StatelessWidget {
   final DepositoCamion camion;
   final bool seleccionado;
-  final VoidCallback onRecargar;
+  final VoidCallback onNota;
+  final VoidCallback onRecargaRuta;
+  final VoidCallback onEntradaMovil;
   final VoidCallback onVerHistorial;
 
   const _CamionCard({
     required this.camion,
     required this.seleccionado,
-    required this.onRecargar,
+    required this.onNota,
+    required this.onRecargaRuta,
+    required this.onEntradaMovil,
     required this.onVerHistorial,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onVerHistorial,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: seleccionado ? AppColors.orange : AppColors.inputBorder,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: seleccionado ? AppColors.orange : AppColors.inputBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      camion.patenteVisible,
+                      style: AppTextStyles.label.copyWith(fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      camion.choferNombre,
+                      style: AppTextStyles.link.copyWith(fontSize: 12.5),
+                    ),
+                  ],
+                ),
+              ),
+              EstadoCamionBadge(estado: camion.estado),
+            ],
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        camion.patenteVisible,
-                        style: AppTextStyles.label.copyWith(fontSize: 15),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        camion.choferNombre,
-                        style: AppTextStyles.link.copyWith(fontSize: 12.5),
-                      ),
-                    ],
-                  ),
-                ),
-                EstadoCamionBadge(estado: camion.estado),
-              ],
-            ),
-            const SizedBox(height: 14),
-            CamionStockBar(
-              llenos: camion.llenos,
-              vacios: camion.vacios,
-              cupo: camion.cupoBase,
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: FlotaAccionButton(
-                    texto: 'Recargar Faltante',
-                    icon: Icons.local_shipping_outlined,
-                    relleno: true,
-                    onTap: onRecargar,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FlotaAccionButton(
-                    texto: 'Ver Historial',
-                    icon: Icons.history,
-                    relleno: false,
-                    onTap: onVerHistorial,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          const SizedBox(height: 14),
+          CamionStockBar(
+            llenos: camion.llenos,
+            vacios: camion.vacios,
+            cupo: camion.cupoBase,
+          ),
+          const SizedBox(height: 14),
+          FlotaAccionButton(
+            texto: 'Agregar Stock / Nota Control',
+            icon: Icons.assignment_outlined,
+            relleno: true,
+            onTap: onNota,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FlotaAccionButton(
+                texto: 'Recarga en Ruta',
+                icon: Icons.local_shipping_outlined,
+                relleno: false,
+                onTap: onRecargaRuta,
+              ),
+              FlotaAccionButton(
+                texto: 'Entrada del Móvil',
+                icon: Icons.assignment_return_outlined,
+                relleno: false,
+                onTap: onEntradaMovil,
+              ),
+              FlotaAccionButton(
+                texto: 'Ver Historial',
+                icon: Icons.history,
+                relleno: false,
+                onTap: onVerHistorial,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

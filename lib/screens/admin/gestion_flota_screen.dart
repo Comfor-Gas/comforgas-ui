@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/responsive.dart';
+import '../../data/estados_garrafa_ref.dart';
 import '../../data/mock_flota_data.dart';
 import '../../models/deposito_camion.dart';
 import '../../models/movimiento_stock.dart';
+import '../../models/nota_control_stock.dart';
 import '../../models/producto_catalogo.dart';
 import '../../models/usuario_model.dart';
 import '../../providers/auth_provider.dart';
@@ -14,10 +16,12 @@ import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/flota/asignacion_camion_modal.dart';
+import '../../widgets/admin/flota/entrada_movil_modal.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
 import '../../widgets/admin/flota/flota_stat_card.dart';
 import '../../widgets/admin/flota/flota_tabla.dart';
 import '../../widgets/admin/flota/historial_recargas_panel.dart';
+import '../../widgets/admin/flota/nota_control_stock_modal.dart';
 import '../../widgets/admin/flota/recarga_faltante_modal.dart';
 
 class GestionFlotaScreen extends StatefulWidget {
@@ -41,6 +45,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   List<DepositoCamion> _camiones = [];
   List<UsuarioModel> _choferes = [];
   List<ProductoCatalogo> _productos = [];
+  EstadosGarrafaRef _estadosRef = const EstadosGarrafaRef();
   int _vaciasRetornadasHoy = 0;
 
   @override
@@ -104,6 +109,11 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
     }
     if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
+    try {
+      _estadosRef = EstadosGarrafaRef.desde(await _flotaRepo.listarEstadosGarrafa());
+    } catch (_) {
+      _estadosRef = const EstadosGarrafaRef();
+    }
   }
 
   List<UsuarioModel> _choferesDesdeCamiones() {
@@ -224,6 +234,124 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     });
   }
 
+  void _abrirNotaControl(DepositoCamion camion) {
+    NotaControlStockModal.mostrar(
+      context,
+      camion: camion,
+      productos: _productos,
+      onConfirmar: (draft) => _confirmarNotaControl(camion, draft),
+    );
+  }
+
+  Future<bool> _confirmarNotaControl(DepositoCamion camion, NotaControlStockDraft draft) async {
+    final items = draft.cargaItems(
+      llenaId: _estadosRef.llenaId,
+      vaciaId: _estadosRef.vaciaId,
+    );
+    if (items.isEmpty) {
+      _mostrarSnack('Ingresá al menos una garrafa para registrar la carga.', error: true);
+      return false;
+    }
+
+    final total = items.fold<int>(0, (a, i) => a + ((i['cantidad'] as int?) ?? 0));
+    if (_modoEjemplo) {
+      setState(() {
+        _camiones = [
+          for (final c in _camiones)
+            if (c.id == camion.id)
+              c.copyWith(llenos: c.llenos + draft.totalLlenos, vacios: c.vacios + draft.totalVacios, stockCargado: true)
+            else
+              c,
+        ];
+      });
+      _mostrarSnack('Nota de control registrada (ejemplo).');
+      return true;
+    }
+    try {
+      final movimientos = await _flotaRepo.recargarCamion(
+        camion.id,
+        items: items,
+        observaciones: draft.observaciones,
+      );
+      final folio = movimientos
+          .map((m) => m.folio)
+          .firstWhere((f) => f != null && f.isNotEmpty, orElse: () => null);
+      _mostrarSnack(folio != null ? 'Nota registrada. Folio $folio' : 'Nota de control registrada ($total unidades).');
+      await _cargar();
+      return true;
+    } on FlotaRepositoryException catch (e) {
+      _mostrarSnack(e.message, error: true);
+      return false;
+    } catch (_) {
+      _mostrarSnack('No se pudo registrar la nota de control.', error: true);
+      return false;
+    }
+  }
+
+  void _abrirEntradaMovil(DepositoCamion camion) {
+    EntradaMovilModal.mostrar(
+      context,
+      camion: camion,
+      productos: _productos,
+      backendPendiente: !_modoEjemplo && !_estadosRef.disponible,
+      onConfirmar: (draft) => _confirmarEntradaMovil(camion, draft),
+    );
+  }
+
+  Future<bool> _confirmarEntradaMovil(DepositoCamion camion, EntradaMovilDraft draft) async {
+    if (_modoEjemplo) {
+      setState(() {
+        _vaciasRetornadasHoy += draft.totalVacios;
+        _camiones = [
+          for (final c in _camiones)
+            if (c.id == camion.id) c.copyWith(vacios: c.vacios + draft.totalVacios) else c,
+        ];
+      });
+      _mostrarSnack('Entrada del móvil registrada (ejemplo).');
+      return true;
+    }
+
+    if (!_estadosRef.disponible) {
+      _mostrarSnack(
+        'No se pudieron cargar los estados de garrafa del servidor. Reintentá cuando tengas conexión.',
+        error: true,
+      );
+      return false;
+    }
+
+    final items = draft.descargaItems(
+      estadoLlenaId: _estadosRef.llenaId,
+      estadoVaciaId: _estadosRef.vaciaId,
+      estadoAveriadoId: _estadosRef.averiadoId,
+    );
+    if (items.isEmpty) {
+      _mostrarSnack('No hay unidades para registrar en la entrada.', error: true);
+      return false;
+    }
+    try {
+      final centrales = await _flotaRepo.listarDepositosCentrales();
+      if (centrales.isEmpty) {
+        _mostrarSnack('No hay un depósito central configurado para recibir la entrada.', error: true);
+        return false;
+      }
+      await _flotaRepo.descargarCamion(
+        camion.id,
+        depositoCentralId: centrales.first.id,
+        items: items,
+        observaciones: draft.observaciones,
+      );
+      _mostrarSnack('Entrada del móvil registrada.');
+      await _cargar();
+      return true;
+    } on FlotaRepositoryException catch (e) {
+      _mostrarSnack(e.message, error: true);
+      return false;
+    } catch (_) {
+      _mostrarSnack('No se pudo registrar la entrada del móvil.', error: true);
+      return false;
+    }
+  }
+
   void _abrirRecarga(DepositoCamion camion) {
     RecargaFaltanteModal.mostrar(
       context,
@@ -318,7 +446,9 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
                       )
                     : FlotaTabla(
                         camiones: _camionesFiltrados,
-                        onRecargar: _abrirRecarga,
+                        onNota: _abrirNotaControl,
+                        onRecargaRuta: _abrirRecarga,
+                        onEntradaMovil: _abrirEntradaMovil,
                         onVerHistorial: _abrirHistorial,
                         mensajeVacio: _camiones.isEmpty
                             ? 'No hay camiones registrados.'

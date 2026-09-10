@@ -34,6 +34,30 @@ class CatalogoGarrafasService {
     return catalogo;
   }
 
+  List<ProductoSku> desdeStockParaCanje(StockCamion stock) {
+    final catalogo = <ProductoSku>[];
+
+    for (final item in stock.llenasDisponibles) {
+      final kg = _kgDe(item) ?? 0;
+      catalogo.add(
+        ProductoSku(
+          idProducto: item.productoId,
+          sku: item.sku,
+          descripcion: item.descripcion.isNotEmpty
+              ? item.descripcion
+              : (kg > 0 ? 'Garrafa $kg kg' : item.sku),
+          kg: kg,
+          precioUnitario: 0,
+          tipoProducto: 'GARRAFA',
+          stockDisponible: item.cantidad,
+        ),
+      );
+    }
+
+    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
+    return catalogo;
+  }
+
   int? _kgDe(StockCamionItem item) {
     return _primerEntero(item.productoId) ??
         _primerEntero(item.sku) ??

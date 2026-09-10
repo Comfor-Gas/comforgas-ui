@@ -5,22 +5,28 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import '../../local/canje_offline_service.dart';
+import '../../local/canje_pendiente.dart';
 import '../../local/comodato_offline_service.dart';
 import '../../local/comodato_pendiente.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
+import '../../models/canje_garrafa.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/control_comodato.dart';
 import '../../models/evidencia_tipo.dart';
+import '../../models/producto_sku.dart';
 import '../../models/venta_draft.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/canje_repository.dart';
 import '../../repositories/comodato_repository.dart';
 import '../../repositories/evidencia_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/venta_repository.dart';
 import '../../repositories/visita_repository.dart';
+import '../../services/canje_sync_manager.dart';
 import '../../services/comodato_sync_manager.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
@@ -32,6 +38,7 @@ import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
 import '../../utils/json_parsing.dart';
 import '../../models/credito_cliente.dart';
+import '../../widgets/chofer/canje/canje_garrafa_card.dart';
 import '../../widgets/chofer/comodato/control_comodato_card.dart';
 import '../../widgets/chofer/cobro/morosidad_banner.dart';
 import '../../widgets/chofer/datos_desactivados_card.dart';
@@ -40,6 +47,7 @@ import '../../widgets/chofer/inicio_sin_conexion_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/common/estado_conexion_badge.dart';
 import '../../widgets/primary_button.dart';
+import 'canje/canje_garrafa_screen.dart';
 import 'comodato/auditoria_comodato_screen.dart';
 import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
@@ -75,6 +83,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   late final EvidenciaRepository _evidenciaRepo;
   late final VentaRepository _ventaRepo;
   late final ComodatoRepository _comodatoRepo;
+  late final CanjeRepository _canjeRepo;
   late final http.Client _apiClient;
   final _photoService = PhotoCaptureService();
   final _locationService = LocationService.instance;
@@ -102,8 +111,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   ControlComodatoDraft? _controlComodato;
   bool _comodatoPendienteSync = false;
   bool _comodatoPreparado = false;
+  List<CanjeGarrafaDraft> _canjes = [];
+  List<CanjeGarrafaDraft> _canjesServidor = [];
+  bool _canjePendienteSync = false;
   VoidCallback? _colaListener;
   VoidCallback? _comodatoListener;
+  VoidCallback? _canjeListener;
   StreamSubscription<bool>? _conexionSub;
 
   @override
@@ -115,6 +128,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _evidenciaRepo = EvidenciaRepository(apiClient);
     _ventaRepo = VentaRepository(apiClient);
     _comodatoRepo = ComodatoRepository(apiClient);
+    _canjeRepo = CanjeRepository(apiClient);
     _apiClient = apiClient;
 
     _colaListener = _actualizarPendienteSync;
@@ -122,6 +136,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
     _comodatoListener = _actualizarComodatoPendienteSync;
     ComodatoOfflineService.instance.escuchar().addListener(_comodatoListener!);
+
+    _canjeListener = _actualizarCanjes;
+    CanjeOfflineService.instance.escuchar().addListener(_canjeListener!);
 
     _conexionSub = ConnectivityService.instance.observarConexion().listen((online) {
       if (online && _fase == _FaseVisita.datosDesactivados) {
@@ -143,6 +160,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
     if (_comodatoListener != null) {
       ComodatoOfflineService.instance.escuchar().removeListener(_comodatoListener!);
+    }
+    if (_canjeListener != null) {
+      CanjeOfflineService.instance.escuchar().removeListener(_canjeListener!);
     }
     _conexionSub?.cancel();
     UbicacionTrackingService.instance.setVisitaActual(null);
@@ -185,6 +205,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   Future<void> _prepararComodato() async {
     if (_comodatoPreparado) return;
     _comodatoPreparado = true;
+    unawaited(_hidratarCanjes());
     await _hidratarControlComodato();
     await _cargarContratoComodato();
   }
@@ -372,6 +393,156 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       ),
     );
     unawaited(ComodatoSyncManager.instance.sincronizar());
+  }
+
+  void _actualizarCanjes() => _recomputarCanjes();
+
+  List<CanjeGarrafaDraft> _canjesPendientesActuales() {
+    final idVisita = _visita.idVisita;
+    final idAgendaItem = _visita.idAgendaItem;
+    final servicio = CanjeOfflineService.instance;
+    List<CanjePendiente> pendientes = const [];
+    if (idVisita != null) {
+      pendientes = servicio.pendientesDeVisita(idVisita);
+    }
+    if (pendientes.isEmpty && idAgendaItem != null) {
+      pendientes = servicio.pendientesDeAgendaItem(idAgendaItem);
+    }
+    return pendientes.map(_draftDeCanjePendiente).toList();
+  }
+
+  void _recomputarCanjes() {
+    final pendientes = _canjesPendientesActuales();
+    final uuidsPendientes = pendientes.map((c) => c.uuidOffline).toSet();
+    final servidor = _canjesServidor
+        .where((c) => !uuidsPendientes.contains(c.uuidOffline))
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _canjes = [...servidor, ...pendientes];
+      _canjePendienteSync = pendientes.isNotEmpty;
+    });
+  }
+
+  Future<void> _hidratarCanjes() async {
+    final idVisita = _visita.idVisita;
+    if (idVisita != null) {
+      try {
+        final canjes = await _canjeRepo.getCanjesDeVisita(idVisita);
+        if (!mounted) return;
+        _canjesServidor = canjes.map(_draftDeCanje).toList();
+      } on NetworkException {
+      } on CanjeRepositoryException {}
+    }
+    _recomputarCanjes();
+  }
+
+  Future<void> _abrirCanje() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CanjeGarrafaScreen(
+          visita: _visita,
+          nombreCliente: widget.nombreCliente,
+          onGuardar: _registrarCanje,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _registrarCanje(ProductoSku producto, String descripcionDanio) async {
+    final idVisita = _visita.idVisita;
+    final idAgendaItem = _visita.idAgendaItem;
+    final draft = CanjeGarrafaDraft(
+      idVisita: idVisita,
+      idAgendaItem: idAgendaItem,
+      idUsuario: _visita.idUsuario,
+      fecha: _visita.fecha,
+      idClienteExt: _idClienteExt,
+      uuidOffline: _uuid.v4(),
+      productoId: producto.idProducto,
+      sku: producto.sku,
+      descripcion: producto.descripcion,
+      kg: producto.kg,
+      descripcionDanio: descripcionDanio,
+      timestamp: DateTime.now(),
+    );
+
+    if (idVisita != null) {
+      try {
+        await _canjeRepo.registrarCanje(idVisita, draft);
+        if (!mounted) return;
+        _canjesServidor = [..._canjesServidor, draft];
+        _recomputarCanjes();
+        return;
+      } on NetworkException {}
+    }
+
+    if (idAgendaItem == null) {
+      throw CanjeRepositoryException(
+        'La visita no tiene un ítem de agenda para guardar el canje localmente.',
+      );
+    }
+
+    await _encolarCanje(draft: draft, idAgendaItem: idAgendaItem);
+  }
+
+  Future<void> _encolarCanje({
+    required CanjeGarrafaDraft draft,
+    required int idAgendaItem,
+  }) async {
+    final ahora = DateTime.now();
+    await CanjeOfflineService.instance.encolar(
+      CanjePendiente(
+        uuidOffline: draft.uuidOffline,
+        idVisita: draft.idVisita,
+        idAgendaItem: idAgendaItem,
+        idUsuario: draft.idUsuario,
+        fecha: draft.fecha,
+        idClienteExt: draft.idClienteExt,
+        productoId: draft.productoId,
+        sku: draft.sku,
+        descripcion: draft.descripcion,
+        kg: draft.kg,
+        descripcionDanio: draft.descripcionDanio,
+        timestamp: draft.timestamp,
+        creadoEn: ahora,
+      ),
+    );
+    unawaited(CanjeSyncManager.instance.sincronizar());
+  }
+
+  CanjeGarrafaDraft _draftDeCanje(CanjeGarrafa c) {
+    return CanjeGarrafaDraft(
+      idVisita: c.idVisita ?? _visita.idVisita,
+      idAgendaItem: _visita.idAgendaItem,
+      idUsuario: _visita.idUsuario,
+      fecha: _visita.fecha,
+      idClienteExt: _idClienteExt,
+      uuidOffline: c.uuidOffline ?? '',
+      productoId: c.productoId ?? '',
+      sku: c.sku ?? '',
+      descripcion: c.descripcion,
+      kg: c.kg,
+      descripcionDanio: c.descripcionDanio,
+      timestamp: c.timestamp ?? DateTime.now(),
+    );
+  }
+
+  CanjeGarrafaDraft _draftDeCanjePendiente(CanjePendiente p) {
+    return CanjeGarrafaDraft(
+      idVisita: p.idVisita,
+      idAgendaItem: p.idAgendaItem,
+      idUsuario: p.idUsuario,
+      fecha: p.fecha,
+      idClienteExt: p.idClienteExt,
+      uuidOffline: p.uuidOffline,
+      productoId: p.productoId,
+      sku: p.sku,
+      descripcion: p.descripcion,
+      kg: p.kg,
+      descripcionDanio: p.descripcionDanio,
+      timestamp: p.timestamp,
+    );
   }
 
   void _entrarEnErrorUbicacion(String mensaje) {
@@ -1218,6 +1389,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               pendienteSync: _comodatoPendienteSync,
               cargando: _cargandoContrato,
               onAuditar: _finalizando ? null : _abrirAuditoriaComodato,
+            ),
+            const SizedBox(height: 18),
+            CanjeGarrafaCard(
+              canjes: _canjes,
+              pendienteSync: _canjePendienteSync,
+              onCanjear: _finalizando ? null : _abrirCanje,
             ),
             const SizedBox(height: 18),
             EvidenciaCapturaCard(

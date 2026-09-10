@@ -60,4 +60,7 @@ class ApiConfig {
   static const String visitaComodatoSuffix = '/comodato';
   static const String adminComodatosAuditoriaPath = '/api/admin/comodatos/auditoria';
   static const String adminComodatosContratosPath = '/api/admin/comodatos/contratos';
+
+  static const String visitaCanjesSuffix = '/canjes';
+  static const String adminCanjesPath = '/api/admin/canjes';
 }

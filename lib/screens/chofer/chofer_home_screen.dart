@@ -6,6 +6,7 @@ import '../../services/app_lock_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import 'agenda_chofer_screen.dart';
+import 'stock/stock_chofer_screen.dart';
 
 class ChoferHomeScreen extends StatefulWidget {
   const ChoferHomeScreen({super.key});
@@ -24,10 +25,7 @@ class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
   // cargado, aunque en el medio se haya quedado sin señal.
   final List<Widget> _tabs = const [
     AgendaChoferScreen(),
-    _ChoferPlaceholderTab(
-      icon: Icons.receipt_long_outlined,
-      title: 'Pedidos',
-    ),
+    StockChoferScreen(),
     _ChoferPlaceholderTab(
       icon: Icons.inventory_2_outlined,
       title: 'Comodato',
@@ -53,8 +51,8 @@ class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
             label: 'Agenda',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long_outlined),
-            label: 'Pedidos',
+            icon: Icon(Icons.propane_tank_outlined),
+            label: 'Stock',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2_outlined),

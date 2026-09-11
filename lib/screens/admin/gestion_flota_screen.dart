@@ -295,7 +295,24 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       productos: _productos,
       backendPendiente: !_modoEjemplo && !_estadosRef.disponible,
       onConfirmar: (draft) => _confirmarEntradaMovil(camion, draft),
+      cargarResumen: () => _cargarResumenCierre(camion),
     );
+  }
+
+  Future<ResumenCierreCamion> _cargarResumenCierre(DepositoCamion camion) async {
+    if (_modoEjemplo) return const ResumenCierreCamion();
+    try {
+      final resultados = await Future.wait([
+        _flotaRepo.ventasDelDia(camion.id),
+        _flotaRepo.stockLlenoPorProducto(camion.id),
+      ]);
+      return ResumenCierreCamion(
+        vendidasHoy: resultados[0],
+        stockLlenoActual: resultados[1],
+      );
+    } catch (_) {
+      return const ResumenCierreCamion();
+    }
   }
 
   Future<bool> _confirmarEntradaMovil(DepositoCamion camion, EntradaMovilDraft draft) async {

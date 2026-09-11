@@ -114,6 +114,42 @@ class FlotaRepository {
         .toList();
   }
 
+  Future<Map<String, int>> ventasDelDia(int idCamion, {DateTime? dia}) async {
+    final base = dia ?? DateTime.now();
+    final desde = DateTime(base.year, base.month, base.day).toUtc();
+    final hasta = DateTime(base.year, base.month, base.day, 23, 59, 59).toUtc();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/movimientos').replace(
+      queryParameters: {
+        'depositoId': '$idCamion',
+        'tipoMovimiento': 'VENTA',
+        'desde': desde.toIso8601String(),
+        'hasta': hasta.toIso8601String(),
+        'size': '500',
+      },
+    );
+    final response = await _get(uri);
+    final decoded = jsonDecode(response.body);
+    final contenido = decoded is Map<String, dynamic> ? decoded['content'] : decoded;
+    final mapa = <String, int>{};
+    if (contenido is List) {
+      for (final e in contenido.whereType<Map<String, dynamic>>()) {
+        final mov = MovimientoStock.fromJson(e);
+        if (mov.productoId.isEmpty) continue;
+        mapa[mov.productoId] = (mapa[mov.productoId] ?? 0) + mov.cantidad;
+      }
+    }
+    return mapa;
+  }
+
+  Future<Map<String, int>> stockLlenoPorProducto(int idCamion) async {
+    final stock = await getStockCamion(idCamion);
+    final mapa = <String, int>{};
+    for (final item in stock.llenasDisponibles) {
+      mapa[item.productoId] = (mapa[item.productoId] ?? 0) + item.cantidad;
+    }
+    return mapa;
+  }
+
   Future<DepositoCamion> asignarChofer(
     DepositoCamion camion, {
     required String repartidorId,

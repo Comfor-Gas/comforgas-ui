@@ -9,12 +9,14 @@ import 'flota_form_controls.dart';
 import 'planilla_stock_tabla.dart';
 
 typedef EntradaMovilConfirmada = Future<bool> Function(EntradaMovilDraft draft);
+typedef CargarResumenCierre = Future<ResumenCierreCamion> Function();
 
 class EntradaMovilModal extends StatefulWidget {
   final DepositoCamion camion;
   final List<ProductoCatalogo> productos;
   final bool backendPendiente;
   final EntradaMovilConfirmada onConfirmar;
+  final CargarResumenCierre? cargarResumen;
 
   const EntradaMovilModal({
     super.key,
@@ -22,6 +24,7 @@ class EntradaMovilModal extends StatefulWidget {
     required this.productos,
     required this.backendPendiente,
     required this.onConfirmar,
+    this.cargarResumen,
   });
 
   static Future<void> mostrar(
@@ -30,6 +33,7 @@ class EntradaMovilModal extends StatefulWidget {
     required List<ProductoCatalogo> productos,
     required bool backendPendiente,
     required EntradaMovilConfirmada onConfirmar,
+    CargarResumenCierre? cargarResumen,
   }) {
     return showDialog<void>(
       context: context,
@@ -39,6 +43,7 @@ class EntradaMovilModal extends StatefulWidget {
         productos: productos,
         backendPendiente: backendPendiente,
         onConfirmar: onConfirmar,
+        cargarResumen: cargarResumen,
       ),
     );
   }
@@ -52,19 +57,63 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
   final _obsCtrl = TextEditingController();
   DateTime _fecha = DateTime.now();
   bool _guardando = false;
+  bool _cargandoResumen = false;
+  ResumenCierreCamion? _resumen;
 
   static const _columnas = [
     ColumnaStock(key: 'llenos', etiqueta: 'Llenos', color: AppColors.orange),
     ColumnaStock(key: 'vacios', etiqueta: 'Vacíos', color: AppColors.steelBlue),
     ColumnaStock(key: 'averiados', etiqueta: 'Averiados', color: AppColors.badgeRed),
+    ColumnaStock(
+      key: 'vendido',
+      etiqueta: 'Vendido',
+      color: AppColors.graphiteGray,
+      editable: false,
+      cuentaTotal: false,
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
     for (final p in widget.productos) {
-      _valores[p.idProducto] = {'llenos': 0, 'vacios': 0, 'averiados': 0};
+      _valores[p.idProducto] = {'llenos': 0, 'vacios': 0, 'averiados': 0, 'vendido': 0};
     }
+    _cargarResumen();
+  }
+
+  Future<void> _cargarResumen() async {
+    final loader = widget.cargarResumen;
+    if (loader == null) return;
+    setState(() => _cargandoResumen = true);
+    try {
+      final resumen = await loader();
+      if (!mounted) return;
+      setState(() {
+        _resumen = resumen;
+        _cargandoResumen = false;
+        for (final p in widget.productos) {
+          _valores[p.idProducto]?['vendido'] = resumen.vendidasHoy[p.idProducto] ?? 0;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cargandoResumen = false);
+    }
+  }
+
+  bool get _puedeCompletar =>
+      !_guardando && (_resumen?.totalStockLleno ?? 0) > 0;
+
+  void _traerLlenosEsperados() {
+    final resumen = _resumen;
+    if (resumen == null) return;
+    setState(() {
+      for (final p in widget.productos) {
+        final esperado = resumen.stockLlenoActual[p.idProducto] ?? 0;
+        _valores[p.idProducto]?['llenos'] = esperado;
+      }
+    });
   }
 
   @override
@@ -112,6 +161,40 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
     }
   }
 
+  Widget _buildAccionAuto() {
+    if (_cargandoResumen) {
+      return TextButton.icon(
+        onPressed: null,
+        icon: const SizedBox(
+          height: 14,
+          width: 14,
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
+        ),
+        label: Text(
+          'Trayendo del historial…',
+          style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+        ),
+        style: _estiloAccion,
+      );
+    }
+    if (!_puedeCompletar) return const SizedBox.shrink();
+    return TextButton.icon(
+      onPressed: _traerLlenosEsperados,
+      icon: const Icon(Icons.auto_fix_high, size: 16, color: AppColors.orange),
+      label: Text(
+        'Completar llenos (${_resumen!.totalStockLleno})',
+        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.orange),
+      ),
+      style: _estiloAccion,
+    );
+  }
+
+  static final ButtonStyle _estiloAccion = TextButton.styleFrom(
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    minimumSize: Size.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -119,7 +202,7 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680),
+        constraints: const BoxConstraints(maxWidth: 760),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
           child: Column(
@@ -145,9 +228,16 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
                 ),
                 const SizedBox(height: 16),
               ],
-              Text(
-                'Conteo de retorno por tipo de garrafa',
-                style: AppTextStyles.label.copyWith(fontSize: 13),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Conteo de retorno por tipo de garrafa',
+                      style: AppTextStyles.label.copyWith(fontSize: 13),
+                    ),
+                  ),
+                  _buildAccionAuto(),
+                ],
               ),
               const SizedBox(height: 10),
               if (widget.productos.isEmpty)

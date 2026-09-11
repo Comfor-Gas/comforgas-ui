@@ -3,6 +3,7 @@ import '../utils/json_parsing.dart';
 class MovimientoStock {
   final int id;
   final String tipoMovimiento;
+  final String productoId;
   final String productoSku;
   final String productoDescripcion;
   final int cantidad;
@@ -19,6 +20,7 @@ class MovimientoStock {
   const MovimientoStock({
     required this.id,
     required this.tipoMovimiento,
+    this.productoId = '',
     required this.productoSku,
     required this.productoDescripcion,
     required this.cantidad,
@@ -48,6 +50,9 @@ class MovimientoStock {
     return MovimientoStock(
       id: parseInt(json['id']) ?? 0,
       tipoMovimiento: (json['tipoMovimiento'] ?? '').toString(),
+      productoId: producto is Map<String, dynamic>
+          ? (producto['id'] ?? '').toString()
+          : '',
       productoSku: producto is Map<String, dynamic>
           ? (producto['sku'] ?? producto['id'] ?? '').toString()
           : '',

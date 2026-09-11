@@ -8,8 +8,16 @@ class ColumnaStock {
   final String key;
   final String etiqueta;
   final Color color;
+  final bool editable;
+  final bool cuentaTotal;
 
-  const ColumnaStock({required this.key, required this.etiqueta, required this.color});
+  const ColumnaStock({
+    required this.key,
+    required this.etiqueta,
+    required this.color,
+    this.editable = true,
+    this.cuentaTotal = true,
+  });
 }
 
 class PlanillaStockTabla extends StatelessWidget {
@@ -33,11 +41,13 @@ class PlanillaStockTabla extends StatelessWidget {
   int _totalColumna(String key) =>
       productos.fold(0, (a, p) => a + _valor(p.idProducto, key));
 
-  int _totalFila(String productoId) =>
-      columnas.fold(0, (a, c) => a + _valor(productoId, c.key));
+  int _totalFila(String productoId) => columnas
+      .where((c) => c.cuentaTotal)
+      .fold(0, (a, c) => a + _valor(productoId, c.key));
 
-  int get _totalGeneral =>
-      columnas.fold(0, (a, c) => a + _totalColumna(c.key));
+  int get _totalGeneral => columnas
+      .where((c) => c.cuentaTotal)
+      .fold(0, (a, c) => a + _totalColumna(c.key));
 
   @override
   Widget build(BuildContext context) {
@@ -113,24 +123,23 @@ class PlanillaStockTabla extends StatelessWidget {
         children: [
           SizedBox(
             width: 120,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(p.etiquetaKg, style: AppTextStyles.label.copyWith(fontSize: 13.5)),
-                Text('SKU ${p.sku}', style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
-              ],
-            ),
+            child: Text(p.etiquetaKg, style: AppTextStyles.label.copyWith(fontSize: 13.5)),
           ),
           for (final c in columnas)
             SizedBox(
               width: 118,
               child: Center(
-                child: _CeldaNumero(
-                  valor: _valor(p.idProducto, c.key),
-                  acento: c.color,
-                  enabled: enabled,
-                  onChanged: (v) => onCambio(p.idProducto, c.key, v),
-                ),
+                child: c.editable
+                    ? _CeldaNumero(
+                        valor: _valor(p.idProducto, c.key),
+                        acento: c.color,
+                        enabled: enabled,
+                        onChanged: (v) => onCambio(p.idProducto, c.key, v),
+                      )
+                    : Text(
+                        '${_valor(p.idProducto, c.key)}',
+                        style: AppTextStyles.label.copyWith(fontSize: 15, color: c.color),
+                      ),
               ),
             ),
           SizedBox(

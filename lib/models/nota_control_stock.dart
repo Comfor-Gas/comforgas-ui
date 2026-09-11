@@ -124,3 +124,17 @@ class EntradaMovilDraft {
     return items;
   }
 }
+
+class ResumenCierreCamion {
+  final Map<String, int> vendidasHoy;
+  final Map<String, int> stockLlenoActual;
+
+  const ResumenCierreCamion({
+    this.vendidasHoy = const {},
+    this.stockLlenoActual = const {},
+  });
+
+  int get totalVendidas => vendidasHoy.values.fold(0, (a, b) => a + b);
+  int get totalStockLleno => stockLlenoActual.values.fold(0, (a, b) => a + b);
+  bool get vacio => vendidasHoy.isEmpty && stockLlenoActual.isEmpty;
+}

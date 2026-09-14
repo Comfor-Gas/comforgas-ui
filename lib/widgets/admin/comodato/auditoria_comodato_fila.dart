@@ -21,14 +21,9 @@ class AuditoriaComodatoFila extends StatefulWidget {
 class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
   bool _expandido = false;
 
-  int get _sobranteTotal {
-    var total = 0;
-    for (final d in widget.control.detalles) {
-      final f = d.cantidadFisicaActual;
-      if (f != null && f > d.cantidadContratada) total += f - d.cantidadContratada;
-    }
-    return total;
-  }
+  bool get _tieneObs =>
+      widget.control.observaciones != null &&
+      widget.control.observaciones!.trim().isNotEmpty;
 
   String _fecha(DateTime? f) {
     if (f == null) return '—';
@@ -52,7 +47,7 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
       mainAxisSize: MainAxisSize.min,
       children: [
         InkWell(
-          onTap: () => setState(() => _expandido = !_expandido),
+          onTap: _tieneObs ? () => setState(() => _expandido = !_expandido) : null,
           child: Container(
             color: fondo,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -60,33 +55,35 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
               children: [
                 Expanded(flex: 3, child: _texto(c.nombreChofer ?? 'Sin asignar', bold: true)),
                 Expanded(flex: 3, child: _texto(_cliente())),
-                Expanded(flex: 2, child: _texto(_fecha(c.fechaControl ?? c.timestampCaptura))),
-                Expanded(flex: 2, child: _texto('${c.cantidadContratadaTotal}')),
-                Expanded(flex: 2, child: _texto('${c.cantidadFisicaTotal}')),
+                Expanded(flex: 2, child: _texto(_fecha(c.timestampControl))),
+                Expanded(flex: 2, child: _texto('${c.cantidadContratada}')),
+                Expanded(flex: 2, child: _texto('${c.cantidadFisicaActual}')),
                 Expanded(
                   flex: 3,
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: FaltanteBadge(
-                      faltante: c.cantidadFaltanteTotal,
-                      sobrante: _sobranteTotal,
+                      faltante: c.faltante,
+                      sobrante: c.sobrante,
                       compacto: true,
                     ),
                   ),
                 ),
                 SizedBox(
                   width: 32,
-                  child: Icon(
-                    _expandido ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.graphiteGray,
-                    size: 22,
-                  ),
+                  child: _tieneObs
+                      ? Icon(
+                          _expandido ? Icons.expand_less : Icons.expand_more,
+                          color: AppColors.graphiteGray,
+                          size: 22,
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
         ),
-        if (_expandido) _buildDetalle(c),
+        if (_expandido && _tieneObs) _buildDetalle(c),
         Container(height: 1, color: AppColors.inputBorder.withOpacity(0.6)),
       ],
     );
@@ -97,72 +94,32 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
       width: double.infinity,
       color: AppColors.background,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'DETALLE POR TIPO DE ENVASE',
-            style: AppTextStyles.footer.copyWith(
-              letterSpacing: 0.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.graphiteGray,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final d in c.detalles) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.propane_tank_rounded, size: 16, color: AppColors.orange),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 3, child: _texto(d.tipoEnvase, bold: true)),
-                  Expanded(
-                    flex: 4,
-                    child: _texto(
-                      'Contratadas: ${d.cantidadContratada}   ·   Físicas: ${d.cantidadFisicaActual ?? '—'}',
-                    ),
-                  ),
-                  FaltanteBadge(
-                    faltante: d.cantidadFaltante ?? 0,
-                    sobrante: (d.cantidadFisicaActual != null &&
-                            d.cantidadFisicaActual! > d.cantidadContratada)
-                        ? d.cantidadFisicaActual! - d.cantidadContratada
-                        : 0,
-                    compacto: true,
-                  ),
-                ],
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'OBSERVACIONES',
+              style: AppTextStyles.footer.copyWith(
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w700,
+                color: AppColors.graphiteGray,
               ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              c.observaciones!.trim(),
+              style: AppTextStyles.input.copyWith(fontSize: 13.5),
             ),
           ],
-          if (c.observaciones != null && c.observaciones!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.inputBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'OBSERVACIONES',
-                    style: AppTextStyles.footer.copyWith(
-                      letterSpacing: 0.4,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.graphiteGray,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(c.observaciones!.trim(), style: AppTextStyles.input.copyWith(fontSize: 13.5)),
-                ],
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

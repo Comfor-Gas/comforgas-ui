@@ -94,10 +94,7 @@ class VisitaClienteCard extends StatelessWidget {
                               children: [
                                 VisitaEstadoChip(estado: visita.estadoVisita),
                                 if (ficha.tieneComodatoActivo)
-                                  ComodatoBadge(
-                                    comodatos: ficha.comodatosActivos,
-                                    compacto: true,
-                                  ),
+                                  const ComodatoBadge(compacto: true),
                               ],
                             ),
                           ],

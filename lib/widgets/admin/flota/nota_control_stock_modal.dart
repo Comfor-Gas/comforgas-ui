@@ -13,6 +13,7 @@ typedef NotaControlConfirmada = Future<bool> Function(NotaControlStockDraft draf
 class NotaControlStockModal extends StatefulWidget {
   final DepositoCamion camion;
   final List<ProductoCatalogo> productos;
+  final DateTime? fechaInicial;
   final NotaControlConfirmada onConfirmar;
 
   const NotaControlStockModal({
@@ -20,6 +21,7 @@ class NotaControlStockModal extends StatefulWidget {
     required this.camion,
     required this.productos,
     required this.onConfirmar,
+    this.fechaInicial,
   });
 
   static Future<void> mostrar(
@@ -27,6 +29,7 @@ class NotaControlStockModal extends StatefulWidget {
     required DepositoCamion camion,
     required List<ProductoCatalogo> productos,
     required NotaControlConfirmada onConfirmar,
+    DateTime? fechaInicial,
   }) {
     return showDialog<void>(
       context: context,
@@ -35,6 +38,7 @@ class NotaControlStockModal extends StatefulWidget {
         camion: camion,
         productos: productos,
         onConfirmar: onConfirmar,
+        fechaInicial: fechaInicial,
       ),
     );
   }
@@ -46,7 +50,7 @@ class NotaControlStockModal extends StatefulWidget {
 class _NotaControlStockModalState extends State<NotaControlStockModal> {
   final Map<String, Map<String, int>> _valores = {};
   final _obsCtrl = TextEditingController();
-  DateTime _fecha = DateTime.now();
+  late DateTime _fecha;
   bool _guardando = false;
 
   static const _columnas = [
@@ -57,6 +61,7 @@ class _NotaControlStockModalState extends State<NotaControlStockModal> {
   @override
   void initState() {
     super.initState();
+    _fecha = widget.fechaInicial ?? DateTime.now();
     for (final p in widget.productos) {
       _valores[p.idProducto] = {'llenos': 0, 'vacios': 0};
     }
@@ -73,9 +78,7 @@ class _NotaControlStockModalState extends State<NotaControlStockModal> {
   int get _totalVacios =>
       widget.productos.fold(0, (a, p) => a + (_valores[p.idProducto]?['vacios'] ?? 0));
 
-  int get _faltante => widget.camion.faltante;
-  bool get _excedeCupo => _totalLlenos > _faltante;
-  bool get _valido => (_totalLlenos > 0 || _totalVacios > 0) && !_excedeCupo && !_guardando;
+  bool get _valido => (_totalLlenos > 0 || _totalVacios > 0) && !_guardando;
 
   void _cambiar(String productoId, String key, int valor) {
     setState(() => _valores[productoId]?[key] = valor);
@@ -86,7 +89,7 @@ class _NotaControlStockModalState extends State<NotaControlStockModal> {
       context: context,
       initialDate: _fecha,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: _fecha.isAfter(DateTime.now()) ? _fecha : DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -158,8 +161,6 @@ class _NotaControlStockModalState extends State<NotaControlStockModal> {
               const SizedBox(height: 18),
               _buildCabecera(),
               const SizedBox(height: 16),
-              _ResumenCupo(cupo: widget.camion.cupoBase, lleno: widget.camion.llenos, faltante: _faltante),
-              const SizedBox(height: 16),
               Text(
                 'Detalle por tipo de garrafa',
                 style: AppTextStyles.label.copyWith(fontSize: 13),
@@ -176,8 +177,6 @@ class _NotaControlStockModalState extends State<NotaControlStockModal> {
                   onCambio: _cambiar,
                 ),
               const SizedBox(height: 12),
-              _buildAvisoCupo(),
-              const SizedBox(height: 10),
               _buildAvisoVacios(),
               const SizedBox(height: 18),
               Text('Observaciones', style: AppTextStyles.label.copyWith(fontSize: 13)),
@@ -251,15 +250,6 @@ class _NotaControlStockModalState extends State<NotaControlStockModal> {
           _DatoFecha(fecha: _fecha, onTap: _guardando ? null : _elegirFecha),
         ],
       ),
-    );
-  }
-
-  Widget _buildAvisoCupo() {
-    if (!_excedeCupo) return const SizedBox.shrink();
-    return _Aviso(
-      color: AppColors.error,
-      icono: Icons.error_outline,
-      texto: 'Los llenos ($_totalLlenos) superan el faltante del camión ($_faltante).',
     );
   }
 
@@ -374,69 +364,6 @@ class _DatoFecha extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _ResumenCupo extends StatelessWidget {
-  final int cupo;
-  final int lleno;
-  final int faltante;
-
-  const _ResumenCupo({required this.cupo, required this.lleno, required this.faltante});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Row(
-        children: [
-          _Dato(etiqueta: 'Cupo Total', valor: '$cupo'),
-          _Sep(),
-          _Dato(etiqueta: 'Stock Lleno', valor: '$lleno'),
-          _Sep(),
-          _Dato(etiqueta: 'Faltante', valor: '$faltante', acento: AppColors.orange),
-        ],
-      ),
-    );
-  }
-}
-
-class _Dato extends StatelessWidget {
-  final String etiqueta;
-  final String valor;
-  final Color? acento;
-
-  const _Dato({required this.etiqueta, required this.valor, this.acento});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            etiqueta,
-            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.graphiteGray),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            valor,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: acento ?? AppColors.steelBlue),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Sep extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 34, color: AppColors.inputBorder);
   }
 }
 

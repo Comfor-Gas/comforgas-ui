@@ -25,6 +25,7 @@ import '../../repositories/comodato_repository.dart';
 import '../../repositories/evidencia_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/venta_repository.dart';
+import '../../repositories/stock_rodante_repository.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/canje_sync_manager.dart';
 import '../../services/comodato_sync_manager.dart';
@@ -84,9 +85,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   late final VentaRepository _ventaRepo;
   late final ComodatoRepository _comodatoRepo;
   late final CanjeRepository _canjeRepo;
+  late final StockRodanteRepository _rodanteChoferRepo;
   late final http.Client _apiClient;
   final _photoService = PhotoCaptureService();
   final _locationService = LocationService.instance;
+
+  static const String _mensajeSinCarga =
+      'Todavía no tenés stock asignado para hoy. Pedile al administrador que cargue tu stock del camión para poder iniciar las visitas.';
+  IconData _iconoError = Icons.location_off_outlined;
+  bool? _rutaHabilitada;
 
   late VisitaModel _visita;
   _FaseVisita _fase = _FaseVisita.verificandoUbicacion;
@@ -114,6 +121,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   List<CanjeGarrafaDraft> _canjes = [];
   List<CanjeGarrafaDraft> _canjesServidor = [];
   bool _canjePendienteSync = false;
+  bool _online = true;
   VoidCallback? _colaListener;
   VoidCallback? _comodatoListener;
   VoidCallback? _canjeListener;
@@ -125,6 +133,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _visita = widget.visita;
     final apiClient = context.read<AuthProvider>().apiClient;
     _visitaRepo = VisitaRepository(apiClient);
+    _rodanteChoferRepo = StockRodanteRepository(apiClient);
     _evidenciaRepo = EvidenciaRepository(apiClient);
     _ventaRepo = VentaRepository(apiClient);
     _comodatoRepo = ComodatoRepository(apiClient);
@@ -141,10 +150,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     CanjeOfflineService.instance.escuchar().addListener(_canjeListener!);
 
     _conexionSub = ConnectivityService.instance.observarConexion().listen((online) {
+      if (mounted && online != _online) {
+        setState(() => _online = online);
+      }
       if (online && _fase == _FaseVisita.datosDesactivados) {
         _iniciarCheckIn();
       }
     });
+    unawaited(_actualizarConexionInicial());
 
     if (_visita.estadoVisita == VisitaEstado.enCurso) {
       _reanudarVisita();
@@ -167,6 +180,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _conexionSub?.cancel();
     UbicacionTrackingService.instance.setVisitaActual(null);
     super.dispose();
+  }
+
+  Future<void> _actualizarConexionInicial() async {
+    final online = await ConnectivityService.instance.tieneConexion();
+    if (mounted && online != _online) {
+      setState(() => _online = online);
+    }
   }
 
   void _actualizarPendienteSync() {
@@ -216,6 +236,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         parseInt(snapshot['clienteId']) ??
         int.tryParse(_ficha.clienteId);
   }
+
+  bool get _mostrarComodato =>
+      _controlComodato != null ||
+      _contratoComodato != null ||
+      (_ficha.tieneComodatoActivo && _cargandoContrato);
 
   Future<void> _hidratarControlComodato() async {
     final idAgendaItem = _visita.idAgendaItem;
@@ -277,15 +302,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       fecha: _visita.fecha,
       idClienteExt: c.idClienteExt ?? _idClienteExt,
       uuidOffline: c.uuidOffline ?? '',
-      timestampCaptura: c.timestampCaptura ?? DateTime.now(),
+      timestampControl: c.timestampControl ?? DateTime.now(),
       observaciones: c.observaciones,
-      detalles: c.detalles
-          .map((d) => DetalleControlDraft(
-                tipoEnvase: d.tipoEnvase,
-                cantidadContratada: d.cantidadContratada,
-                cantidadFisicaActual: d.cantidadFisicaActual,
-              ))
-          .toList(),
+      cantidadContratada: c.cantidadContratada,
+      cantidadFisicaActual: c.cantidadFisicaActual,
     );
   }
 
@@ -297,9 +317,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       fecha: p.fecha,
       idClienteExt: p.idClienteExt,
       uuidOffline: p.uuidOffline,
-      timestampCaptura: p.timestampCaptura,
+      timestampControl: p.timestampControl,
       observaciones: p.observaciones,
-      detalles: ControlComodatoDraft.detallesDesdeStorage(p.detallesJson),
+      cantidadContratada: p.cantidadContratada,
+      cantidadFisicaActual: p.cantidadFisicaActual,
     );
   }
 
@@ -310,7 +331,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       contrato = _contratoComodato;
     }
     if (!mounted) return;
-    if (contrato == null || contrato.detalles.isEmpty) {
+    if (contrato == null || !contrato.tieneComodato) {
       _mostrarError(
         'No se pudo cargar el contrato de comodato del cliente. Reintentá cuando tengas conexión.',
       );
@@ -329,7 +350,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Future<void> _registrarControlComodato(
-    List<DetalleControlDraft> detalles,
+    int cantidadFisicaActual,
     String? observaciones,
   ) async {
     final idVisita = _visita.idVisita;
@@ -342,14 +363,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       fecha: _visita.fecha,
       idClienteExt: _contratoComodato?.idClienteExt ?? _idClienteExt,
       uuidOffline: _uuid.v4(),
-      timestampCaptura: ahora,
+      timestampControl: ahora,
       observaciones: observaciones,
-      detalles: detalles,
+      cantidadContratada: _contratoComodato?.cantidadContratada ?? 0,
+      cantidadFisicaActual: cantidadFisicaActual,
     );
 
     if (idVisita != null) {
       try {
-        final control = await _comodatoRepo.registrarControl(idVisita, draft);
+        final control = await _comodatoRepo.registrarControl(draft);
         if (!mounted) return;
         setState(() {
           _controlComodato = _draftDeControl(control);
@@ -386,9 +408,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         idUsuario: draft.idUsuario,
         fecha: draft.fecha,
         idClienteExt: draft.idClienteExt,
-        timestampCaptura: draft.timestampCaptura,
+        timestampControl: draft.timestampControl,
         observaciones: draft.observaciones,
-        detallesJson: draft.detallesStorageJson(),
+        cantidadContratada: draft.cantidadContratada,
+        cantidadFisicaActual: draft.cantidadFisicaActual,
         creadoEn: ahora,
       ),
     );
@@ -545,11 +568,28 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
-  void _entrarEnErrorUbicacion(String mensaje) {
+  void _entrarEnErrorUbicacion(
+    String mensaje, {
+    IconData icono = Icons.location_off_outlined,
+  }) {
     setState(() {
       _fase = _FaseVisita.errorUbicacion;
       _errorMensaje = mensaje;
+      _iconoError = icono;
     });
+  }
+
+  Future<EstadoRutaChofer?> _verificarRutaHabilitada() async {
+    try {
+      final estado = await _rodanteChoferRepo.estadoRuta(fecha: _visita.fecha);
+      if (estado == null) return null;
+      _rutaHabilitada = estado.habilitado;
+      return estado;
+    } on NetworkException {
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _iniciarCheckIn() async {
@@ -569,6 +609,18 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (!mounted) return;
     if (!hayConexion) {
       setState(() => _fase = _FaseVisita.datosDesactivados);
+      return;
+    }
+
+    final estadoRuta = await _verificarRutaHabilitada();
+    if (!mounted) return;
+    if (estadoRuta != null && !estadoRuta.habilitado) {
+      final mensaje = estadoRuta.tieneNota &&
+              estadoRuta.mensaje != null &&
+              estadoRuta.mensaje!.isNotEmpty
+          ? estadoRuta.mensaje!
+          : _mensajeSinCarga;
+      _entrarEnErrorUbicacion(mensaje, icono: Icons.inventory_2_outlined);
       return;
     }
 
@@ -634,7 +686,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       setState(() => _fase = _FaseVisita.sinConexion);
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
-      _entrarEnErrorUbicacion(e.message);
+      final esFaltaDeCarga = e.message.contains('Nota de Control de Stock') ||
+          e.message.toLowerCase().contains('iniciar ruta');
+      if (esFaltaDeCarga) {
+        _rutaHabilitada = false;
+        _entrarEnErrorUbicacion(_mensajeSinCarga, icono: Icons.inventory_2_outlined);
+      } else {
+        _entrarEnErrorUbicacion(e.message);
+      }
     } catch (_) {
       if (!mounted) return;
       _entrarEnErrorUbicacion('No se pudo iniciar la visita. Intentá de nuevo.');
@@ -677,6 +736,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _mostrarError(
         'La visita no tiene un ítem de agenda para guardarla localmente.',
       );
+      return;
+    }
+    if (_rutaHabilitada == false) {
+      _entrarEnErrorUbicacion(_mensajeSinCarga, icono: Icons.inventory_2_outlined);
       return;
     }
     if (_continuandoOffline || _reintentandoConexion) return;
@@ -811,6 +874,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           nombreCliente: widget.nombreCliente,
           montoSugerido: _ventaDraft?.montoTotal ?? 0,
           credito: credito,
+          canjes: _canjes,
         ),
       ),
     );
@@ -1228,7 +1292,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                   : '${venta.lineas.length} productos en el detalle',
               style: AppTextStyles.link.copyWith(fontSize: 13),
             ),
-            if (_ventaPendienteSync) ...[
+            if (_ventaPendienteSync && !_online) ...[
               const SizedBox(height: 8),
               Row(
                 children: const [
@@ -1318,6 +1382,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       case _FaseVisita.errorUbicacion:
         return _ErrorUbicacion(
           mensaje: _errorMensaje ?? 'No se pudo verificar tu ubicación.',
+          icono: _iconoError,
           onReintentar: _iniciarCheckIn,
           onCancelar: () => Navigator.of(context).pop(),
         );
@@ -1330,7 +1395,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               MorosidadBanner(credito: credito),
               const SizedBox(height: 12),
             ],
-            if (_checkInPendienteSync) ...[
+            if (_checkInPendienteSync && !_online) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -1363,6 +1428,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 nombreResuelto: widget.nombreCliente,
                 domicilioResuelto: widget.direccionCliente,
               ),
+              comodatoTotal: _contratoComodato?.cantidadContratada,
             ),
             if (_evidenciaExistente && _foto == null) ...[
               const SizedBox(height: 12),
@@ -1381,19 +1447,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             ],
             const SizedBox(height: 18),
             _buildVentaSection(),
-            const SizedBox(height: 18),
-            ControlComodatoCard(
-              contrato: _contratoComodato,
-              comodatosActivosFallback: _ficha.comodatosActivos,
-              controlRegistrado: _controlComodato,
-              pendienteSync: _comodatoPendienteSync,
-              cargando: _cargandoContrato,
-              onAuditar: _finalizando ? null : _abrirAuditoriaComodato,
-            ),
+            if (_mostrarComodato) ...[
+              const SizedBox(height: 18),
+              ControlComodatoCard(
+                contrato: _contratoComodato,
+                controlRegistrado: _controlComodato,
+                pendienteSync: _comodatoPendienteSync && !_online,
+                cargando: _cargandoContrato,
+                onAuditar: _finalizando ? null : _abrirAuditoriaComodato,
+              ),
+            ],
             const SizedBox(height: 18),
             CanjeGarrafaCard(
               canjes: _canjes,
-              pendienteSync: _canjePendienteSync,
+              pendienteSync: _canjePendienteSync && !_online,
               onCanjear: _finalizando ? null : _abrirCanje,
             ),
             const SizedBox(height: 18),
@@ -1524,6 +1591,7 @@ class _EstadoUbicacion extends StatelessWidget {
 
 class _ErrorUbicacion extends StatelessWidget {
   final String mensaje;
+  final IconData icono;
   final VoidCallback onReintentar;
   final VoidCallback onCancelar;
 
@@ -1531,6 +1599,7 @@ class _ErrorUbicacion extends StatelessWidget {
     required this.mensaje,
     required this.onReintentar,
     required this.onCancelar,
+    this.icono = Icons.location_off_outlined,
   });
 
   @override
@@ -1539,7 +1608,7 @@ class _ErrorUbicacion extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 50),
       child: Column(
         children: [
-          const Icon(Icons.location_off_outlined, size: 44, color: AppColors.error),
+          Icon(icono, size: 44, color: AppColors.error),
           const SizedBox(height: 16),
           Text(mensaje, style: AppTextStyles.input, textAlign: TextAlign.center),
           const SizedBox(height: 22),

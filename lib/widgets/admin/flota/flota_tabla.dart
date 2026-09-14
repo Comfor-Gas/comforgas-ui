@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/deposito_camion.dart';
+import '../../../repositories/stock_rodante_admin_repository.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import 'camion_stock_bar.dart';
-import 'estado_camion_badge.dart';
 
 class FlotaTabla extends StatelessWidget {
   final List<DepositoCamion> camiones;
@@ -13,6 +13,9 @@ class FlotaTabla extends StatelessWidget {
   final ValueChanged<DepositoCamion> onRecargaRuta;
   final ValueChanged<DepositoCamion> onEntradaMovil;
   final ValueChanged<DepositoCamion> onVerHistorial;
+  final ValueChanged<DepositoCamion> onVerReporte;
+  final Map<String, int> asignadoPorChofer;
+  final Map<String, NotaRodanteResumen> notaPorChofer;
   final String mensajeVacio;
 
   const FlotaTabla({
@@ -22,9 +25,24 @@ class FlotaTabla extends StatelessWidget {
     required this.onRecargaRuta,
     required this.onEntradaMovil,
     required this.onVerHistorial,
+    required this.onVerReporte,
+    this.asignadoPorChofer = const {},
+    this.notaPorChofer = const {},
     this.idSeleccionado,
     this.mensajeVacio = 'No hay camiones para mostrar.',
   });
+
+  int _asignadoDe(DepositoCamion camion) {
+    final id = camion.repartidor?.id;
+    if (id == null || id.isEmpty) return 0;
+    return asignadoPorChofer[id] ?? 0;
+  }
+
+  NotaRodanteResumen? _notaDe(DepositoCamion camion) {
+    final id = camion.repartidor?.id;
+    if (id == null || id.isEmpty) return null;
+    return notaPorChofer[id];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,10 +64,13 @@ class FlotaTabla extends StatelessWidget {
                 _CamionCard(
                   camion: camion,
                   seleccionado: camion.id == idSeleccionado,
+                  asignado: _asignadoDe(camion),
+                  nota: _notaDe(camion),
                   onNota: () => onNota(camion),
                   onRecargaRuta: () => onRecargaRuta(camion),
                   onEntradaMovil: () => onEntradaMovil(camion),
                   onVerHistorial: () => onVerHistorial(camion),
+                  onVerReporte: () => onVerReporte(camion),
                 ),
             ],
           );
@@ -63,10 +84,13 @@ class FlotaTabla extends StatelessWidget {
               _FilaCamion(
                 camion: camion,
                 seleccionado: camion.id == idSeleccionado,
+                asignado: _asignadoDe(camion),
+                nota: _notaDe(camion),
                 onNota: () => onNota(camion),
                 onRecargaRuta: () => onRecargaRuta(camion),
                 onEntradaMovil: () => onEntradaMovil(camion),
                 onVerHistorial: () => onVerHistorial(camion),
+                onVerReporte: () => onVerReporte(camion),
               ),
           ],
         );
@@ -138,18 +162,24 @@ class _CeldaHeader extends StatelessWidget {
 class _FilaCamion extends StatelessWidget {
   final DepositoCamion camion;
   final bool seleccionado;
+  final int asignado;
+  final NotaRodanteResumen? nota;
   final VoidCallback onNota;
   final VoidCallback onRecargaRuta;
   final VoidCallback onEntradaMovil;
   final VoidCallback onVerHistorial;
+  final VoidCallback onVerReporte;
 
   const _FilaCamion({
     required this.camion,
     required this.seleccionado,
+    required this.asignado,
+    required this.nota,
     required this.onNota,
     required this.onRecargaRuta,
     required this.onEntradaMovil,
     required this.onVerHistorial,
+    required this.onVerReporte,
   });
 
   @override
@@ -186,7 +216,7 @@ class _FilaCamion extends StatelessWidget {
               child: CamionStockBar(
                 llenos: camion.llenos,
                 vacios: camion.vacios,
-                cupo: camion.cupoBase,
+                cupo: asignado,
                 compacto: true,
               ),
             ),
@@ -206,16 +236,19 @@ class _FilaCamion extends StatelessWidget {
             flex: _colEstado,
             child: Align(
               alignment: Alignment.centerLeft,
-              child: EstadoCamionBadge(estado: camion.estado),
+              child: _NotaEstadoChip(nota: nota),
             ),
           ),
           Expanded(
             flex: _colAcciones,
             child: _AccionesFila(
+              cerrada: nota?.cerrada ?? false,
+              tieneNota: nota != null,
               onNota: onNota,
               onRecargaRuta: onRecargaRuta,
               onEntradaMovil: onEntradaMovil,
               onVerHistorial: onVerHistorial,
+              onVerReporte: onVerReporte,
             ),
           ),
         ],
@@ -272,21 +305,61 @@ class _EnlaceTexto extends StatelessWidget {
   }
 }
 
+class _MenuAccion {
+  final IconData icono;
+  final String texto;
+  final VoidCallback onTap;
+
+  const _MenuAccion(this.icono, this.texto, this.onTap);
+}
+
 class _AccionesFila extends StatelessWidget {
+  final bool cerrada;
+  final bool tieneNota;
   final VoidCallback onNota;
   final VoidCallback onRecargaRuta;
   final VoidCallback onEntradaMovil;
   final VoidCallback onVerHistorial;
+  final VoidCallback onVerReporte;
 
   const _AccionesFila({
+    required this.cerrada,
+    required this.tieneNota,
     required this.onNota,
     required this.onRecargaRuta,
     required this.onEntradaMovil,
     required this.onVerHistorial,
+    required this.onVerReporte,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (cerrada) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: FlotaAccionButton(
+              texto: 'Ver reporte',
+              icon: Icons.assignment_turned_in_outlined,
+              relleno: true,
+              onTap: onVerReporte,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _MenuMas(acciones: [_MenuAccion(Icons.history, 'Ver Historial', onVerHistorial)]),
+        ],
+      );
+    }
+
+    final acciones = <_MenuAccion>[
+      _MenuAccion(Icons.local_shipping_outlined, 'Registrar Recarga en Ruta', onRecargaRuta),
+      _MenuAccion(Icons.assignment_return_outlined, 'Entrada del Móvil', onEntradaMovil),
+      if (tieneNota) _MenuAccion(Icons.assignment_turned_in_outlined, 'Ver reporte', onVerReporte),
+      _MenuAccion(Icons.history, 'Ver Historial', onVerHistorial),
+    ];
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
@@ -300,26 +373,16 @@ class _AccionesFila extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _MenuMas(
-          onRecargaRuta: onRecargaRuta,
-          onEntradaMovil: onEntradaMovil,
-          onVerHistorial: onVerHistorial,
-        ),
+        _MenuMas(acciones: acciones),
       ],
     );
   }
 }
 
 class _MenuMas extends StatelessWidget {
-  final VoidCallback onRecargaRuta;
-  final VoidCallback onEntradaMovil;
-  final VoidCallback onVerHistorial;
+  final List<_MenuAccion> acciones;
 
-  const _MenuMas({
-    required this.onRecargaRuta,
-    required this.onEntradaMovil,
-    required this.onVerHistorial,
-  });
+  const _MenuMas({required this.acciones});
 
   @override
   Widget build(BuildContext context) {
@@ -328,32 +391,56 @@ class _MenuMas extends StatelessWidget {
       icon: const Icon(Icons.more_vert, color: AppColors.steelBlue),
       color: AppColors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onSelected: (v) {
-        if (v == 0) {
-          onRecargaRuta();
-        } else if (v == 1) {
-          onEntradaMovil();
-        } else {
-          onVerHistorial();
-        }
-      },
+      onSelected: (i) => acciones[i].onTap(),
       itemBuilder: (_) => [
-        _item(0, Icons.local_shipping_outlined, 'Registrar Recarga en Ruta'),
-        _item(1, Icons.assignment_return_outlined, 'Entrada del Móvil'),
-        _item(2, Icons.history, 'Ver Historial'),
+        for (int i = 0; i < acciones.length; i++)
+          PopupMenuItem<int>(
+            value: i,
+            child: Row(
+              children: [
+                Icon(acciones[i].icono, size: 17, color: AppColors.steelBlue),
+                const SizedBox(width: 10),
+                Text(acciones[i].texto, style: AppTextStyles.input.copyWith(fontSize: 13.5)),
+              ],
+            ),
+          ),
       ],
     );
   }
+}
 
-  PopupMenuItem<int> _item(int valor, IconData icono, String texto) {
-    return PopupMenuItem<int>(
-      value: valor,
-      child: Row(
-        children: [
-          Icon(icono, size: 17, color: AppColors.steelBlue),
-          const SizedBox(width: 10),
-          Text(texto, style: AppTextStyles.input.copyWith(fontSize: 13.5)),
-        ],
+class _NotaEstadoChip extends StatelessWidget {
+  final NotaRodanteResumen? nota;
+
+  const _NotaEstadoChip({required this.nota});
+
+  @override
+  Widget build(BuildContext context) {
+    final estado = nota?.estado.toUpperCase() ?? '';
+    late final String texto;
+    late final Color color;
+    if (nota == null) {
+      texto = 'Sin carga';
+      color = AppColors.badgeGray;
+    } else if (estado == 'ENTRADA_COMPLETA') {
+      texto = 'Cerrada';
+      color = AppColors.badgeGreen;
+    } else if (estado == 'RECARGA') {
+      texto = 'Recargado';
+      color = AppColors.badgeAmber;
+    } else {
+      texto = 'Con carga';
+      color = AppColors.badgeBlue;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: color),
       ),
     );
   }
@@ -415,18 +502,24 @@ class FlotaAccionButton extends StatelessWidget {
 class _CamionCard extends StatelessWidget {
   final DepositoCamion camion;
   final bool seleccionado;
+  final int asignado;
+  final NotaRodanteResumen? nota;
   final VoidCallback onNota;
   final VoidCallback onRecargaRuta;
   final VoidCallback onEntradaMovil;
   final VoidCallback onVerHistorial;
+  final VoidCallback onVerReporte;
 
   const _CamionCard({
     required this.camion,
     required this.seleccionado,
+    required this.asignado,
+    required this.nota,
     required this.onNota,
     required this.onRecargaRuta,
     required this.onEntradaMovil,
     required this.onVerHistorial,
+    required this.onVerReporte,
   });
 
   @override
@@ -462,47 +555,70 @@ class _CamionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              EstadoCamionBadge(estado: camion.estado),
+              _NotaEstadoChip(nota: nota),
             ],
           ),
           const SizedBox(height: 14),
           CamionStockBar(
             llenos: camion.llenos,
             vacios: camion.vacios,
-            cupo: camion.cupoBase,
+            cupo: asignado,
           ),
           const SizedBox(height: 14),
-          FlotaAccionButton(
-            texto: 'Agregar Stock / Nota Control',
-            icon: Icons.assignment_outlined,
-            relleno: true,
-            onTap: onNota,
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FlotaAccionButton(
-                texto: 'Recarga en Ruta',
-                icon: Icons.local_shipping_outlined,
-                relleno: false,
-                onTap: onRecargaRuta,
-              ),
-              FlotaAccionButton(
-                texto: 'Entrada del Móvil',
-                icon: Icons.assignment_return_outlined,
-                relleno: false,
-                onTap: onEntradaMovil,
-              ),
-              FlotaAccionButton(
-                texto: 'Ver Historial',
-                icon: Icons.history,
-                relleno: false,
-                onTap: onVerHistorial,
-              ),
-            ],
-          ),
+          if (nota?.cerrada ?? false) ...[
+            FlotaAccionButton(
+              texto: 'Ver reporte',
+              icon: Icons.assignment_turned_in_outlined,
+              relleno: true,
+              onTap: onVerReporte,
+            ),
+            const SizedBox(height: 8),
+            FlotaAccionButton(
+              texto: 'Ver Historial',
+              icon: Icons.history,
+              relleno: false,
+              onTap: onVerHistorial,
+            ),
+          ] else ...[
+            FlotaAccionButton(
+              texto: 'Agregar Stock / Nota Control',
+              icon: Icons.assignment_outlined,
+              relleno: true,
+              onTap: onNota,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FlotaAccionButton(
+                  texto: 'Recarga en Ruta',
+                  icon: Icons.local_shipping_outlined,
+                  relleno: false,
+                  onTap: onRecargaRuta,
+                ),
+                FlotaAccionButton(
+                  texto: 'Entrada del Móvil',
+                  icon: Icons.assignment_return_outlined,
+                  relleno: false,
+                  onTap: onEntradaMovil,
+                ),
+                if (nota != null)
+                  FlotaAccionButton(
+                    texto: 'Ver reporte',
+                    icon: Icons.assignment_turned_in_outlined,
+                    relleno: false,
+                    onTap: onVerReporte,
+                  ),
+                FlotaAccionButton(
+                  texto: 'Ver Historial',
+                  icon: Icons.history,
+                  relleno: false,
+                  onTap: onVerHistorial,
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

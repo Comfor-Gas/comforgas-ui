@@ -1035,7 +1035,7 @@ class _VisitaInfoPanel extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     if (ficha.tieneComodatoActivo)
-                      ComodatoBadge(comodatos: ficha.comodatosActivos, compacto: true),
+                      const ComodatoBadge(compacto: true),
                     UltimaBajadaIndicator(fecha: ficha.ultimaBajada, compacto: true),
                   ],
                 ),
@@ -1338,7 +1338,7 @@ class _VisitaRowWide extends StatelessWidget {
               UltimaBajadaIndicator(fecha: ficha.ultimaBajada, compacto: true),
               if (ficha.tieneComodatoActivo) ...[
                 const SizedBox(height: 6),
-                ComodatoBadge(comodatos: ficha.comodatosActivos, compacto: true),
+                const ComodatoBadge(compacto: true),
               ],
             ],
           ),
@@ -1423,7 +1423,7 @@ class _VisitaRowCompact extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (ficha.tieneComodatoActivo)
-                ComodatoBadge(comodatos: ficha.comodatosActivos, compacto: true),
+                const ComodatoBadge(compacto: true),
               if (alerta != null) AlertaVisitaBadge(tipo: alerta),
             ],
           ),

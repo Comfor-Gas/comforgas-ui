@@ -12,14 +12,15 @@ class CamionStockBar extends StatelessWidget {
     super.key,
     required this.llenos,
     required this.vacios,
-    required this.cupo,
+    this.cupo = 0,
     this.compacto = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final progreso = cupo <= 0 ? 0.0 : (llenos / cupo).clamp(0.0, 1.0);
-    final color = progreso >= 0.5
+    final hayReferencia = cupo > 0;
+    final progreso = hayReferencia ? (llenos / cupo).clamp(0.0, 1.0) : 0.0;
+    final colorBarra = progreso >= 0.5
         ? AppColors.badgeGreen
         : (progreso >= 0.25 ? AppColors.badgeAmber : AppColors.error);
 
@@ -30,49 +31,51 @@ class CamionStockBar extends StatelessWidget {
         Row(
           children: [
             Text(
-              '$llenos/$cupo Llenos',
+              hayReferencia ? '$llenos/$cupo Llenos' : '$llenos Llenos',
               style: TextStyle(
-                fontSize: compacto ? 11.5 : 12.5,
+                fontSize: compacto ? 12.5 : 13.5,
                 fontWeight: FontWeight.w800,
-                color: AppColors.steelBlue,
+                color: AppColors.orange,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Text(
               '$vacios Vacíos',
               style: TextStyle(
-                fontSize: compacto ? 11 : 12,
+                fontSize: compacto ? 11.5 : 12.5,
                 fontWeight: FontWeight.w600,
                 color: AppColors.graphiteGray,
               ),
             ),
           ],
         ),
-        SizedBox(height: compacto ? 5 : 7),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Stack(
-            children: [
-              Container(
-                height: compacto ? 7 : 9,
-                decoration: BoxDecoration(
-                  color: AppColors.inputBorder.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: progreso == 0 ? 0.02 : progreso,
-                child: Container(
+        if (hayReferencia) ...[
+          SizedBox(height: compacto ? 5 : 7),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Stack(
+              children: [
+                Container(
                   height: compacto ? 7 : 9,
                   decoration: BoxDecoration(
-                    color: color,
+                    color: AppColors.inputBorder.withOpacity(0.6),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
-              ),
-            ],
+                FractionallySizedBox(
+                  widthFactor: progreso == 0 ? 0.02 : progreso,
+                  child: Container(
+                    height: compacto ? 7 : 9,
+                    decoration: BoxDecoration(
+                      color: colorBarra,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

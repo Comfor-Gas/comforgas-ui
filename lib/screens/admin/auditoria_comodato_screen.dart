@@ -91,7 +91,7 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
   }
 
   int get _totalFaltantes =>
-      _filtrados.fold(0, (a, c) => a + c.cantidadFaltanteTotal);
+      _filtrados.fold(0, (a, c) => a + c.faltante);
 
   int get _conAlerta => _filtrados.where((c) => c.tieneFaltante).length;
 
@@ -203,7 +203,14 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
             const SizedBox(height: 12),
             Text(_error!, textAlign: TextAlign.center, style: AppTextStyles.input),
             const SizedBox(height: 16),
-            OutlinedButton(onPressed: _cargar, child: const Text('Reintentar')),
+            OutlinedButton(
+              onPressed: _cargar,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.steelBlue,
+                side: const BorderSide(color: AppColors.steelBlue),
+              ),
+              child: const Text('Reintentar'),
+            ),
           ],
         ),
       );

@@ -923,7 +923,14 @@ class _ListadoCard extends StatelessWidget {
                 children: [
                   Text(error!, style: AppTextStyles.errorText, textAlign: TextAlign.center),
                   const SizedBox(height: 12),
-                  OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
+                  OutlinedButton(
+                    onPressed: onRetry,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.steelBlue,
+                      side: const BorderSide(color: AppColors.steelBlue),
+                    ),
+                    child: const Text('Reintentar'),
+                  ),
                 ],
               ),
             )

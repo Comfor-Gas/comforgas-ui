@@ -5,7 +5,6 @@ import '../../../theme/app_text_styles.dart';
 
 class ControlComodatoCard extends StatelessWidget {
   final ContratoComodato? contrato;
-  final List<int> comodatosActivosFallback;
   final ControlComodatoDraft? controlRegistrado;
   final bool pendienteSync;
   final bool cargando;
@@ -14,7 +13,6 @@ class ControlComodatoCard extends StatelessWidget {
   const ControlComodatoCard({
     super.key,
     required this.contrato,
-    required this.comodatosActivosFallback,
     required this.controlRegistrado,
     required this.pendienteSync,
     required this.cargando,
@@ -53,7 +51,7 @@ class ControlComodatoCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (_auditado) _buildResumenAuditado() else _buildResumenContrato(),
-          if (!_auditado) ...[
+          if (!_auditado && contrato != null) ...[
             const SizedBox(height: 14),
             _buildBoton(),
           ],
@@ -106,13 +104,6 @@ class ControlComodatoCard extends StatelessWidget {
               ),
             ],
           ),
-          if (_detalleContrato().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              _detalleContrato(),
-              style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-            ),
-          ],
         ],
       ),
     );
@@ -120,30 +111,18 @@ class ControlComodatoCard extends StatelessWidget {
 
   String _tituloContrato() {
     final c = contrato;
-    if (c != null) {
-      final unidad = c.cantidadContratadaTotal == 1 ? 'garrafa' : 'garrafas';
-      return 'Comodato activo: ${c.cantidadContratadaTotal} $unidad';
-    }
-    if (comodatosActivosFallback.isNotEmpty) {
-      final tamanos = comodatosActivosFallback.map((k) => '${k}kg').join(' · ');
-      return 'Comodato activo: $tamanos';
+    if (c != null && c.cantidadContratada > 0) {
+      final unidad = c.cantidadContratada == 1 ? 'garrafa' : 'garrafas';
+      return 'Comodato activo: ${c.cantidadContratada} $unidad de 10 kg';
     }
     return 'Sin contrato de comodato registrado para este cliente.';
   }
 
-  String _detalleContrato() {
-    final c = contrato;
-    if (c == null || c.detalles.isEmpty) return '';
-    return c.detalles
-        .map((d) => '${d.tipoEnvase}: ${d.cantidadContratada}')
-        .join('  ·  ');
-  }
-
   Widget _buildResumenAuditado() {
     final control = controlRegistrado!;
-    final contratada = control.contratadaTotal;
-    final fisica = control.fisicaTotal;
-    final faltante = control.faltanteTotal;
+    final contratada = control.cantidadContratada;
+    final fisica = control.cantidadFisicaActual;
+    final faltante = control.faltante;
 
     final Color colorEstado = faltante > 0 ? AppColors.badgeRed : AppColors.badgeGreen;
     final String textoDif = faltante > 0 ? ' (-$faltante dif.)' : ' (sin dif.)';

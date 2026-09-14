@@ -17,6 +17,7 @@ class VisitaCheckinCard extends StatelessWidget {
   final VisitaEstado estado;
   final DateTime? horaCheckIn;
   final ClienteFicha? ficha;
+  final int? comodatoTotal;
 
   const VisitaCheckinCard({
     super.key,
@@ -25,6 +26,7 @@ class VisitaCheckinCard extends StatelessWidget {
     required this.estado,
     this.horaCheckIn,
     this.ficha,
+    this.comodatoTotal,
   });
 
   @override
@@ -122,7 +124,7 @@ class VisitaCheckinCard extends StatelessWidget {
                       children: [
                         VisitaEstadoChip(estado: estado),
                         if (ficha != null && ficha!.tieneComodatoActivo)
-                          ComodatoBadge(comodatos: ficha!.comodatosActivos, compacto: true),
+                          ComodatoBadge(total: comodatoTotal, compacto: true),
                       ],
                     ),
                     if (ficha != null) ...[

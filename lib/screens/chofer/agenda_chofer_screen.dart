@@ -452,6 +452,10 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                               const SizedBox(height: 12),
                               OutlinedButton(
                                 onPressed: _load,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.steelBlue,
+                                  side: const BorderSide(color: AppColors.steelBlue),
+                                ),
                                 child: const Text('Reintentar'),
                               ),
                             ],
@@ -776,7 +780,7 @@ class _DetalleVisitaSheet extends StatelessWidget {
             children: [
               VisitaEstadoChip(estado: visita.estadoVisita),
               if (ficha.tieneComodatoActivo)
-                ComodatoBadge(comodatos: ficha.comodatosActivos),
+                const ComodatoBadge(),
             ],
           ),
           const SizedBox(height: 12),

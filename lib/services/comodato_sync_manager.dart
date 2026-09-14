@@ -87,7 +87,7 @@ class ComodatoSyncManager {
 
     final draft = _draftDe(pendiente, idVisita);
     try {
-      await repo.registrarControl(idVisita, draft);
+      await repo.registrarControl(draft);
       await _queue.eliminar(pendiente.uuidOffline);
       return true;
     } on NetworkException {
@@ -135,9 +135,10 @@ class ComodatoSyncManager {
       fecha: pendiente.fecha,
       idClienteExt: pendiente.idClienteExt,
       uuidOffline: pendiente.uuidOffline,
-      timestampCaptura: pendiente.timestampCaptura,
+      timestampControl: pendiente.timestampControl,
       observaciones: pendiente.observaciones,
-      detalles: ControlComodatoDraft.detallesDesdeStorage(pendiente.detallesJson),
+      cantidadContratada: pendiente.cantidadContratada,
+      cantidadFisicaActual: pendiente.cantidadFisicaActual,
     );
   }
 

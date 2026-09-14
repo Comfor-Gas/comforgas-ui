@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../local/cobro_offline_service.dart';
 import '../../../local/cobro_pendiente.dart';
+import '../../../models/canje_garrafa.dart';
 import '../../../models/credito_cliente.dart';
 import '../../../models/metodo_pago.dart';
 import '../../../providers/auth_provider.dart';
@@ -28,6 +29,7 @@ class RegistroCobroScreen extends StatefulWidget {
   final String nombreCliente;
   final int montoSugerido;
   final CreditoCliente credito;
+  final List<CanjeGarrafaDraft> canjes;
 
   const RegistroCobroScreen({
     super.key,
@@ -36,6 +38,7 @@ class RegistroCobroScreen extends StatefulWidget {
     required this.nombreCliente,
     required this.montoSugerido,
     this.credito = const CreditoCliente(),
+    this.canjes = const [],
   }) : assert(
           (idVenta == null) != (uuidVentaOffline == null),
           'Informá exactamente uno entre idVenta y uuidVentaOffline',
@@ -240,6 +243,10 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           const SizedBox(height: 14),
         ],
         _ResumenAsignacion(total: _total, asignado: _asignado, restante: _restante),
+        if (widget.canjes.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _CanjesResumen(canjes: widget.canjes),
+        ],
         const SizedBox(height: 16),
         for (int i = 0; i < _lineas.length; i++) _lineaCard(i),
         const SizedBox(height: 4),
@@ -412,12 +419,82 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           const SizedBox(height: 14),
           CobroPendienteIndicator(cantidadEnCola: CobroOfflineService.instance.cantidadPendiente),
         ],
+        if (widget.canjes.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _CanjesResumen(canjes: widget.canjes),
+        ],
         const SizedBox(height: 20),
         PrimaryButton(
           text: 'Continuar',
           onPressed: () => Navigator.of(context).pop(huboExito ? true : null),
         ),
       ],
+    );
+  }
+}
+
+class _CanjesResumen extends StatelessWidget {
+  final List<CanjeGarrafaDraft> canjes;
+
+  const _CanjesResumen({required this.canjes});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.orange.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.sync_problem_outlined, size: 18, color: AppColors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Canje de garrafas en esta parada',
+                  style: AppTextStyles.label.copyWith(fontSize: 14.5, color: AppColors.orange),
+                ),
+              ),
+              Text(
+                canjes.length == 1 ? '1 canje' : '${canjes.length} canjes',
+                style: AppTextStyles.label.copyWith(fontSize: 12.5, color: AppColors.badgeGreen),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Reemplazo de envase dañado, sin cobranza.',
+            style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+          ),
+          const SizedBox(height: 10),
+          for (final c in canjes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.propane_tank_rounded, size: 16, color: AppColors.orange),
+                  const SizedBox(width: 6),
+                  Text(c.etiquetaSku, style: AppTextStyles.label.copyWith(fontSize: 13.5)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      c.descripcionDanio,
+                      style: AppTextStyles.input.copyWith(fontSize: 13, color: AppColors.graphiteGray),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

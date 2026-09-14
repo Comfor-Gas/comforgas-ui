@@ -1,93 +1,66 @@
-import 'dart:convert';
 import '../utils/json_parsing.dart';
 
-class DetalleContratoComodato {
-  final String tipoEnvase;
-  final int cantidadContratada;
-
-  const DetalleContratoComodato({
-    required this.tipoEnvase,
-    required this.cantidadContratada,
-  });
-
-  factory DetalleContratoComodato.fromJson(Map<String, dynamic> json) {
-    return DetalleContratoComodato(
-      tipoEnvase: (json['tipo_envase'] ?? json['tipoEnvase'] ?? '').toString(),
-      cantidadContratada: parseInt(json['cantidad_contratada']) ??
-          parseInt(json['cantidadContratada']) ??
-          0,
-    );
-  }
-}
-
 class ContratoComodato {
-  final int? idContrato;
+  final int? idCliente;
   final int? idClienteExt;
-  final int? version;
-  final List<DetalleContratoComodato> detalles;
-  final int cantidadContratadaTotal;
+  final int cantidadContratada;
+  final bool tieneComodato;
+  final bool comodato10;
+  final bool comodato11;
+  final bool comodato12;
   final String? observaciones;
 
   const ContratoComodato({
-    this.idContrato,
+    this.idCliente,
     this.idClienteExt,
-    this.version,
-    required this.detalles,
-    required this.cantidadContratadaTotal,
+    required this.cantidadContratada,
+    required this.tieneComodato,
+    this.comodato10 = false,
+    this.comodato11 = false,
+    this.comodato12 = false,
     this.observaciones,
   });
 
+  static bool _bool(dynamic v) {
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    if (v is String) {
+      final n = v.trim().toLowerCase();
+      return n == 'true' || n == '1' || n == 'si' || n == 'sí';
+    }
+    return false;
+  }
+
+  static int _sumaDetalles(dynamic detalles) {
+    if (detalles is! List) return 0;
+    var total = 0;
+    for (final d in detalles.whereType<Map<String, dynamic>>()) {
+      total += parseInt(d['cantidad_contratada']) ?? parseInt(d['cantidadContratada']) ?? 0;
+    }
+    return total;
+  }
+
   factory ContratoComodato.fromJson(Map<String, dynamic> json) {
-    final lista = (json['detalles'] as List? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(DetalleContratoComodato.fromJson)
-        .toList();
-    final total = parseInt(json['cantidad_contratada_total']) ??
+    final cantidad = parseInt(json['cantidad_contratada']) ??
+        parseInt(json['cantidadContratada']) ??
+        parseInt(json['cantidad_contratada_total']) ??
         parseInt(json['cantidadContratadaTotal']) ??
-        lista.fold<int>(0, (a, d) => a + d.cantidadContratada);
+        _sumaDetalles(json['detalles']);
+    final comodato10 = _bool(json['comodato_10'] ?? json['comodato10']);
+    final comodato11 = _bool(json['comodato_11'] ?? json['comodato11']);
+    final comodato12 = _bool(json['comodato_12'] ?? json['comodato12']);
     return ContratoComodato(
-      idContrato: parseInt(json['id_contrato']) ?? parseInt(json['idContrato']),
+      idCliente: parseInt(json['id_cliente']) ?? parseInt(json['idCliente']),
       idClienteExt:
           parseInt(json['id_cliente_ext']) ?? parseInt(json['idClienteExt']),
-      version: parseInt(json['numero_version']) ?? parseInt(json['version']),
-      detalles: lista,
-      cantidadContratadaTotal: total,
+      cantidadContratada: cantidad,
+      tieneComodato: json.containsKey('tiene_comodato') || json.containsKey('tieneComodato')
+          ? _bool(json['tiene_comodato'] ?? json['tieneComodato'])
+          : (cantidad > 0 || comodato10 || comodato11 || comodato12),
+      comodato10: comodato10,
+      comodato11: comodato11,
+      comodato12: comodato12,
       observaciones: json['observaciones'] as String?,
-    );
-  }
-}
-
-class DetalleControlComodato {
-  final String tipoEnvase;
-  final int cantidadContratada;
-  final int? cantidadFisicaActual;
-  final int? cantidadFaltante;
-  final bool tieneFaltante;
-  final String estadoConteo;
-
-  const DetalleControlComodato({
-    required this.tipoEnvase,
-    required this.cantidadContratada,
-    this.cantidadFisicaActual,
-    this.cantidadFaltante,
-    required this.tieneFaltante,
-    required this.estadoConteo,
-  });
-
-  factory DetalleControlComodato.fromJson(Map<String, dynamic> json) {
-    return DetalleControlComodato(
-      tipoEnvase: (json['tipo_envase'] ?? json['tipoEnvase'] ?? '').toString(),
-      cantidadContratada: parseInt(json['cantidad_contratada']) ??
-          parseInt(json['cantidadContratada']) ??
-          0,
-      cantidadFisicaActual: parseInt(json['cantidad_fisica_actual']) ??
-          parseInt(json['cantidadFisicaActual']),
-      cantidadFaltante:
-          parseInt(json['cantidad_faltante']) ?? parseInt(json['cantidadFaltante']),
-      tieneFaltante:
-          (json['tiene_faltante'] ?? json['tieneFaltante'] ?? false) == true,
-      estadoConteo:
-          (json['estado_conteo'] ?? json['estadoConteo'] ?? 'PENDIENTE').toString(),
     );
   }
 }
@@ -98,14 +71,12 @@ class ControlComodato {
   final int? idClienteExt;
   final String? idChofer;
   final String? nombreChofer;
-  final DateTime? fechaControl;
-  final DateTime? timestampCaptura;
-  final String? estado;
-  final List<DetalleControlComodato> detalles;
-  final int cantidadContratadaTotal;
-  final int cantidadFisicaTotal;
-  final int cantidadFaltanteTotal;
+  final int cantidadContratada;
+  final int cantidadFisicaActual;
+  final int discrepancia;
   final bool tieneFaltante;
+  final DateTime? timestampControl;
+  final DateTime? timestampRecepcion;
   final String? observaciones;
   final String? uuidOffline;
 
@@ -115,23 +86,34 @@ class ControlComodato {
     this.idClienteExt,
     this.idChofer,
     this.nombreChofer,
-    this.fechaControl,
-    this.timestampCaptura,
-    this.estado,
-    required this.detalles,
-    required this.cantidadContratadaTotal,
-    required this.cantidadFisicaTotal,
-    required this.cantidadFaltanteTotal,
+    required this.cantidadContratada,
+    required this.cantidadFisicaActual,
+    required this.discrepancia,
     required this.tieneFaltante,
+    this.timestampControl,
+    this.timestampRecepcion,
     this.observaciones,
     this.uuidOffline,
   });
 
+  int get faltante => discrepancia > 0 ? discrepancia : 0;
+  int get sobrante => discrepancia < 0 ? -discrepancia : 0;
+
   factory ControlComodato.fromJson(Map<String, dynamic> json) {
-    final lista = (json['detalles'] as List? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(DetalleControlComodato.fromJson)
-        .toList();
+    final contratada = parseInt(json['cantidad_contratada']) ??
+        parseInt(json['cantidadContratada']) ??
+        parseInt(json['cantidad_contratada_total']) ??
+        parseInt(json['cantidadContratadaTotal']) ??
+        0;
+    final fisica = parseInt(json['cantidad_fisica_actual']) ??
+        parseInt(json['cantidadFisicaActual']) ??
+        parseInt(json['cantidad_fisica_total']) ??
+        parseInt(json['cantidadFisicaTotal']) ??
+        0;
+    final discrepancia = parseInt(json['discrepancia']) ??
+        parseInt(json['cantidad_faltante_total']) ??
+        parseInt(json['cantidadFaltanteTotal']) ??
+        (contratada - fisica);
     return ControlComodato(
       idControl: parseInt(json['id_control']) ?? parseInt(json['idControl']),
       idVisita: parseInt(json['id_visita']) ?? parseInt(json['idVisita']),
@@ -139,70 +121,22 @@ class ControlComodato {
           parseInt(json['id_cliente_ext']) ?? parseInt(json['idClienteExt']),
       idChofer: (json['id_chofer'] ?? json['idChofer'])?.toString(),
       nombreChofer: (json['nombre_chofer'] ?? json['nombreChofer']) as String?,
-      fechaControl:
-          parseDate(json['fecha_control']) ?? parseDate(json['fechaControl']),
-      timestampCaptura: parseDate(json['timestamp_captura']) ??
+      cantidadContratada: contratada,
+      cantidadFisicaActual: fisica,
+      discrepancia: discrepancia,
+      tieneFaltante: json.containsKey('tiene_faltante') || json.containsKey('tieneFaltante')
+          ? ContratoComodato._bool(json['tiene_faltante'] ?? json['tieneFaltante'])
+          : discrepancia > 0,
+      timestampControl: parseDate(json['timestamp_control']) ??
+          parseDate(json['timestampControl']) ??
+          parseDate(json['fecha_control']) ??
+          parseDate(json['fechaControl']) ??
+          parseDate(json['timestamp_captura']) ??
           parseDate(json['timestampCaptura']),
-      estado: json['estado'] as String?,
-      detalles: lista,
-      cantidadContratadaTotal: parseInt(json['cantidad_contratada_total']) ??
-          parseInt(json['cantidadContratadaTotal']) ??
-          0,
-      cantidadFisicaTotal: parseInt(json['cantidad_fisica_total']) ??
-          parseInt(json['cantidadFisicaTotal']) ??
-          0,
-      cantidadFaltanteTotal: parseInt(json['cantidad_faltante_total']) ??
-          parseInt(json['cantidadFaltanteTotal']) ??
-          0,
-      tieneFaltante:
-          (json['tiene_faltante'] ?? json['tieneFaltante'] ?? false) == true,
+      timestampRecepcion: parseDate(json['timestamp_recepcion']) ??
+          parseDate(json['timestampRecepcion']),
       observaciones: json['observaciones'] as String?,
       uuidOffline: (json['uuid_offline'] ?? json['uuidOffline']) as String?,
-    );
-  }
-}
-
-class DetalleControlDraft {
-  final String tipoEnvase;
-  final int cantidadContratada;
-  final int? cantidadFisicaActual;
-
-  const DetalleControlDraft({
-    required this.tipoEnvase,
-    required this.cantidadContratada,
-    this.cantidadFisicaActual,
-  });
-
-  bool get contado => cantidadFisicaActual != null;
-
-  int get faltante {
-    final fisica = cantidadFisicaActual;
-    if (fisica == null) return 0;
-    final dif = cantidadContratada - fisica;
-    return dif > 0 ? dif : 0;
-  }
-
-  DetalleControlDraft copyWith({int? cantidadFisicaActual, bool contado = true}) {
-    return DetalleControlDraft(
-      tipoEnvase: tipoEnvase,
-      cantidadContratada: cantidadContratada,
-      cantidadFisicaActual: contado ? cantidadFisicaActual : null,
-    );
-  }
-
-  Map<String, dynamic> toStorageJson() {
-    return {
-      'tipoEnvase': tipoEnvase,
-      'cantidadContratada': cantidadContratada,
-      'cantidadFisicaActual': cantidadFisicaActual,
-    };
-  }
-
-  factory DetalleControlDraft.fromStorageJson(Map<String, dynamic> json) {
-    return DetalleControlDraft(
-      tipoEnvase: (json['tipoEnvase'] ?? '').toString(),
-      cantidadContratada: parseInt(json['cantidadContratada']) ?? 0,
-      cantidadFisicaActual: parseInt(json['cantidadFisicaActual']),
     );
   }
 }
@@ -214,9 +148,10 @@ class ControlComodatoDraft {
   final DateTime? fecha;
   final int? idClienteExt;
   final String uuidOffline;
-  final DateTime timestampCaptura;
+  final DateTime timestampControl;
   final String? observaciones;
-  final List<DetalleControlDraft> detalles;
+  final int cantidadContratada;
+  final int cantidadFisicaActual;
 
   const ControlComodatoDraft({
     this.idVisita,
@@ -225,55 +160,27 @@ class ControlComodatoDraft {
     this.fecha,
     this.idClienteExt,
     required this.uuidOffline,
-    required this.timestampCaptura,
+    required this.timestampControl,
     this.observaciones,
-    required this.detalles,
+    required this.cantidadContratada,
+    required this.cantidadFisicaActual,
   });
 
-  int get contratadaTotal =>
-      detalles.fold(0, (a, d) => a + d.cantidadContratada);
-
-  int get fisicaTotal =>
-      detalles.fold(0, (a, d) => a + (d.cantidadFisicaActual ?? 0));
-
-  int get faltanteTotal => detalles.fold(0, (a, d) => a + d.faltante);
-
-  bool get tieneFaltante => faltanteTotal > 0;
-
-  bool get completo => detalles.every((d) => d.contado);
-
-  factory ControlComodatoDraft.desdeContrato(
-    ContratoComodato contrato, {
-    required String idUsuario,
-    required String uuidOffline,
-    required DateTime timestampCaptura,
-    int? idVisita,
-    int? idAgendaItem,
-    DateTime? fecha,
-    String? observaciones,
-  }) {
-    return ControlComodatoDraft(
-      idVisita: idVisita,
-      idAgendaItem: idAgendaItem,
-      idUsuario: idUsuario,
-      fecha: fecha,
-      idClienteExt: contrato.idClienteExt,
-      uuidOffline: uuidOffline,
-      timestampCaptura: timestampCaptura,
-      observaciones: observaciones,
-      detalles: contrato.detalles
-          .map((d) => DetalleControlDraft(
-                tipoEnvase: d.tipoEnvase,
-                cantidadContratada: d.cantidadContratada,
-                cantidadFisicaActual: d.cantidadContratada,
-              ))
-          .toList(),
-    );
+  int get faltante {
+    final dif = cantidadContratada - cantidadFisicaActual;
+    return dif > 0 ? dif : 0;
   }
+
+  int get sobrante {
+    final dif = cantidadFisicaActual - cantidadContratada;
+    return dif > 0 ? dif : 0;
+  }
+
+  bool get tieneFaltante => faltante > 0;
 
   ControlComodatoDraft copyWith({
     int? idVisita,
-    List<DetalleControlDraft>? detalles,
+    int? cantidadFisicaActual,
     String? observaciones,
   }) {
     return ControlComodatoDraft(
@@ -283,39 +190,22 @@ class ControlComodatoDraft {
       fecha: fecha,
       idClienteExt: idClienteExt,
       uuidOffline: uuidOffline,
-      timestampCaptura: timestampCaptura,
+      timestampControl: timestampControl,
       observaciones: observaciones ?? this.observaciones,
-      detalles: detalles ?? this.detalles,
+      cantidadContratada: cantidadContratada,
+      cantidadFisicaActual: cantidadFisicaActual ?? this.cantidadFisicaActual,
     );
   }
 
   Map<String, dynamic> toRequestJson() {
     return {
-      'detalles': detalles
-          .map((d) => {
-                'tipoEnvase': d.tipoEnvase,
-                if (d.cantidadFisicaActual != null)
-                  'cantidadFisicaActual': d.cantidadFisicaActual,
-              })
-          .toList(),
-      'timestampCaptura': timestampCaptura.toUtc().toIso8601String(),
-      'uuidOffline': uuidOffline,
+      if (idVisita != null) 'id_visita': idVisita,
+      'cantidad_contratada': cantidadContratada,
+      'cantidad_fisica_actual': cantidadFisicaActual,
+      'timestamp_control': timestampControl.toUtc().toIso8601String(),
+      'uuid_offline': uuidOffline,
       if (observaciones != null && observaciones!.trim().isNotEmpty)
         'observaciones': observaciones!.trim(),
     };
-  }
-
-  String detallesStorageJson() {
-    return jsonEncode(detalles.map((d) => d.toStorageJson()).toList());
-  }
-
-  static List<DetalleControlDraft> detallesDesdeStorage(String raw) {
-    if (raw.isEmpty) return const [];
-    final decoded = jsonDecode(raw);
-    if (decoded is! List) return const [];
-    return decoded
-        .whereType<Map<String, dynamic>>()
-        .map(DetalleControlDraft.fromStorageJson)
-        .toList();
   }
 }

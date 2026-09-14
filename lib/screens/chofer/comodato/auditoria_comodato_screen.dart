@@ -9,7 +9,7 @@ import '../../../widgets/chofer/comodato/discrepancia_indicator.dart';
 import '../../../widgets/primary_button.dart';
 
 typedef GuardarControlComodato = Future<void> Function(
-  List<DetalleControlDraft> detalles,
+  int cantidadFisicaActual,
   String? observaciones,
 );
 
@@ -32,27 +32,16 @@ class AuditoriaComodatoScreen extends StatefulWidget {
 }
 
 class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
-  late final Map<String, int> _contratadaPorTipo;
-  late final Map<String, int> _fisicaPorTipo;
-  late final List<String> _tipos;
+  late int _contratada;
+  late int _fisica;
   late final TextEditingController _obsController;
   bool _guardando = false;
 
   @override
   void initState() {
     super.initState();
-    _tipos = widget.contrato.detalles.map((d) => d.tipoEnvase).toList();
-    _contratadaPorTipo = {
-      for (final d in widget.contrato.detalles) d.tipoEnvase: d.cantidadContratada,
-    };
-    final previo = <String, int>{
-      for (final d in widget.controlPrevio?.detalles ?? const [])
-        if (d.cantidadFisicaActual != null) d.tipoEnvase: d.cantidadFisicaActual!,
-    };
-    _fisicaPorTipo = {
-      for (final d in widget.contrato.detalles)
-        d.tipoEnvase: previo[d.tipoEnvase] ?? d.cantidadContratada,
-    };
+    _contratada = widget.contrato.cantidadContratada;
+    _fisica = widget.controlPrevio?.cantidadFisicaActual ?? _contratada;
     _obsController = TextEditingController(
       text: widget.controlPrevio?.observaciones ?? '',
     );
@@ -64,37 +53,22 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
     super.dispose();
   }
 
-  int get _faltanteTotal {
-    var total = 0;
-    for (final tipo in _tipos) {
-      final dif = (_contratadaPorTipo[tipo] ?? 0) - (_fisicaPorTipo[tipo] ?? 0);
-      if (dif > 0) total += dif;
-    }
-    return total;
+  int get _faltante {
+    final dif = _contratada - _fisica;
+    return dif > 0 ? dif : 0;
   }
 
-  int get _sobranteTotal {
-    var total = 0;
-    for (final tipo in _tipos) {
-      final dif = (_fisicaPorTipo[tipo] ?? 0) - (_contratadaPorTipo[tipo] ?? 0);
-      if (dif > 0) total += dif;
-    }
-    return total;
+  int get _sobrante {
+    final dif = _fisica - _contratada;
+    return dif > 0 ? dif : 0;
   }
 
   Future<void> _guardar() async {
     if (_guardando) return;
     setState(() => _guardando = true);
     final obs = _obsController.text.trim();
-    final detalles = _tipos
-        .map((tipo) => DetalleControlDraft(
-              tipoEnvase: tipo,
-              cantidadContratada: _contratadaPorTipo[tipo] ?? 0,
-              cantidadFisicaActual: _fisicaPorTipo[tipo] ?? 0,
-            ))
-        .toList();
     try {
-      await widget.onGuardar(detalles, obs.isEmpty ? null : obs);
+      await widget.onGuardar(_fisica, obs.isEmpty ? null : obs);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ComodatoRepositoryException catch (e) {
@@ -134,25 +108,13 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _Seccion(
-                      titulo: 'Conteo físico por tipo de envase',
-                      child: Column(
-                        children: [
-                          for (final tipo in _tipos) ...[
-                            _FilaTipo(
-                              tipoEnvase: tipo,
-                              cantidadContratada: _contratadaPorTipo[tipo] ?? 0,
-                              cantidadFisica: _fisicaPorTipo[tipo] ?? 0,
-                              enabled: !_guardando,
-                              onChanged: (v) => setState(() => _fisicaPorTipo[tipo] = v),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ],
-                      ),
+                      titulo: 'Conteo físico de garrafas en comodato',
+                      child: _buildContador(),
                     ),
+                    const SizedBox(height: 12),
                     DiscrepanciaIndicator(
-                      faltanteTotal: _faltanteTotal,
-                      sobranteTotal: _sobranteTotal,
+                      faltanteTotal: _faltante,
+                      sobranteTotal: _sobrante,
                     ),
                     const SizedBox(height: 20),
                     _Seccion(
@@ -175,6 +137,45 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildContador() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.propane_tank_rounded, size: 18, color: AppColors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Garrafas de 10 kg',
+                  style: AppTextStyles.label.copyWith(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Contratadas en sistema: $_contratada',
+            style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+          ),
+          const SizedBox(height: 12),
+          ContadorEnvases(
+            value: _fisica,
+            enabled: !_guardando,
+            onChanged: (v) => setState(() => _fisica = v),
+          ),
+        ],
       ),
     );
   }
@@ -222,77 +223,6 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
               'Si no hay señal, el control se guarda en el dispositivo y se sincroniza automáticamente al recuperar conexión.',
               style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilaTipo extends StatelessWidget {
-  final String tipoEnvase;
-  final int cantidadContratada;
-  final int cantidadFisica;
-  final bool enabled;
-  final ValueChanged<int> onChanged;
-
-  const _FilaTipo({
-    required this.tipoEnvase,
-    required this.cantidadContratada,
-    required this.cantidadFisica,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final faltante = cantidadContratada - cantidadFisica;
-    final Color colorDif;
-    if (faltante > 0) {
-      colorDif = AppColors.badgeRed;
-    } else if (faltante < 0) {
-      colorDif = AppColors.badgeAmber;
-    } else {
-      colorDif = AppColors.badgeGreen;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.propane_tank_rounded, size: 18, color: AppColors.orange),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  tipoEnvase,
-                  style: AppTextStyles.label.copyWith(fontSize: 14),
-                ),
-              ),
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(color: colorDif, shape: BoxShape.circle),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Contratadas en sistema: $cantidadContratada',
-            style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-          ),
-          const SizedBox(height: 12),
-          ContadorEnvases(
-            value: cantidadFisica,
-            enabled: enabled,
-            onChanged: onChanged,
           ),
         ],
       ),

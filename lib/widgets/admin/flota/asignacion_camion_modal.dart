@@ -62,7 +62,6 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
   bool _guardando = false;
 
   int get _total => _desglose.values.fold(0, (a, b) => a + b);
-  bool get _sumaCorrecta => _total == kCupoBaseCamion;
 
   @override
   void initState() {
@@ -71,9 +70,6 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
     _choferId = widget.camionInicial?.repartidor?.id;
     for (final p in widget.productos) {
       _desglose[p.idProducto] = 0;
-    }
-    if (widget.productos.isNotEmpty) {
-      _desglose[widget.productos.first.idProducto] = kCupoBaseCamion;
     }
   }
 
@@ -87,7 +83,7 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
   Future<void> _confirmar() async {
     final camion = _camionSeleccionado;
     final choferId = _choferId;
-    if (camion == null || choferId == null || !_sumaCorrecta || _guardando) return;
+    if (camion == null || choferId == null || _guardando) return;
 
     final items = _desglose.entries
         .where((e) => e.value > 0)
@@ -128,7 +124,7 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Vinculá un chofer a un camión y despachá el cupo base de $kCupoBaseCamion garrafas.',
+                'Vinculá un chofer a un camión y despachá su carga inicial.',
                 style: AppTextStyles.desktopSubtitle,
               ),
               const SizedBox(height: 20),
@@ -161,17 +157,15 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
                 ],
                 onChanged: (id) => setState(() => _camionId = id),
               ),
-              const SizedBox(height: 16),
-              _CampoBloqueado(total: kCupoBaseCamion),
               const SizedBox(height: 18),
-              const FlotaCampoLabel('Carga Inicial Predeterminada'),
+              const FlotaCampoLabel('Carga Inicial'),
               _DesgloseSkus(
                 productos: widget.productos,
                 desglose: _desglose,
                 onCambiar: (id, valor) => setState(() => _desglose[id] = valor),
               ),
               const SizedBox(height: 12),
-              _TotalDesglose(total: _total, objetivo: kCupoBaseCamion),
+              _TotalDesglose(total: _total),
               const SizedBox(height: 22),
               Row(
                 children: [
@@ -188,10 +182,7 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
                       texto: 'Confirmar y Despachar Camión',
                       icono: Icons.local_shipping_outlined,
                       cargando: _guardando,
-                      onTap: (_camionId != null &&
-                              _choferId != null &&
-                              _sumaCorrecta &&
-                              !_guardando)
+                      onTap: (_camionId != null && _choferId != null && !_guardando)
                           ? _confirmar
                           : null,
                     ),
@@ -201,40 +192,6 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CampoBloqueado extends StatelessWidget {
-  final int total;
-
-  const _CampoBloqueado({required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.lock_outline, size: 18, color: AppColors.graphiteGray),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Stock Inicial Total: $total Garrafas (Solo Lectura)',
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.graphiteGray,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -273,7 +230,6 @@ class _DesgloseSkus extends StatelessWidget {
               icono: Icons.propane_tank_outlined,
               acento: AppColors.orange,
               valor: desglose[p.idProducto] ?? 0,
-              maximo: kCupoBaseCamion,
               editable: true,
               onChanged: (valor) => onCambiar(p.idProducto, valor),
             ),
@@ -285,27 +241,20 @@ class _DesgloseSkus extends StatelessWidget {
 
 class _TotalDesglose extends StatelessWidget {
   final int total;
-  final int objetivo;
 
-  const _TotalDesglose({required this.total, required this.objetivo});
+  const _TotalDesglose({required this.total});
 
   @override
   Widget build(BuildContext context) {
-    final correcto = total == objetivo;
-    final color = correcto ? AppColors.badgeGreen : AppColors.error;
-    final mensaje = correcto
-        ? 'Carga estándar calculada para ruta predeterminada'
-        : (total > objetivo
-            ? 'La suma supera el cupo. Ajustá el desglose a $objetivo.'
-            : 'Faltan ${objetivo - total} para completar el cupo de $objetivo.');
+    final vacio = total == 0;
+    final color = vacio ? AppColors.graphiteGray : AppColors.badgeGreen;
+    final mensaje = vacio
+        ? 'Ingresá la carga inicial por tipo (opcional).'
+        : 'Total de carga inicial a despachar';
 
     return Row(
       children: [
-        Icon(
-          correcto ? Icons.check_circle_outline : Icons.error_outline,
-          size: 17,
-          color: color,
-        ),
+        Icon(Icons.inventory_2_outlined, size: 17, color: color),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -314,8 +263,8 @@ class _TotalDesglose extends StatelessWidget {
           ),
         ),
         Text(
-          '$total / $objetivo',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color),
+          '$total',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color),
         ),
       ],
     );

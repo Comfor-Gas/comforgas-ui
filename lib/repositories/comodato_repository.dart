@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import '../data/mock_comodato_data.dart';
 import '../models/control_comodato.dart';
 import '../utils/json_parsing.dart';
 import 'network_exception.dart';
@@ -24,11 +23,6 @@ class ComodatoRepository {
   };
 
   Future<ContratoComodato?> getContratoCliente(int idClienteExt) async {
-    if (kComodatoMock) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      return mockContratoComodato(idClienteExt);
-    }
-
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.comodatoClientePath}/$idClienteExt',
     );
@@ -69,10 +63,6 @@ class ComodatoRepository {
   }
 
   Future<ControlComodato?> getControlDeVisita(int idVisita) async {
-    if (kComodatoMock) {
-      return null;
-    }
-
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaComodatoSuffix}',
     );
@@ -112,18 +102,8 @@ class ComodatoRepository {
     );
   }
 
-  Future<ControlComodato> registrarControl(
-    int idVisita,
-    ControlComodatoDraft draft,
-  ) async {
-    if (kComodatoMock) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return mockControlDesdeDraft(draft);
-    }
-
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaComodatoSuffix}',
-    );
+  Future<ControlComodato> registrarControl(ControlComodatoDraft draft) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.comodatoControlPath}');
 
     http.Response response;
     try {
@@ -164,7 +144,7 @@ class ComodatoRepository {
     if (code == 404) {
       throw ComodatoRepositoryException(
         _mensajeError(response.body) ??
-            'No se encontró la visita o el contrato de comodato vigente.',
+            'No se encontró la visita para registrar el control.',
       );
     }
 
@@ -183,11 +163,6 @@ class ComodatoRepository {
     int page = 0,
     int size = 200,
   }) async {
-    if (kComodatoMock) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      return mockAuditoriaComodato(soloFaltantes: soloFaltantes);
-    }
-
     final params = <String, String>{
       'soloFaltantes': soloFaltantes.toString(),
       'page': '$page',

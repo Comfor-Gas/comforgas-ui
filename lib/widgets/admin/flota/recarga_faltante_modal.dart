@@ -50,9 +50,8 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
   final _obsCtrl = TextEditingController();
   bool _guardando = false;
 
-  int get _faltante => widget.camion.faltante;
   int get _total => _desglose.values.fold(0, (a, b) => a + b);
-  bool get _valido => _total > 0 && _total <= _faltante;
+  bool get _valido => _total > 0;
 
   @override
   void initState() {
@@ -60,25 +59,12 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
     for (final p in widget.productos) {
       _desglose[p.idProducto] = 0;
     }
-    if (widget.productos.isNotEmpty && _faltante > 0) {
-      _desglose[widget.productos.first.idProducto] = _faltante;
-    }
   }
 
   @override
   void dispose() {
     _obsCtrl.dispose();
     super.dispose();
-  }
-
-  void _completarFaltante() {
-    if (widget.productos.isEmpty) return;
-    setState(() {
-      for (final p in widget.productos) {
-        _desglose[p.idProducto] = 0;
-      }
-      _desglose[widget.productos.first.idProducto] = _faltante;
-    });
   }
 
   Future<void> _confirmar() async {
@@ -125,39 +111,9 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                 style: AppTextStyles.desktopSubtitle,
               ),
               const SizedBox(height: 18),
-              _ResumenCupo(
-                cupo: widget.camion.cupoBase,
-                lleno: widget.camion.llenos,
-                faltante: _faltante,
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Cantidad a recargar por tipo de garrafa',
-                      style: AppTextStyles.label.copyWith(fontSize: 13),
-                    ),
-                  ),
-                  if (_faltante > 0)
-                    TextButton.icon(
-                      onPressed: _completarFaltante,
-                      icon: const Icon(Icons.auto_fix_high, size: 16, color: AppColors.orange),
-                      label: Text(
-                        'Completar faltante ($_faltante)',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.orange,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                ],
+              Text(
+                'Cantidad a recargar por tipo de garrafa',
+                style: AppTextStyles.label.copyWith(fontSize: 13),
               ),
               const SizedBox(height: 12),
               if (widget.productos.isEmpty)
@@ -179,7 +135,6 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                           icono: Icons.propane_tank_outlined,
                           acento: AppColors.orange,
                           valor: _desglose[p.idProducto] ?? 0,
-                          maximo: _faltante > 0 ? _faltante : 0,
                           editable: true,
                           onChanged: (valor) =>
                               setState(() => _desglose[p.idProducto] = valor),
@@ -188,7 +143,7 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                   ],
                 ),
               const SizedBox(height: 12),
-              _TotalRecarga(total: _total, faltante: _faltante),
+              _TotalRecarga(total: _total),
               const SizedBox(height: 18),
               Text(
                 'Observaciones del Operador de Bodega',
@@ -245,107 +200,22 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
   }
 }
 
-class _ResumenCupo extends StatelessWidget {
-  final int cupo;
-  final int lleno;
-  final int faltante;
-
-  const _ResumenCupo({
-    required this.cupo,
-    required this.lleno,
-    required this.faltante,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Row(
-        children: [
-          _DatoCupo(etiqueta: 'Cupo Total', valor: '$cupo'),
-          _SeparadorCupo(),
-          _DatoCupo(etiqueta: 'Stock Lleno', valor: '$lleno'),
-          _SeparadorCupo(),
-          _DatoCupo(etiqueta: 'Faltante', valor: '$faltante', acento: AppColors.orange),
-        ],
-      ),
-    );
-  }
-}
-
-class _DatoCupo extends StatelessWidget {
-  final String etiqueta;
-  final String valor;
-  final Color? acento;
-
-  const _DatoCupo({required this.etiqueta, required this.valor, this.acento});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            etiqueta,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.graphiteGray,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            valor,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: acento ?? AppColors.steelBlue,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SeparadorCupo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 34, color: AppColors.inputBorder);
-  }
-}
-
 class _TotalRecarga extends StatelessWidget {
   final int total;
-  final int faltante;
 
-  const _TotalRecarga({required this.total, required this.faltante});
+  const _TotalRecarga({required this.total});
 
   @override
   Widget build(BuildContext context) {
-    final excede = total > faltante;
     final vacio = total == 0;
-    final color = excede
-        ? AppColors.error
-        : (vacio ? AppColors.graphiteGray : AppColors.badgeGreen);
-    final mensaje = excede
-        ? 'La recarga supera el faltante de $faltante.'
-        : (vacio
-            ? 'Ingresá la cantidad por tipo de garrafa.'
-            : 'Total a recargar en esta operación');
+    final color = vacio ? AppColors.graphiteGray : AppColors.badgeGreen;
+    final mensaje = vacio
+        ? 'Ingresá la cantidad por tipo de garrafa.'
+        : 'Total a recargar en esta operación';
 
     return Row(
       children: [
-        Icon(
-          excede ? Icons.error_outline : Icons.inventory_2_outlined,
-          size: 17,
-          color: color,
-        ),
+        Icon(Icons.inventory_2_outlined, size: 17, color: color),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

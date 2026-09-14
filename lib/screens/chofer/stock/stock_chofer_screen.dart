@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../data/mock_stock_chofer.dart';
-import '../../../models/carga_chofer.dart';
-import '../../../models/stock_camion.dart';
+import '../../../models/stock_rodante_chofer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/network_exception.dart';
-import '../../../repositories/stock_repository.dart';
+import '../../../repositories/stock_rodante_repository.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
-import '../../../widgets/chofer/stock/carga_chofer_tile.dart';
+import '../../../widgets/chofer/stock/desglose_tipo_card.dart';
 import '../../../widgets/chofer/stock/stock_disponible_card.dart';
 
 class StockChoferScreen extends StatefulWidget {
@@ -22,7 +20,8 @@ class StockChoferScreen extends StatefulWidget {
 class _StockChoferScreenState extends State<StockChoferScreen> {
   bool _loading = true;
   String? _error;
-  StockCamion? _stock;
+  bool _sinCarga = false;
+  StockRodanteChofer? _stock;
 
   @override
   void initState() {
@@ -35,12 +34,21 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
       _loading = true;
       _error = null;
     });
-    final apiClient = context.read<AuthProvider>().apiClient;
+    final auth = context.read<AuthProvider>();
+    final idUsuario = auth.user?.id;
+    if (idUsuario == null || idUsuario.isEmpty) {
+      setState(() {
+        _error = 'No pudimos identificar tu usuario. Volvé a iniciar sesión.';
+        _loading = false;
+      });
+      return;
+    }
     try {
-      final stock = await StockRepository(apiClient).getStockMiCamion();
+      final stock = await StockRodanteRepository(auth.apiClient).getMiStock(idUsuario: idUsuario);
       if (!mounted) return;
       setState(() {
         _stock = stock;
+        _sinCarga = stock == null;
         _loading = false;
       });
     } on NetworkException {
@@ -49,7 +57,7 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
         _error = 'Sin conexión. No pudimos actualizar el stock de tu camión.';
         _loading = false;
       });
-    } on StockRepositoryException catch (e) {
+    } on StockRodanteRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
@@ -88,9 +96,17 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
       return const Center(child: CircularProgressIndicator(color: AppColors.orange));
     }
 
-    final cargas = kStockChoferMovMock ? mockCargasChofer() : const <CargaChofer>[];
-    final inicial = cargas.where((c) => c.inicial).toList();
-    final recargas = cargas.where((c) => !c.inicial).toList();
+    final stock = _stock;
+    final productos = stock?.ordenados ?? const <StockRodanteProducto>[];
+
+    final cargaInicial = [
+      for (final p in productos)
+        if (p.llenosSalida > 0) DesgloseTipoItem(etiqueta: p.etiqueta, cantidad: p.llenosSalida),
+    ];
+    final recargas = [
+      for (final p in productos)
+        if (p.recargasLlenos > 0) DesgloseTipoItem(etiqueta: p.etiqueta, cantidad: p.recargasLlenos),
+    ];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
@@ -99,30 +115,27 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
           _AvisoError(mensaje: _error!),
           const SizedBox(height: 16),
         ],
-        if (_stock != null)
-          StockDisponibleCard(stock: _stock!)
-        else if (_error == null)
-          _VacioCard(),
-        const SizedBox(height: 22),
-        _TituloSeccion(
-          icono: Icons.assignment_turned_in_outlined,
-          texto: 'Carga inicial',
-        ),
-        const SizedBox(height: 10),
-        if (inicial.isEmpty)
-          _SinDatos(texto: 'Todavía no hay una carga inicial publicada para hoy.')
-        else
-          for (final c in inicial) CargaChoferTile(carga: c),
-        const SizedBox(height: 22),
-        _TituloSeccion(
-          icono: Icons.add_road_outlined,
-          texto: 'Recargas recibidas',
-        ),
-        const SizedBox(height: 10),
-        if (recargas.isEmpty)
-          _SinDatos(texto: 'No recibiste recargas en ruta hoy.')
-        else
-          for (final c in recargas) CargaChoferTile(carga: c),
+        if (_sinCarga && _error == null)
+          _VacioCard()
+        else ...[
+          StockDisponibleCard(productos: productos),
+          const SizedBox(height: 22),
+          _TituloSeccion(icono: Icons.assignment_turned_in_outlined, texto: 'Carga inicial'),
+          const SizedBox(height: 10),
+          DesgloseTipoCard(
+            items: cargaInicial,
+            total: stock?.totalCargaInicial ?? 0,
+            mensajeVacio: 'Todavía no hay una carga inicial publicada para hoy.',
+          ),
+          const SizedBox(height: 22),
+          _TituloSeccion(icono: Icons.add_road_outlined, texto: 'Recargas recibidas'),
+          const SizedBox(height: 10),
+          DesgloseTipoCard(
+            items: recargas,
+            total: stock?.totalRecargas ?? 0,
+            mensajeVacio: 'No recibiste recargas en ruta hoy.',
+          ),
+        ],
       ],
     );
   }
@@ -163,28 +176,6 @@ class _TituloSeccion extends StatelessWidget {
   }
 }
 
-class _SinDatos extends StatelessWidget {
-  final String texto;
-
-  const _SinDatos({required this.texto});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Text(
-        texto,
-        style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-      ),
-    );
-  }
-}
-
 class _VacioCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -200,7 +191,7 @@ class _VacioCard extends StatelessWidget {
           const Icon(Icons.inventory_2_outlined, size: 44, color: AppColors.inputHint),
           const SizedBox(height: 12),
           Text(
-            'No hay un camión con stock asignado a tu usuario.',
+            'Todavía no tenés una carga asignada para hoy.',
             textAlign: TextAlign.center,
             style: AppTextStyles.input.copyWith(color: AppColors.graphiteGray),
           ),

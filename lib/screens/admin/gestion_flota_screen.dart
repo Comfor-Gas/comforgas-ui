@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/responsive.dart';
-import '../../data/estados_garrafa_ref.dart';
 import '../../data/mock_flota_data.dart';
 import '../../models/deposito_camion.dart';
 import '../../models/movimiento_stock.dart';
@@ -13,6 +12,7 @@ import '../../providers/auth_provider.dart';
 import '../../repositories/catalogo_repository.dart';
 import '../../repositories/flota_repository.dart';
 import '../../repositories/network_exception.dart';
+import '../../repositories/stock_rodante_admin_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/flota/asignacion_camion_modal.dart';
@@ -23,6 +23,7 @@ import '../../widgets/admin/flota/flota_tabla.dart';
 import '../../widgets/admin/flota/historial_recargas_panel.dart';
 import '../../widgets/admin/flota/nota_control_stock_modal.dart';
 import '../../widgets/admin/flota/recarga_faltante_modal.dart';
+import '../../widgets/admin/flota/reporte_cuadre_modal.dart';
 
 class GestionFlotaScreen extends StatefulWidget {
   const GestionFlotaScreen({super.key});
@@ -34,6 +35,7 @@ class GestionFlotaScreen extends StatefulWidget {
 class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   late final FlotaRepository _flotaRepo;
   late final CatalogoRepository _catalogoRepo;
+  late final StockRodanteAdminRepository _rodanteRepo;
 
   final _patenteCtrl = TextEditingController();
   final _choferCtrl = TextEditingController();
@@ -45,8 +47,10 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   List<DepositoCamion> _camiones = [];
   List<UsuarioModel> _choferes = [];
   List<ProductoCatalogo> _productos = [];
-  EstadosGarrafaRef _estadosRef = const EstadosGarrafaRef();
   int _vaciasRetornadasHoy = 0;
+  Map<String, int> _asignadoPorChofer = {};
+  Map<String, NotaRodanteResumen> _notaPorChofer = {};
+  DateTime _fecha = DateTime.now();
 
   @override
   void initState() {
@@ -54,6 +58,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     final apiClient = context.read<AuthProvider>().apiClient;
     _flotaRepo = FlotaRepository(apiClient);
     _catalogoRepo = CatalogoRepository(apiClient);
+    _rodanteRepo = StockRodanteAdminRepository(apiClient);
     _patenteCtrl.addListener(() => setState(() {}));
     _choferCtrl.addListener(() => setState(() {}));
     _cargar();
@@ -73,12 +78,26 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     });
 
     try {
-      final resumen = await _flotaRepo.getResumenFlota();
+      final resumen = await _flotaRepo.getResumenFlota(fecha: _fecha);
       await _cargarCatalogos();
+      Map<String, int> asignado = {};
+      Map<String, NotaRodanteResumen> notas = {};
+      try {
+        asignado = await _rodanteRepo.asignadoLlenosPorChofer(_fecha);
+        for (final n in await _rodanteRepo.notasDelDia(_fecha)) {
+          final id = n.idUsuario;
+          if (id != null && id.isNotEmpty) notas[id] = n;
+        }
+      } catch (_) {
+        asignado = {};
+        notas = {};
+      }
       if (!mounted) return;
       setState(() {
         _camiones = resumen.camiones;
         _vaciasRetornadasHoy = resumen.vaciasRetornadasHoy;
+        _asignadoPorChofer = asignado;
+        _notaPorChofer = notas;
         _modoEjemplo = false;
         _loading = false;
       });
@@ -109,11 +128,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
     }
     if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
-    try {
-      _estadosRef = EstadosGarrafaRef.desde(await _flotaRepo.listarEstadosGarrafa());
-    } catch (_) {
-      _estadosRef = const EstadosGarrafaRef();
-    }
   }
 
   List<UsuarioModel> _choferesDesdeCamiones() {
@@ -135,10 +149,54 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       _productos = productosFlotaDeEjemplo();
       _choferes = _choferesDesdeCamiones();
       _vaciasRetornadasHoy = _camiones.fold(0, (a, c) => a + c.vacios);
+      _asignadoPorChofer = {};
+      _notaPorChofer = {};
       _modoEjemplo = true;
       _aviso = mensaje;
       _loading = false;
     });
+  }
+
+  Future<void> _elegirFecha() async {
+    final elegida = await showDatePicker(
+      context: context,
+      initialDate: _fecha,
+      firstDate: DateTime(DateTime.now().year - 1),
+      lastDate: DateTime.now().add(const Duration(days: 7)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.orange,
+              onPrimary: AppColors.white,
+              onSurface: AppColors.steelBlue,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (elegida == null) return;
+    final distinta = elegida.year != _fecha.year ||
+        elegida.month != _fecha.month ||
+        elegida.day != _fecha.day;
+    if (distinta) {
+      setState(() => _fecha = elegida);
+      _cargar();
+    }
+  }
+
+  void _abrirReporte(DepositoCamion camion) {
+    final id = camion.repartidor?.id;
+    final nota = (id != null && id.isNotEmpty) ? _notaPorChofer[id] : null;
+    if (nota == null) {
+      _mostrarSnack(
+        'No hay una nota de stock para este camión en la fecha seleccionada.',
+        error: true,
+      );
+      return;
+    }
+    ReporteCuadreModal.mostrar(context, cargar: () => _rodanteRepo.getCuadre(nota.idNota));
   }
 
   List<DepositoCamion> get _camionesFiltrados {
@@ -189,9 +247,29 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     try {
       await _flotaRepo.asignarChofer(camion, repartidorId: choferId);
       if (items.isNotEmpty) {
-        await _flotaRepo.recargarCamion(
-          camion.id,
-          items: items,
+        final dominio = camion.patente;
+        if (dominio == null || dominio.isEmpty) {
+          _mostrarSnack(
+            'Camión asignado. Cargá la patente del camión para poder despachar el stock.',
+            error: true,
+          );
+          await _cargar();
+          return true;
+        }
+        final rodanteItems = [
+          for (final i in items)
+            {
+              'idProducto': (i['productoId'] ?? i['idProducto'] ?? '').toString(),
+              'sku': _skuDeProducto((i['productoId'] ?? i['idProducto'] ?? '').toString()),
+              'llenosSalida': (i['cantidad'] as int?) ?? 0,
+              'vaciosSalida': 0,
+            },
+        ];
+        await _rodanteRepo.asignarCargaInicial(
+          idUsuario: choferId,
+          dominioVehiculo: dominio,
+          fecha: DateTime.now(),
+          items: rodanteItems,
           observaciones: 'Carga inicial de despacho',
         );
       }
@@ -201,10 +279,25 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     } on FlotaRepositoryException catch (e) {
       _mostrarSnack(e.message, error: true);
       return false;
+    } on StockRodanteAdminException catch (e) {
+      _mostrarSnack(e.message, error: true);
+      return false;
+    } on NetworkException {
+      _mostrarSnack('Sin conexión: no se pudo completar la asignación.', error: true);
+      return false;
     } catch (_) {
       _mostrarSnack('No se pudo completar la asignación.', error: true);
       return false;
     }
+  }
+
+  String _skuDeProducto(String idProducto) {
+    for (final p in _productos) {
+      if (p.idProducto == idProducto) {
+        return p.sku.isNotEmpty ? p.sku : idProducto;
+      }
+    }
+    return idProducto;
   }
 
   void _actualizarLocalAsignacion(
@@ -239,21 +332,38 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       context,
       camion: camion,
       productos: _productos,
+      fechaInicial: _fecha,
       onConfirmar: (draft) => _confirmarNotaControl(camion, draft),
     );
   }
 
   Future<bool> _confirmarNotaControl(DepositoCamion camion, NotaControlStockDraft draft) async {
-    final items = draft.cargaItems(
-      llenaId: _estadosRef.llenaId,
-      vaciaId: _estadosRef.vaciaId,
-    );
-    if (items.isEmpty) {
-      _mostrarSnack('Ingresá al menos una garrafa para registrar la carga.', error: true);
+    final idUsuario = camion.repartidor?.id;
+    final dominio = camion.patente;
+    if (idUsuario == null || idUsuario.isEmpty) {
+      _mostrarSnack('Asigná un chofer al camión antes de cargar el stock.', error: true);
+      return false;
+    }
+    if (dominio == null || dominio.isEmpty) {
+      _mostrarSnack('El camión no tiene patente/dominio cargado.', error: true);
       return false;
     }
 
-    final total = items.fold<int>(0, (a, i) => a + ((i['cantidad'] as int?) ?? 0));
+    final items = [
+      for (final l in draft.lineas)
+        if (l.llenos > 0 || l.vacios > 0)
+          {
+            'idProducto': l.producto.idProducto,
+            'sku': l.producto.sku,
+            'llenosSalida': l.llenos,
+            'vaciosSalida': l.vacios,
+          },
+    ];
+    if (items.isEmpty) {
+      _mostrarSnack('Ingresá al menos una garrafa para asignar la carga.', error: true);
+      return false;
+    }
+
     if (_modoEjemplo) {
       setState(() {
         _camiones = [
@@ -264,26 +374,31 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
               c,
         ];
       });
-      _mostrarSnack('Nota de control registrada (ejemplo).');
+      _mostrarSnack('Carga inicial asignada (ejemplo).');
       return true;
     }
     try {
-      final movimientos = await _flotaRepo.recargarCamion(
-        camion.id,
+      final nota = await _rodanteRepo.asignarCargaInicial(
+        idUsuario: idUsuario,
+        dominioVehiculo: dominio,
+        fecha: draft.fecha,
         items: items,
         observaciones: draft.observaciones,
       );
-      final folio = movimientos
-          .map((m) => m.folio)
-          .firstWhere((f) => f != null && f.isNotEmpty, orElse: () => null);
-      _mostrarSnack(folio != null ? 'Nota registrada. Folio $folio' : 'Nota de control registrada ($total unidades).');
+      final folio = nota.numeroNota;
+      _mostrarSnack(folio != null && folio.isNotEmpty
+          ? 'Carga inicial asignada. Nota $folio'
+          : 'Carga inicial asignada al chofer.');
       await _cargar();
       return true;
-    } on FlotaRepositoryException catch (e) {
+    } on StockRodanteAdminException catch (e) {
       _mostrarSnack(e.message, error: true);
       return false;
+    } on NetworkException {
+      _mostrarSnack('Sin conexión: no se pudo asignar la carga.', error: true);
+      return false;
     } catch (_) {
-      _mostrarSnack('No se pudo registrar la nota de control.', error: true);
+      _mostrarSnack('No se pudo asignar la carga inicial.', error: true);
       return false;
     }
   }
@@ -293,7 +408,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       context,
       camion: camion,
       productos: _productos,
-      backendPendiente: !_modoEjemplo && !_estadosRef.disponible,
+      backendPendiente: false,
       onConfirmar: (draft) => _confirmarEntradaMovil(camion, draft),
       cargarResumen: () => _cargarResumenCierre(camion),
     );
@@ -328,40 +443,42 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       return true;
     }
 
-    if (!_estadosRef.disponible) {
-      _mostrarSnack(
-        'No se pudieron cargar los estados de garrafa del servidor. Reintentá cuando tengas conexión.',
-        error: true,
-      );
-      return false;
-    }
-
-    final items = draft.descargaItems(
-      estadoLlenaId: _estadosRef.llenaId,
-      estadoVaciaId: _estadosRef.vaciaId,
-      estadoAveriadoId: _estadosRef.averiadoId,
-    );
-    if (items.isEmpty) {
-      _mostrarSnack('No hay unidades para registrar en la entrada.', error: true);
-      return false;
-    }
     try {
-      final centrales = await _flotaRepo.listarDepositosCentrales();
-      if (centrales.isEmpty) {
-        _mostrarSnack('No hay un depósito central configurado para recibir la entrada.', error: true);
+      final idNota = await _rodanteRepo.resolverIdNota(
+        fecha: DateTime.now(),
+        idUsuario: camion.repartidor?.id,
+        dominioVehiculo: camion.patente,
+      );
+      if (idNota == null) {
+        _mostrarSnack(
+          'No hay una carga asignada hoy para este camión. Asigná primero la carga inicial.',
+          error: true,
+        );
         return false;
       }
-      await _flotaRepo.descargarCamion(
-        camion.id,
-        depositoCentralId: centrales.first.id,
-        items: items,
-        observaciones: draft.observaciones,
-      );
+      final items = [
+        for (final l in draft.lineas)
+          if (l.llenos > 0 || l.vacios > 0 || l.averiados > 0)
+            {
+              'idProducto': l.producto.idProducto,
+              'llenosEntrada': l.llenos,
+              'vaciosEntrada': l.vacios,
+              'averiadosEntrada': l.averiados,
+            },
+      ];
+      if (items.isEmpty) {
+        _mostrarSnack('No hay unidades para registrar en la entrada.', error: true);
+        return false;
+      }
+      await _rodanteRepo.registrarEntrada(idNota, items: items, observaciones: draft.observaciones);
       _mostrarSnack('Entrada del móvil registrada.');
       await _cargar();
       return true;
-    } on FlotaRepositoryException catch (e) {
+    } on StockRodanteAdminException catch (e) {
       _mostrarSnack(e.message, error: true);
+      return false;
+    } on NetworkException {
+      _mostrarSnack('Sin conexión: no se pudo registrar la entrada.', error: true);
       return false;
     } catch (_) {
       _mostrarSnack('No se pudo registrar la entrada del móvil.', error: true);
@@ -399,16 +516,39 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       return true;
     }
     try {
-      await _flotaRepo.recargarCamion(
-        camion.id,
-        items: items,
-        observaciones: observaciones,
+      final idNota = await _rodanteRepo.resolverIdNota(
+        fecha: DateTime.now(),
+        idUsuario: camion.repartidor?.id,
+        dominioVehiculo: camion.patente,
       );
+      if (idNota == null) {
+        _mostrarSnack(
+          'No hay una carga asignada hoy para este camión. Asigná primero la carga inicial.',
+          error: true,
+        );
+        return false;
+      }
+      final rodanteItems = [
+        for (final i in items)
+          if (((i['cantidad'] as int?) ?? 0) > 0)
+            {
+              'idProducto': (i['idProducto'] ?? i['productoId'] ?? '').toString(),
+              'cantidad': (i['cantidad'] as int?) ?? 0,
+            },
+      ];
+      if (rodanteItems.isEmpty) {
+        _mostrarSnack('Ingresá una cantidad para recargar.', error: true);
+        return false;
+      }
+      await _rodanteRepo.registrarRecarga(idNota, items: rodanteItems, observaciones: observaciones);
       _mostrarSnack('Recarga registrada.');
       await _cargar();
       return true;
-    } on FlotaRepositoryException catch (e) {
+    } on StockRodanteAdminException catch (e) {
       _mostrarSnack(e.message, error: true);
+      return false;
+    } on NetworkException {
+      _mostrarSnack('Sin conexión: no se pudo registrar la recarga.', error: true);
       return false;
     } catch (_) {
       _mostrarSnack('No se pudo registrar la recarga.', error: true);
@@ -443,6 +583,8 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
               _Cabecera(onNuevaAsignacion: _abrirNuevaAsignacion, onRefrescar: _cargar),
               const SizedBox(height: 20),
               _FiltrosFlota(patenteCtrl: _patenteCtrl, choferCtrl: _choferCtrl),
+              const SizedBox(height: 12),
+              _SelectorFecha(fecha: _fecha, onTap: _elegirFecha),
               const SizedBox(height: 16),
               _StatsFlota(
                 camiones: _camiones.length,
@@ -463,10 +605,13 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
                       )
                     : FlotaTabla(
                         camiones: _camionesFiltrados,
+                        asignadoPorChofer: _asignadoPorChofer,
+                        notaPorChofer: _notaPorChofer,
                         onNota: _abrirNotaControl,
                         onRecargaRuta: _abrirRecarga,
                         onEntradaMovil: _abrirEntradaMovil,
                         onVerHistorial: _abrirHistorial,
+                        onVerReporte: _abrirReporte,
                         mensajeVacio: _camiones.isEmpty
                             ? 'No hay camiones registrados.'
                             : 'No hay camiones que coincidan con los filtros.',
@@ -476,6 +621,58 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _SelectorFecha extends StatelessWidget {
+  final DateTime fecha;
+  final VoidCallback onTap;
+
+  const _SelectorFecha({required this.fecha, required this.onTap});
+
+  bool get _esHoy {
+    final hoy = DateTime.now();
+    return fecha.year == hoy.year && fecha.month == hoy.month && fecha.day == hoy.day;
+  }
+
+  String get _texto {
+    final d = fecha.day.toString().padLeft(2, '0');
+    final m = fecha.month.toString().padLeft(2, '0');
+    return '$d/$m/${fecha.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.inputBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_today_outlined, size: 16, color: AppColors.orange),
+              const SizedBox(width: 8),
+              Text('Día:', style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+              const SizedBox(width: 6),
+              Text(
+                _esHoy ? 'Hoy · $_texto' : _texto,
+                style: AppTextStyles.label.copyWith(fontSize: 13.5),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.expand_more, size: 18, color: AppColors.inputHint),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -498,7 +695,7 @@ class _Cabecera extends StatelessWidget {
               Text('Gestión de Flota', style: AppTextStyles.desktopTitle),
               const SizedBox(height: 4),
               Text(
-                'Control de stock en camiones respecto al cupo base de $kCupoBaseCamion garrafas.',
+                'Control de stock y carga de garrafas en los camiones.',
                 style: AppTextStyles.desktopSubtitle,
               ),
             ],

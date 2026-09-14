@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
-import '../../../models/stock_camion.dart';
+import '../../../models/stock_rodante_chofer.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 
 class StockDisponibleCard extends StatelessWidget {
-  final StockCamion stock;
+  final List<StockRodanteProducto> productos;
 
-  const StockDisponibleCard({super.key, required this.stock});
+  const StockDisponibleCard({super.key, required this.productos});
 
   @override
   Widget build(BuildContext context) {
-    final items = _agrupar();
-    final totalLlenos = items.fold(0, (a, i) => a + i.llenos);
+    final totalLlenos = productos.fold(0, (a, p) => a + p.llenosActuales);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -41,13 +40,13 @@ class StockDisponibleCard extends StatelessWidget {
             style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
           ),
           const SizedBox(height: 14),
-          if (items.isEmpty)
+          if (productos.isEmpty)
             Text(
               'No hay stock cargado en tu camión.',
               style: AppTextStyles.input.copyWith(color: AppColors.graphiteGray),
             )
           else
-            for (final it in items) _fila(it),
+            for (final p in productos) _fila(p),
           const SizedBox(height: 6),
           const Divider(height: 20, color: AppColors.inputBorder),
           Row(
@@ -69,7 +68,7 @@ class StockDisponibleCard extends StatelessWidget {
     );
   }
 
-  Widget _fila(_Agrupado it) {
+  Widget _fila(StockRodanteProducto p) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -77,52 +76,15 @@ class StockDisponibleCard extends StatelessWidget {
           const Icon(Icons.propane_tank_rounded, size: 20, color: AppColors.steelBlue),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(it.etiqueta, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
+            child: Text(p.etiqueta, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
           ),
-          _Chip(valor: it.llenos, etiqueta: 'llenos', color: AppColors.orange),
+          _Chip(valor: p.llenosActuales, etiqueta: 'llenos', color: AppColors.orange),
           const SizedBox(width: 8),
-          _Chip(valor: it.vacios, etiqueta: 'vacíos', color: AppColors.steelBlue),
+          _Chip(valor: p.vaciosActuales, etiqueta: 'vacíos', color: AppColors.steelBlue),
         ],
       ),
     );
   }
-
-  List<_Agrupado> _agrupar() {
-    final mapa = <String, _Agrupado>{};
-    for (final it in stock.items) {
-      final key = it.productoId.isNotEmpty ? it.productoId : it.sku;
-      final grupo = mapa.putIfAbsent(key, () => _Agrupado(_etiqueta(it)));
-      if (it.esLlena) {
-        grupo.llenos += it.cantidad;
-      } else if (it.estadoCodigo.toUpperCase() == 'VACIA') {
-        grupo.vacios += it.cantidad;
-      }
-    }
-    final lista = mapa.values.toList();
-    lista.sort((a, b) => _kg(a.etiqueta).compareTo(_kg(b.etiqueta)));
-    return lista;
-  }
-
-  String _etiqueta(StockCamionItem it) {
-    if (it.descripcion.isNotEmpty) return it.descripcion;
-    final kg = _kgDe(it.sku) ?? _kgDe(it.productoId);
-    return kg != null ? '$kg kg' : it.sku;
-  }
-
-  int _kg(String texto) => _kgDe(texto) ?? 0;
-
-  int? _kgDe(String texto) {
-    final match = RegExp(r'\d+').firstMatch(texto);
-    return match != null ? int.tryParse(match.group(0)!) : null;
-  }
-}
-
-class _Agrupado {
-  final String etiqueta;
-  int llenos = 0;
-  int vacios = 0;
-
-  _Agrupado(this.etiqueta);
 }
 
 class _Chip extends StatelessWidget {
@@ -142,10 +104,7 @@ class _Chip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            '$valor',
-            style: AppTextStyles.label.copyWith(fontSize: 15, color: color),
-          ),
+          Text('$valor', style: AppTextStyles.label.copyWith(fontSize: 15, color: color)),
           Text(
             etiqueta,
             style: AppTextStyles.footer.copyWith(color: color, fontSize: 10.5),

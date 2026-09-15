@@ -73,8 +73,8 @@ class StockRodanteRepository {
         '${dia.month.toString().padLeft(2, '0')}-'
         '${dia.day.toString().padLeft(2, '0')}';
     final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/stock-rodante/chofer/$idUsuario/$fechaIso',
-    );
+      '${ApiConfig.baseUrl}/api/repartidor/stock-rodante/mi-carga',
+    ).replace(queryParameters: {'fecha': fechaIso});
 
     http.Response response;
     try {

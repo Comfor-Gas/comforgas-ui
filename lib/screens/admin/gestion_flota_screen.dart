@@ -445,7 +445,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
 
     try {
       final idNota = await _rodanteRepo.resolverIdNota(
-        fecha: DateTime.now(),
+        fecha: _fecha,
         idUsuario: camion.repartidor?.id,
         dominioVehiculo: camion.patente,
       );
@@ -461,6 +461,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
           if (l.llenos > 0 || l.vacios > 0 || l.averiados > 0)
             {
               'idProducto': l.producto.idProducto,
+              'sku': l.producto.sku,
               'llenosEntrada': l.llenos,
               'vaciosEntrada': l.vacios,
               'averiadosEntrada': l.averiados,
@@ -517,7 +518,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     }
     try {
       final idNota = await _rodanteRepo.resolverIdNota(
-        fecha: DateTime.now(),
+        fecha: _fecha,
         idUsuario: camion.repartidor?.id,
         dominioVehiculo: camion.patente,
       );
@@ -533,6 +534,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
           if (((i['cantidad'] as int?) ?? 0) > 0)
             {
               'idProducto': (i['idProducto'] ?? i['productoId'] ?? '').toString(),
+              'sku': (i['sku'] ?? i['productoCodigo'] ?? '').toString(),
               'cantidad': (i['cantidad'] as int?) ?? 0,
             },
       ];

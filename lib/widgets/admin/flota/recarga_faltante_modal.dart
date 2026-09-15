@@ -69,10 +69,13 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
 
   Future<void> _confirmar() async {
     if (!_valido || _guardando) return;
-    final items = _desglose.entries
-        .where((e) => e.value > 0)
-        .map((e) => {'productoId': e.key, 'cantidad': e.value})
-        .toList();
+    final items = <Map<String, dynamic>>[];
+    for (final p in widget.productos) {
+      final cant = _desglose[p.idProducto] ?? 0;
+      if (cant > 0) {
+        items.add({'productoId': p.idProducto, 'sku': p.sku, 'cantidad': cant});
+      }
+    }
 
     setState(() => _guardando = true);
     final ok = await widget.onConfirmar(

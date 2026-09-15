@@ -120,7 +120,7 @@ class _EncabezadoTabla extends StatelessWidget {
         children: const [
           _CeldaHeader(flex: _colPatente, texto: 'CAMIÓN / PATENTE'),
           _CeldaHeader(flex: _colChofer, texto: 'CHOFER ASIGNADO'),
-          _CeldaHeader(flex: _colStock, texto: 'STOCK ACTUAL'),
+          _CeldaHeader(flex: _colStock, texto: 'LLENOS ASIGNADOS'),
           _CeldaHeader(flex: _colVacias, texto: 'VACÍAS'),
           _CeldaHeader(flex: _colEstado, texto: 'ESTADO'),
           _CeldaHeader(flex: _colAcciones, texto: 'ACCIONES', alinearFinal: true),
@@ -214,10 +214,10 @@ class _FilaCamion extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(right: 14),
               child: CamionStockBar(
-                llenos: camion.llenos,
+                llenos: asignado,
                 vacios: camion.vacios,
-                cupo: asignado,
                 compacto: true,
+                mostrarVacios: false,
               ),
             ),
           ),
@@ -354,9 +354,10 @@ class _AccionesFila extends StatelessWidget {
     }
 
     final acciones = <_MenuAccion>[
-      _MenuAccion(Icons.local_shipping_outlined, 'Registrar Recarga en Ruta', onRecargaRuta),
-      _MenuAccion(Icons.assignment_return_outlined, 'Entrada del Móvil', onEntradaMovil),
-      if (tieneNota) _MenuAccion(Icons.assignment_turned_in_outlined, 'Ver reporte', onVerReporte),
+      if (tieneNota)
+        _MenuAccion(Icons.assignment_return_outlined, 'Entrada del Móvil', onEntradaMovil),
+      if (tieneNota)
+        _MenuAccion(Icons.assignment_turned_in_outlined, 'Ver reporte', onVerReporte),
       _MenuAccion(Icons.history, 'Ver Historial', onVerHistorial),
     ];
 
@@ -365,12 +366,19 @@ class _AccionesFila extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
-          child: FlotaAccionButton(
-            texto: 'Agregar Stock / Nota Control',
-            icon: Icons.assignment_outlined,
-            relleno: true,
-            onTap: onNota,
-          ),
+          child: tieneNota
+              ? FlotaAccionButton(
+                  texto: 'Registrar Recarga en Ruta',
+                  icon: Icons.local_shipping_outlined,
+                  relleno: true,
+                  onTap: onRecargaRuta,
+                )
+              : FlotaAccionButton(
+                  texto: 'Agregar Stock / Nota Control',
+                  icon: Icons.assignment_outlined,
+                  relleno: true,
+                  onTap: onNota,
+                ),
         ),
         const SizedBox(width: 8),
         _MenuMas(acciones: acciones),
@@ -560,9 +568,8 @@ class _CamionCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           CamionStockBar(
-            llenos: camion.llenos,
+            llenos: asignado,
             vacios: camion.vacios,
-            cupo: asignado,
           ),
           const SizedBox(height: 14),
           if (nota?.cerrada ?? false) ...[
@@ -579,6 +586,38 @@ class _CamionCard extends StatelessWidget {
               relleno: false,
               onTap: onVerHistorial,
             ),
+          ] else if (nota != null) ...[
+            FlotaAccionButton(
+              texto: 'Registrar Recarga en Ruta',
+              icon: Icons.local_shipping_outlined,
+              relleno: true,
+              onTap: onRecargaRuta,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FlotaAccionButton(
+                  texto: 'Entrada del Móvil',
+                  icon: Icons.assignment_return_outlined,
+                  relleno: false,
+                  onTap: onEntradaMovil,
+                ),
+                FlotaAccionButton(
+                  texto: 'Ver reporte',
+                  icon: Icons.assignment_turned_in_outlined,
+                  relleno: false,
+                  onTap: onVerReporte,
+                ),
+                FlotaAccionButton(
+                  texto: 'Ver Historial',
+                  icon: Icons.history,
+                  relleno: false,
+                  onTap: onVerHistorial,
+                ),
+              ],
+            ),
           ] else ...[
             FlotaAccionButton(
               texto: 'Agregar Stock / Nota Control',
@@ -587,36 +626,11 @@ class _CamionCard extends StatelessWidget {
               onTap: onNota,
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FlotaAccionButton(
-                  texto: 'Recarga en Ruta',
-                  icon: Icons.local_shipping_outlined,
-                  relleno: false,
-                  onTap: onRecargaRuta,
-                ),
-                FlotaAccionButton(
-                  texto: 'Entrada del Móvil',
-                  icon: Icons.assignment_return_outlined,
-                  relleno: false,
-                  onTap: onEntradaMovil,
-                ),
-                if (nota != null)
-                  FlotaAccionButton(
-                    texto: 'Ver reporte',
-                    icon: Icons.assignment_turned_in_outlined,
-                    relleno: false,
-                    onTap: onVerReporte,
-                  ),
-                FlotaAccionButton(
-                  texto: 'Ver Historial',
-                  icon: Icons.history,
-                  relleno: false,
-                  onTap: onVerHistorial,
-                ),
-              ],
+            FlotaAccionButton(
+              texto: 'Ver Historial',
+              icon: Icons.history,
+              relleno: false,
+              onTap: onVerHistorial,
             ),
           ],
         ],

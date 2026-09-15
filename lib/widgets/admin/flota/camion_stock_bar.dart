@@ -7,6 +7,7 @@ class CamionStockBar extends StatelessWidget {
   final int vacios;
   final int cupo;
   final bool compacto;
+  final bool mostrarVacios;
 
   const CamionStockBar({
     super.key,
@@ -14,6 +15,7 @@ class CamionStockBar extends StatelessWidget {
     required this.vacios,
     this.cupo = 0,
     this.compacto = false,
+    this.mostrarVacios = true,
   });
 
   @override
@@ -38,15 +40,17 @@ class CamionStockBar extends StatelessWidget {
                 color: AppColors.orange,
               ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              '$vacios Vacíos',
-              style: TextStyle(
-                fontSize: compacto ? 11.5 : 12.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.graphiteGray,
+            if (mostrarVacios) ...[
+              const SizedBox(width: 10),
+              Text(
+                '$vacios Vacíos',
+                style: TextStyle(
+                  fontSize: compacto ? 11.5 : 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.graphiteGray,
+                ),
               ),
-            ),
+            ],
           ],
         ),
         if (hayReferencia) ...[

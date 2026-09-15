@@ -29,15 +29,30 @@ class StockRodanteProducto {
   String get etiqueta => kg != null ? '$kg kg' : sku;
 
   factory StockRodanteProducto.fromJson(Map<String, dynamic> json) {
+    final llenosSalida =
+        parseInt(json['llenosSalida']) ?? parseInt(json['llenos_salida']) ?? 0;
+    final vaciosSalida =
+        parseInt(json['vaciosSalida']) ?? parseInt(json['vacios_salida']) ?? 0;
+    final recargasLlenos = parseInt(json['recargaLlenos']) ??
+        parseInt(json['recargasLlenos']) ??
+        parseInt(json['recarga_llenos']) ??
+        0;
+    final llenosActualesRaw =
+        parseInt(json['llenosActuales']) ?? parseInt(json['llenos_actuales']);
+    final vaciosActualesRaw =
+        parseInt(json['vaciosActuales']) ?? parseInt(json['vacios_actuales']);
+    final averiadosRaw = parseInt(json['averiadosActuales']) ??
+        parseInt(json['averiadosEntrada']) ??
+        parseInt(json['averiados_entrada']);
     return StockRodanteProducto(
       idProducto: (json['idProducto'] ?? json['id_producto'] ?? '').toString(),
       sku: (json['sku'] ?? '').toString(),
-      llenosSalida: parseInt(json['llenosSalida']) ?? 0,
-      vaciosSalida: parseInt(json['vaciosSalida']) ?? 0,
-      recargasLlenos: parseInt(json['recargasLlenos']) ?? 0,
-      llenosActuales: parseInt(json['llenosActuales']) ?? 0,
-      vaciosActuales: parseInt(json['vaciosActuales']) ?? 0,
-      averiadosActuales: parseInt(json['averiadosActuales']) ?? 0,
+      llenosSalida: llenosSalida,
+      vaciosSalida: vaciosSalida,
+      recargasLlenos: recargasLlenos,
+      llenosActuales: llenosActualesRaw ?? (llenosSalida + recargasLlenos),
+      vaciosActuales: vaciosActualesRaw ?? vaciosSalida,
+      averiadosActuales: averiadosRaw ?? 0,
     );
   }
 }
@@ -64,10 +79,11 @@ class StockRodanteChofer {
   }
 
   factory StockRodanteChofer.fromJson(Map<String, dynamic> json) {
-    final rawProductos = json['productos'];
+    final rawProductos = json['detalles'] ?? json['productos'];
     return StockRodanteChofer(
-      nombreChofer: json['nombreChofer']?.toString(),
-      dominioVehiculo: json['dominioVehiculo']?.toString(),
+      nombreChofer: (json['nombreChofer'] ?? json['nombre_chofer'])?.toString(),
+      dominioVehiculo:
+          (json['dominioVehiculo'] ?? json['dominio_vehiculo'])?.toString(),
       productos: rawProductos is List
           ? rawProductos
               .whereType<Map<String, dynamic>>()

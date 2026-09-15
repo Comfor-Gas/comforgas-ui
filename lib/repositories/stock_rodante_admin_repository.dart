@@ -152,7 +152,7 @@ class StockRodanteAdminRepository {
     required List<Map<String, dynamic>> items,
     String? observaciones,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/$idNota/recargas');
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas/$idNota/recarga');
     final body = jsonEncode({'items': items, 'observaciones': observaciones});
     await _send('POST', uri, body);
   }
@@ -163,9 +163,9 @@ class StockRodanteAdminRepository {
     String? observaciones,
   }) async {
     final uri =
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/$idNota/registrar-entrada');
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas/$idNota/cierre');
     final body = jsonEncode({'items': items, 'observaciones': observaciones});
-    await _send('PUT', uri, body);
+    await _send('POST', uri, body);
   }
 
   Future<http.Response> _get(Uri uri) async {

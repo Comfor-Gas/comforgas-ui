@@ -8,6 +8,8 @@ class OfflineEventoTipo {
   static const String checkOut = 'CHECK_OUT';
   static const String evidencia = 'EVIDENCIA';
   static const String venta = 'VENTA';
+  static const String pausarSocial = 'PAUSAR_SOCIAL';
+  static const String reanudarSocial = 'REANUDAR_SOCIAL';
 }
 
 class OfflineEvento {
@@ -34,6 +36,8 @@ class OfflineEvento {
   final String? mimeType;
   final String? ventaItemsJson;
 
+  final String? socialPayloadJson;
+
   // Metadata
   final DateTime creadoEn;
   final int intentos;
@@ -57,6 +61,7 @@ class OfflineEvento {
     this.tipoEvidencia,
     this.mimeType,
     this.ventaItemsJson,
+    this.socialPayloadJson,
     this.intentos = 0,
     this.ultimoError,
   });
@@ -80,6 +85,7 @@ class OfflineEvento {
       tipoEvidencia: tipoEvidencia,
       mimeType: mimeType,
       ventaItemsJson: ventaItemsJson,
+      socialPayloadJson: socialPayloadJson,
       intentos: intentos ?? this.intentos,
       ultimoError: ultimoError ?? this.ultimoError,
     );
@@ -116,13 +122,14 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
       idAgendaItem: fields[16] as int? ?? -1,
       ventaItemsJson: fields[17] as String?,
       checkInForzado: fields[18] as bool? ?? false,
+      socialPayloadJson: fields[19] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OfflineEvento obj) {
     writer
-      ..writeByte(19)
+      ..writeByte(20)
       ..writeByte(0)
       ..write(obj.uuidOffline)
       ..writeByte(1)
@@ -160,6 +167,8 @@ class OfflineEventoAdapter extends TypeAdapter<OfflineEvento> {
       ..writeByte(17)
       ..write(obj.ventaItemsJson)
       ..writeByte(18)
-      ..write(obj.checkInForzado);
+      ..write(obj.checkInForzado)
+      ..writeByte(19)
+      ..write(obj.socialPayloadJson);
   }
 }

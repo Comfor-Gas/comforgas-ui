@@ -121,6 +121,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   PausaSocialDraft? _pausaSocial;
   bool _procesandoSocial = false;
   bool _ventaSocialFinalizada = false;
+  bool _ventaSocialPendienteSync = false;
   bool _cobroRegistrado = false;
   ContratoComodato? _contratoComodato;
   bool _cargandoContrato = false;
@@ -165,6 +166,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       }
       _ventaSocialFinalizada =
           VentaSocialLocalService.instance.estaFinalizada(idAgendaItemSocial);
+      _ventaSocialPendienteSync = OfflineQueueService.instance
+          .pendientesDeAgendaItem(idAgendaItemSocial)
+          .any((e) =>
+              e.tipoEvento == OfflineEventoTipo.pausarSocial ||
+              e.tipoEvento == OfflineEventoTipo.reanudarSocial);
     }
 
     _conexionSub = ConnectivityService.instance.observarConexion().listen((online) {
@@ -211,11 +217,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   void _actualizarPendienteSync() {
     final idAgendaItem = _visita.idAgendaItem;
     if (idAgendaItem == null) return;
-    final sigoPendiente = OfflineQueueService.instance
-        .pendientesDeAgendaItem(idAgendaItem)
-        .any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
-    if (mounted && sigoPendiente != _checkInPendienteSync) {
-      setState(() => _checkInPendienteSync = sigoPendiente);
+    final pendientes =
+        OfflineQueueService.instance.pendientesDeAgendaItem(idAgendaItem);
+    final sigoPendiente =
+        pendientes.any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
+    final socialPendiente = pendientes.any((e) =>
+        e.tipoEvento == OfflineEventoTipo.pausarSocial ||
+        e.tipoEvento == OfflineEventoTipo.reanudarSocial);
+    if (!mounted) return;
+    if (sigoPendiente != _checkInPendienteSync ||
+        socialPendiente != _ventaSocialPendienteSync) {
+      setState(() {
+        _checkInPendienteSync = sigoPendiente;
+        _ventaSocialPendienteSync = socialPendiente;
+      });
     }
   }
 
@@ -929,38 +944,80 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Future<bool> _confirmarPausaSocial(PausaSocialDraft draft) async {
-    final idVisita = await _asegurarIdVisita();
     final idAgendaItem = _visita.idAgendaItem;
-    if (idVisita == null) {
-      _mostrarErrorSocial('Necesitás conexión para iniciar la Venta Social.');
-      return false;
-    }
     setState(() => _procesandoSocial = true);
-    try {
-      await _visitaRepo.pausarSocial(idVisita, draft);
-      if (idAgendaItem != null) {
-        await VentaSocialLocalService.instance.guardar(idAgendaItem, draft);
+    final idVisita = await _asegurarIdVisita();
+
+    if (idVisita != null) {
+      try {
+        await _visitaRepo.pausarSocial(idVisita, draft);
+        if (idAgendaItem != null) {
+          await VentaSocialLocalService.instance.guardar(idAgendaItem, draft);
+        }
+        if (!mounted) return true;
+        setState(() {
+          _visita = _visita.copyWith(estadoVisita: VisitaEstado.pausadaSocial);
+          _pausaSocial = draft;
+          _procesandoSocial = false;
+          _ventaSocialPendienteSync = false;
+        });
+        return true;
+      } on VisitaRepositoryException catch (e) {
+        if (mounted) setState(() => _procesandoSocial = false);
+        _mostrarErrorSocial(e.message);
+        return false;
+      } on NetworkException {
+      } catch (_) {
+        if (mounted) setState(() => _procesandoSocial = false);
+        _mostrarErrorSocial('No se pudo iniciar la Venta Social.');
+        return false;
       }
-      if (!mounted) return true;
-      setState(() {
-        _visita = _visita.copyWith(estadoVisita: VisitaEstado.pausadaSocial);
-        _pausaSocial = draft;
-        _procesandoSocial = false;
-      });
-      return true;
-    } on VisitaRepositoryException catch (e) {
+    }
+
+    if (idAgendaItem == null) {
       if (mounted) setState(() => _procesandoSocial = false);
-      _mostrarErrorSocial(e.message);
-      return false;
-    } on NetworkException {
-      if (mounted) setState(() => _procesandoSocial = false);
-      _mostrarErrorSocial('Sin conexión: no se pudo iniciar la Venta Social.');
-      return false;
-    } catch (_) {
-      if (mounted) setState(() => _procesandoSocial = false);
-      _mostrarErrorSocial('No se pudo iniciar la Venta Social.');
+      _mostrarErrorSocial(
+        'La visita no tiene un ítem de agenda para guardar la pausa localmente.',
+      );
       return false;
     }
+
+    await _encolarPausaSocial(
+      idAgendaItem: idAgendaItem,
+      idVisita: idVisita,
+      draft: draft,
+    );
+    await VentaSocialLocalService.instance.guardar(idAgendaItem, draft);
+    if (!mounted) return true;
+    setState(() {
+      _visita = _visita.copyWith(estadoVisita: VisitaEstado.pausadaSocial);
+      _pausaSocial = draft;
+      _procesandoSocial = false;
+      _ventaSocialPendienteSync = true;
+    });
+    _mostrarInfoSocial(
+      'Sin conexión: la pausa se guardó en el dispositivo y se enviará cuando haya señal.',
+    );
+    return true;
+  }
+
+  Future<void> _encolarPausaSocial({
+    required int idAgendaItem,
+    int? idVisita,
+    required PausaSocialDraft draft,
+  }) async {
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: draft.uuidOffline,
+        tipoEvento: OfflineEventoTipo.pausarSocial,
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        timestampOrigen: draft.timestamp,
+        creadoEn: DateTime.now(),
+        socialPayloadJson: jsonEncode(draft.toEventoOfflineJson()),
+      ),
+    );
+    unawaited(SyncManager.instance.sincronizar());
   }
 
   Future<void> _finalizarVentaSocial() async {
@@ -983,51 +1040,104 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Future<bool> _confirmarReanudarSocial(ReanudarSocialDraft draft) async {
-    final idVisita = _visita.idVisita ?? await _asegurarIdVisita();
     final idAgendaItem = _visita.idAgendaItem;
-    if (idVisita == null) {
-      _mostrarErrorSocial('Necesitás conexión para finalizar la Venta Social.');
-      return false;
-    }
     setState(() => _procesandoSocial = true);
-    try {
-      final res = await _visitaRepo.reanudarSocial(idVisita, draft);
-      if (idAgendaItem != null) {
-        await VentaSocialLocalService.instance.eliminar(idAgendaItem);
-        await VentaSocialLocalService.instance.marcarFinalizada(idAgendaItem);
-      }
-      if (!mounted) return true;
-      setState(() {
-        _visita = _visita.copyWith(estadoVisita: VisitaEstado.enCurso);
-        _pausaSocial = null;
-        _procesandoSocial = false;
-        _ventaSocialFinalizada = true;
-        if (res.tieneVenta) {
-          _ventaRegistrada = true;
-          _idVentaRegistrada = res.idVenta;
-          _uuidVentaOfflineRegistrada = null;
-          _montoVentaSocial = res.montoTotal;
+    final idVisita = _visita.idVisita ?? await _asegurarIdVisita();
+
+    if (idVisita != null) {
+      try {
+        final res = await _visitaRepo.reanudarSocial(idVisita, draft);
+        if (idAgendaItem != null) {
+          await VentaSocialLocalService.instance.eliminar(idAgendaItem);
+          await VentaSocialLocalService.instance.marcarFinalizada(idAgendaItem);
         }
-      });
-      _mostrarInfoSocial(
-        res.tieneVenta
-            ? 'Venta social liquidada: ${res.envasesVendidos} vendidas. Ya podés registrar el cobro.'
-            : 'Cuadre completo. Todos los envases fueron devueltos, no hubo venta.',
+        if (!mounted) return true;
+        setState(() {
+          _visita = _visita.copyWith(estadoVisita: VisitaEstado.enCurso);
+          _pausaSocial = null;
+          _procesandoSocial = false;
+          _ventaSocialFinalizada = true;
+          _ventaSocialPendienteSync = false;
+          if (res.tieneVenta) {
+            _ventaRegistrada = true;
+            _idVentaRegistrada = res.idVenta;
+            _uuidVentaOfflineRegistrada = null;
+            _montoVentaSocial = res.montoTotal;
+          }
+        });
+        _mostrarInfoSocial(
+          res.tieneVenta
+              ? 'Venta social liquidada: ${res.envasesVendidos} vendidas. Ya podés registrar el cobro.'
+              : 'Cuadre completo. Todos los envases fueron devueltos, no hubo venta.',
+        );
+        return true;
+      } on VisitaRepositoryException catch (e) {
+        if (mounted) setState(() => _procesandoSocial = false);
+        _mostrarErrorSocial(e.message);
+        return false;
+      } on NetworkException {
+      } catch (_) {
+        if (mounted) setState(() => _procesandoSocial = false);
+        _mostrarErrorSocial('No se pudo finalizar la Venta Social.');
+        return false;
+      }
+    }
+
+    if (idAgendaItem == null) {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial(
+        'La visita no tiene un ítem de agenda para guardar la liquidación localmente.',
       );
-      return true;
-    } on VisitaRepositoryException catch (e) {
-      if (mounted) setState(() => _procesandoSocial = false);
-      _mostrarErrorSocial(e.message);
-      return false;
-    } on NetworkException {
-      if (mounted) setState(() => _procesandoSocial = false);
-      _mostrarErrorSocial('Sin conexión: no se pudo finalizar la Venta Social.');
-      return false;
-    } catch (_) {
-      if (mounted) setState(() => _procesandoSocial = false);
-      _mostrarErrorSocial('No se pudo finalizar la Venta Social.');
       return false;
     }
+
+    await _encolarReanudarSocial(
+      idAgendaItem: idAgendaItem,
+      idVisita: idVisita,
+      draft: draft,
+    );
+    await VentaSocialLocalService.instance.eliminar(idAgendaItem);
+    await VentaSocialLocalService.instance.marcarFinalizada(idAgendaItem);
+    if (!mounted) return true;
+    final hayVenta = draft.totalVendidos > 0;
+    setState(() {
+      _visita = _visita.copyWith(estadoVisita: VisitaEstado.enCurso);
+      _pausaSocial = null;
+      _procesandoSocial = false;
+      _ventaSocialFinalizada = true;
+      if (hayVenta) {
+        _ventaRegistrada = true;
+        _idVentaRegistrada = null;
+        _uuidVentaOfflineRegistrada = draft.uuidOffline;
+        _montoVentaSocial = draft.montoVendidoLocal;
+        _ventaSocialPendienteSync = true;
+      }
+    });
+    _mostrarInfoSocial(
+      hayVenta
+          ? 'Sin conexión: la liquidación se guardó (${draft.totalVendidos} vendidas) y se enviará cuando haya señal. Ya podés registrar el cobro.'
+          : 'Sin conexión: el cuadre se guardó y se enviará cuando haya señal. No hubo venta.',
+    );
+    return true;
+  }
+
+  Future<void> _encolarReanudarSocial({
+    required int idAgendaItem,
+    int? idVisita,
+    required ReanudarSocialDraft draft,
+  }) async {
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: draft.uuidOffline,
+        tipoEvento: OfflineEventoTipo.reanudarSocial,
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        timestampOrigen: draft.timestamp,
+        creadoEn: DateTime.now(),
+        socialPayloadJson: jsonEncode(draft.toEventoOfflineJson()),
+      ),
+    );
+    unawaited(SyncManager.instance.sincronizar());
   }
 
   void _mostrarErrorSocial(String mensaje) {
@@ -1487,6 +1597,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                           : 'El cuadre se completó. Ya podés continuar y cerrar la visita.',
                       style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
                     ),
+                    if (_ventaSocialPendienteSync && !_online) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: const [
+                          Icon(Icons.sync, size: 15, color: AppColors.badgeAmber),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Pendiente de sincronizar con el servidor. Se envía solo cuando hay señal.',
+                              style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1567,6 +1692,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                   ],
                 ),
               ),
+              if (_ventaSocialPendienteSync && !_online) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: const [
+                    Icon(Icons.sync, size: 15, color: AppColors.badgeAmber),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'La pausa está guardada en el dispositivo y se enviará cuando haya señal.',
+                        style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               PrimaryButton(
                 text: 'Finalizar Venta Social',

@@ -79,6 +79,11 @@ class PausaSocialDraft {
         'uuidOffline': uuidOffline,
       };
 
+  Map<String, dynamic> toEventoOfflineJson() => {
+        'items': items.map((i) => i.toItemPausaJson()).toList(),
+        'cantidadEntregada': totalEntregado,
+      };
+
   String toStorageJson() => jsonEncode({
         'uuidOffline': uuidOffline,
         'timestamp': timestamp.toIso8601String(),
@@ -165,6 +170,8 @@ class ReanudarSocialDraft {
   int get totalLlenos => items.fold(0, (a, i) => a + i.llenosRetornados);
   int get totalVacios => items.fold(0, (a, i) => a + i.vaciosRecuperados);
   int get totalVendidos => items.fold(0, (a, i) => a + i.vendidos);
+  int get montoVendidoLocal =>
+      items.fold(0, (a, i) => a + i.vendidos * i.entregado.precioUnitario);
   bool get cuadra => items.every((i) => i.cuadra);
   bool get esUnicoSku => items.length == 1;
 
@@ -191,6 +198,28 @@ class ReanudarSocialDraft {
       'items': items.map((i) => i.toItemReanudarJson()).toList(),
       'timestampOrigen': timestamp.toUtc().toIso8601String(),
       'uuidOffline': uuidOffline,
+    };
+  }
+
+  Map<String, dynamic> toEventoOfflineJson() {
+    if (esUnicoSku) {
+      final it = items.first;
+      return {
+        'llenosRetornados': it.llenosRetornados,
+        'vaciosRecuperados': it.vaciosRecuperados,
+        'idProducto': it.entregado.idProducto,
+        'precioUnitario': it.entregado.precioUnitario,
+        'productoSnapshot': {
+          'sku': it.entregado.sku,
+          'descripcion': it.entregado.descripcion,
+          'precio': it.entregado.precioUnitario,
+        },
+      };
+    }
+    return {
+      'llenosRetornados': totalLlenos,
+      'vaciosRecuperados': totalVacios,
+      'items': items.map((i) => i.toItemReanudarJson()).toList(),
     };
   }
 }

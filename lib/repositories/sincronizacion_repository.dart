@@ -147,6 +147,8 @@ class SincronizacionRepository {
       if (e.tipoEvidencia != null) 'tipoEvidencia': e.tipoEvidencia,
       if (e.mimeType != null) 'mimeType': e.mimeType,
       if (e.ventaItemsJson != null) 'items': jsonDecode(e.ventaItemsJson!),
+      if (e.socialPayloadJson != null)
+        ...(jsonDecode(e.socialPayloadJson!) as Map<String, dynamic>),
     };
   }
 }

@@ -8,6 +8,7 @@ import '../../../local/cobro_pendiente.dart';
 import '../../../models/canje_garrafa.dart';
 import '../../../models/credito_cliente.dart';
 import '../../../models/metodo_pago.dart';
+import '../../../models/nota_debito_resumen.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/cobro_repository.dart';
 import '../../../repositories/network_exception.dart';
@@ -30,6 +31,7 @@ class RegistroCobroScreen extends StatefulWidget {
   final int montoSugerido;
   final CreditoCliente credito;
   final List<CanjeGarrafaDraft> canjes;
+  final NotaDebitoResumen notaDebito;
 
   const RegistroCobroScreen({
     super.key,
@@ -39,6 +41,7 @@ class RegistroCobroScreen extends StatefulWidget {
     required this.montoSugerido,
     this.credito = const CreditoCliente(),
     this.canjes = const [],
+    this.notaDebito = const NotaDebitoResumen([]),
   }) : assert(
           (idVenta == null) != (uuidVentaOffline == null),
           'Informá exactamente uno entre idVenta y uuidVentaOffline',
@@ -247,6 +250,10 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           const SizedBox(height: 14),
           _CanjesResumen(canjes: widget.canjes),
         ],
+        if (!widget.notaDebito.vacio) ...[
+          const SizedBox(height: 14),
+          _NotaDebitoResumenCard(resumen: widget.notaDebito),
+        ],
         const SizedBox(height: 16),
         for (int i = 0; i < _lineas.length; i++) _lineaCard(i),
         const SizedBox(height: 4),
@@ -423,6 +430,10 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           const SizedBox(height: 14),
           _CanjesResumen(canjes: widget.canjes),
         ],
+        if (!widget.notaDebito.vacio) ...[
+          const SizedBox(height: 14),
+          _NotaDebitoResumenCard(resumen: widget.notaDebito),
+        ],
         const SizedBox(height: 20),
         PrimaryButton(
           text: 'Continuar',
@@ -493,6 +504,88 @@ class _CanjesResumen extends StatelessWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotaDebitoResumenCard extends StatelessWidget {
+  final NotaDebitoResumen resumen;
+
+  const _NotaDebitoResumenCard({required this.resumen});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_outlined, size: 18, color: AppColors.steelBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Nota de Débito',
+                  style: AppTextStyles.label.copyWith(fontSize: 14.5, color: AppColors.steelBlue),
+                ),
+              ),
+              Text(
+                resumen.totalGarrafas == 1
+                    ? '1 garrafa'
+                    : '${resumen.totalGarrafas} garrafas',
+                style: AppTextStyles.label.copyWith(fontSize: 12.5, color: AppColors.steelBlue),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Envases prestados en garantía (adeudados por el cliente).',
+            style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+          ),
+          const SizedBox(height: 10),
+          for (final i in resumen.items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.propane_tank_rounded, size: 16, color: AppColors.steelBlue),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${i.cantidad} × ${i.etiqueta}',
+                      style: AppTextStyles.label.copyWith(fontSize: 13.5),
+                    ),
+                  ),
+                  Text(
+                    formatMoneda(i.subtotal),
+                    style: AppTextStyles.input.copyWith(fontSize: 13.5, color: AppColors.graphiteGray),
+                  ),
+                ],
+              ),
+            ),
+          const Divider(height: 12, color: AppColors.inputBorder),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Total garantía',
+                  style: AppTextStyles.label.copyWith(fontSize: 14),
+                ),
+              ),
+              Text(
+                formatMoneda(resumen.totalMonto),
+                style: AppTextStyles.title.copyWith(fontSize: 18, color: AppColors.steelBlue),
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -16,6 +16,7 @@ import '../../models/cliente_ficha.dart';
 import '../../models/control_comodato.dart';
 import '../../models/evidencia_tipo.dart';
 import '../../models/producto_sku.dart';
+import '../../models/nota_debito_resumen.dart';
 import '../../models/venta_draft.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
@@ -902,6 +903,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           montoSugerido: _ventaDraft?.montoTotal ?? 0,
           credito: credito,
           canjes: _canjes,
+          notaDebito: NotaDebitoResumen.deVenta(_ventaDraft),
         ),
       ),
     );

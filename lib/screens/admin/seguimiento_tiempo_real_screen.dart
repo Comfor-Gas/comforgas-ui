@@ -40,6 +40,8 @@ const List<Color> _choferPalette = [
       return (AppColors.badgeBlue, Icons.hourglass_empty);
     case VisitaEstado.enCurso:
       return (AppColors.badgeAmber, Icons.local_shipping_outlined);
+    case VisitaEstado.pausadaSocial:
+      return (AppColors.steelBlue, Icons.pause_circle_outline);
     case VisitaEstado.visitado:
       return (AppColors.badgeGreen, Icons.check_circle_outline);
     case VisitaEstado.completada:

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/agenda_item_model.dart';
 import '../models/import_agenda_result.dart';
+import '../models/venta_social.dart';
 import '../models/visita_model.dart';
 import '../utils/json_parsing.dart';
 import 'network_exception.dart';
@@ -459,6 +460,69 @@ class VisitaRepository {
     throw VisitaRepositoryException(
       _extractErrorMessage(response.body) ??
           'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
+  Future<PausaSocialResult> pausarSocial(
+    int idVisita,
+    PausaSocialDraft draft,
+  ) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaPausarSocialSuffix}',
+    );
+    final decoded = await _patchSocial(uri, draft.toRequestJson());
+    return PausaSocialResult.fromJson(decoded);
+  }
+
+  Future<ReanudarSocialResult> reanudarSocial(
+    int idVisita,
+    ReanudarSocialDraft draft,
+  ) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaReanudarSocialSuffix}',
+    );
+    final decoded = await _patchSocial(uri, draft.toRequestJson());
+    return ReanudarSocialResult.fromJson(decoded);
+  }
+
+  Future<Map<String, dynamic>> _patchSocial(Uri uri, Map<String, dynamic> body) async {
+    http.Response response;
+    try {
+      final request = http.Request('PATCH', uri)
+        ..headers.addAll(const {'Content-Type': 'application/json'})
+        ..body = jsonEncode(body);
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 20));
+      response = await http.Response.fromStream(streamed);
+    } catch (_) {
+      throw NetworkException();
+    }
+
+    final code = response.statusCode;
+    if (code == 200 || code == 201) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw VisitaRepositoryException('Respuesta inesperada del servidor.');
+      }
+      return decoded;
+    }
+
+    if (code == 400 || code == 409) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'No se pudo procesar la venta social. Verificá los datos.',
+      );
+    }
+
+    if (code == 401 || code == 403) {
+      throw VisitaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para esta operación.',
+      );
+    }
+
+    throw VisitaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor ($code). Intentá más tarde.',
     );
   }
 

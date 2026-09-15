@@ -11,6 +11,7 @@ import '../../local/comodato_offline_service.dart';
 import '../../local/comodato_pendiente.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
+import '../../local/venta_social_local_service.dart';
 import '../../models/canje_garrafa.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/control_comodato.dart';
@@ -18,6 +19,7 @@ import '../../models/evidencia_tipo.dart';
 import '../../models/producto_sku.dart';
 import '../../models/nota_debito_resumen.dart';
 import '../../models/venta_draft.dart';
+import '../../models/venta_social.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
@@ -53,6 +55,8 @@ import 'canje/canje_garrafa_screen.dart';
 import 'comodato/auditoria_comodato_screen.dart';
 import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
+import 'venta_social/finalizar_venta_social_screen.dart';
+import 'venta_social/iniciar_venta_social_screen.dart';
 
 const _uuid = Uuid();
 
@@ -113,6 +117,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _ventaPendienteSync = false;
   int? _idVentaRegistrada;
   String? _uuidVentaOfflineRegistrada;
+  int _montoVentaSocial = 0;
+  PausaSocialDraft? _pausaSocial;
+  bool _procesandoSocial = false;
+  bool _ventaSocialFinalizada = false;
   bool _cobroRegistrado = false;
   ContratoComodato? _contratoComodato;
   bool _cargandoContrato = false;
@@ -150,6 +158,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _canjeListener = _actualizarCanjes;
     CanjeOfflineService.instance.escuchar().addListener(_canjeListener!);
 
+    final idAgendaItemSocial = _visita.idAgendaItem;
+    if (idAgendaItemSocial != null) {
+      if (_visita.estadoVisita == VisitaEstado.pausadaSocial) {
+        _pausaSocial = VentaSocialLocalService.instance.obtener(idAgendaItemSocial);
+      }
+      _ventaSocialFinalizada =
+          VentaSocialLocalService.instance.estaFinalizada(idAgendaItemSocial);
+    }
+
     _conexionSub = ConnectivityService.instance.observarConexion().listen((online) {
       if (mounted && online != _online) {
         setState(() => _online = online);
@@ -160,7 +177,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     });
     unawaited(_actualizarConexionInicial());
 
-    if (_visita.estadoVisita == VisitaEstado.enCurso) {
+    if (_visita.estadoVisita == VisitaEstado.enCurso ||
+        _visita.estadoVisita == VisitaEstado.pausadaSocial) {
       _reanudarVisita();
     } else {
       _iniciarCheckIn();
@@ -891,6 +909,141 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
+  Future<void> _iniciarVentaSocial() async {
+    if (_procesandoSocial) return;
+    final idVisita = await _asegurarIdVisita();
+    if (idVisita == null) {
+      _mostrarErrorSocial('Necesitás conexión para iniciar la Venta Social.');
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => IniciarVentaSocialScreen(
+          visita: _visita,
+          nombreCliente: widget.nombreCliente,
+          onConfirmar: _confirmarPausaSocial,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmarPausaSocial(PausaSocialDraft draft) async {
+    final idVisita = await _asegurarIdVisita();
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idVisita == null) {
+      _mostrarErrorSocial('Necesitás conexión para iniciar la Venta Social.');
+      return false;
+    }
+    setState(() => _procesandoSocial = true);
+    try {
+      await _visitaRepo.pausarSocial(idVisita, draft);
+      if (idAgendaItem != null) {
+        await VentaSocialLocalService.instance.guardar(idAgendaItem, draft);
+      }
+      if (!mounted) return true;
+      setState(() {
+        _visita = _visita.copyWith(estadoVisita: VisitaEstado.pausadaSocial);
+        _pausaSocial = draft;
+        _procesandoSocial = false;
+      });
+      return true;
+    } on VisitaRepositoryException catch (e) {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial(e.message);
+      return false;
+    } on NetworkException {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial('Sin conexión: no se pudo iniciar la Venta Social.');
+      return false;
+    } catch (_) {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial('No se pudo iniciar la Venta Social.');
+      return false;
+    }
+  }
+
+  Future<void> _finalizarVentaSocial() async {
+    final pausa = _pausaSocial;
+    if (pausa == null) {
+      _mostrarErrorSocial(
+        'No se encontró el detalle de lo entregado en este dispositivo. Reintentá con conexión.',
+      );
+      return;
+    }
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => FinalizarVentaSocialScreen(
+          pausa: pausa,
+          nombreCliente: widget.nombreCliente,
+          onConfirmar: _confirmarReanudarSocial,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmarReanudarSocial(ReanudarSocialDraft draft) async {
+    final idVisita = _visita.idVisita ?? await _asegurarIdVisita();
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idVisita == null) {
+      _mostrarErrorSocial('Necesitás conexión para finalizar la Venta Social.');
+      return false;
+    }
+    setState(() => _procesandoSocial = true);
+    try {
+      final res = await _visitaRepo.reanudarSocial(idVisita, draft);
+      if (idAgendaItem != null) {
+        await VentaSocialLocalService.instance.eliminar(idAgendaItem);
+        await VentaSocialLocalService.instance.marcarFinalizada(idAgendaItem);
+      }
+      if (!mounted) return true;
+      setState(() {
+        _visita = _visita.copyWith(estadoVisita: VisitaEstado.enCurso);
+        _pausaSocial = null;
+        _procesandoSocial = false;
+        _ventaSocialFinalizada = true;
+        if (res.tieneVenta) {
+          _ventaRegistrada = true;
+          _idVentaRegistrada = res.idVenta;
+          _uuidVentaOfflineRegistrada = null;
+          _montoVentaSocial = res.montoTotal;
+        }
+      });
+      _mostrarInfoSocial(
+        res.tieneVenta
+            ? 'Venta social liquidada: ${res.envasesVendidos} vendidas. Ya podés registrar el cobro.'
+            : 'Cuadre completo. Todos los envases fueron devueltos, no hubo venta.',
+      );
+      return true;
+    } on VisitaRepositoryException catch (e) {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial(e.message);
+      return false;
+    } on NetworkException {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial('Sin conexión: no se pudo finalizar la Venta Social.');
+      return false;
+    } catch (_) {
+      if (mounted) setState(() => _procesandoSocial = false);
+      _mostrarErrorSocial('No se pudo finalizar la Venta Social.');
+      return false;
+    }
+  }
+
+  void _mostrarErrorSocial(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
+    );
+  }
+
+  void _mostrarInfoSocial(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.steelBlue),
+    );
+  }
+
   Future<Object?> _abrirCobro() {
     final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
     return Navigator.of(context).push<Object?>(
@@ -900,7 +1053,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           uuidVentaOffline:
               _idVentaRegistrada == null ? _uuidVentaOfflineRegistrada : null,
           nombreCliente: widget.nombreCliente,
-          montoSugerido: _ventaDraft?.montoTotal ?? 0,
+          montoSugerido: _ventaDraft?.montoTotal ?? _montoVentaSocial,
           credito: credito,
           canjes: _canjes,
           notaDebito: NotaDebitoResumen.deVenta(_ventaDraft),
@@ -1270,19 +1423,174 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        Navigator.of(context).pop(_visita);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TopBar(orden: _visita.ordenVisita),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: _buildContenido(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVentaSocialSection() {
+    final estado = _visita.estadoVisita;
+    final esPausada = estado == VisitaEstado.pausadaSocial;
+    final puedeIniciar =
+        estado == VisitaEstado.enCurso && !_finalizando && !_ventaSocialFinalizada;
+
+    if (_ventaSocialFinalizada && !esPausada) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.badgeGreen.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.badgeGreen.withOpacity(0.5)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.check_circle, size: 22, color: AppColors.badgeGreen),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Venta Social realizada con éxito',
+                      style: AppTextStyles.label.copyWith(
+                        fontSize: 14.5,
+                        color: AppColors.badgeGreen,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _montoVentaSocial > 0
+                          ? 'La liquidación quedó registrada. Ya podés continuar con el cobro y cerrar la visita.'
+                          : 'El cuadre se completó. Ya podés continuar y cerrar la visita.',
+                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!esPausada && !puedeIniciar) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: esPausada ? AppColors.steelBlue.withOpacity(0.55) : AppColors.inputBorder,
+          ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _TopBar(orden: _visita.ordenVisita),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: _buildContenido(),
-              ),
+            Row(
+              children: [
+                const Icon(Icons.volunteer_activism_outlined, size: 20, color: AppColors.steelBlue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Venta Social', style: AppTextStyles.label.copyWith(fontSize: 15)),
+                ),
+                if (esPausada)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.steelBlue.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.pause_circle_outline, size: 14, color: AppColors.steelBlue),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Pausada - En proceso',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.steelBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
+            const SizedBox(height: 8),
+            if (esPausada) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.propane_tank_rounded, size: 16, color: AppColors.orange),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _pausaSocial != null
+                            ? 'Se dejaron ${_pausaSocial!.totalEntregado} garrafas en el punto. Al volver, contá lo devuelto y liquidá.'
+                            : 'Visita pausada por Venta Social. Al volver, contá lo devuelto para liquidar.',
+                        style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              PrimaryButton(
+                text: 'Finalizar Venta Social',
+                isLoading: _procesandoSocial,
+                onPressed: _procesandoSocial ? null : _finalizarVentaSocial,
+              ),
+            ] else ...[
+              Text(
+                'Dejá garrafas en el punto y pausá la visita para seguir con otros clientes. Liquidás al volver.',
+                style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _procesandoSocial ? null : _iniciarVentaSocial,
+                icon: const Icon(Icons.volunteer_activism_outlined, size: 18),
+                label: const Text('Iniciar Venta Social'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.steelBlue,
+                  side: const BorderSide(color: AppColors.steelBlue),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1476,6 +1784,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             ],
             const SizedBox(height: 18),
             _buildVentaSection(),
+            _buildVentaSocialSection(),
             if (_mostrarComodato) ...[
               const SizedBox(height: 18),
               ControlComodatoCard(

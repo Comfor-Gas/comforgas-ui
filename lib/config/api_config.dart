@@ -33,6 +33,8 @@ class ApiConfig {
   static const String adminVentasMonitoreoPath = '/api/admin/ventas/monitoreo';
   static const String visitaCheckInSuffix = '/check-in';
   static const String visitaCheckOutSuffix = '/check-out';
+  static const String visitaPausarSocialSuffix = '/pausar-social';
+  static const String visitaReanudarSocialSuffix = '/reanudar-social';
   static const String repartidorVisitasPath = '/api/repartidor/visitas';
   static const String visitaResultadoSuffix = '/resultado';
   static const String visitasSyncLotePath = '/api/visitas/sync-lote';

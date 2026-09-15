@@ -11,6 +11,7 @@ import 'local/cobro_offline_service.dart';
 import 'local/comodato_offline_service.dart';
 import 'local/offline_queue_service.dart';
 import 'local/stock_camion_cache_service.dart';
+import 'local/venta_social_local_service.dart';
 import 'services/app_lock_controller.dart';
 import 'services/canje_sync_manager.dart';
 import 'services/cobro_sync_manager.dart';
@@ -32,6 +33,7 @@ void main() async {
   await CobroOfflineService.instance.init();
   await ComodatoOfflineService.instance.init();
   await CanjeOfflineService.instance.init();
+  await VentaSocialLocalService.instance.init();
   await AgendaCacheService.instance.init();
   await StockCamionCacheService.instance.init();
   runApp(const ComforGasApp());

@@ -36,6 +36,8 @@ class VisitaEstadoChip extends StatelessWidget {
         return (Icons.check_circle, AppColors.badgeGreen, 'VISITADO');
       case VisitaEstado.enCurso:
         return (Icons.directions_walk, AppColors.badgeAmber, 'EN CURSO');
+      case VisitaEstado.pausadaSocial:
+        return (Icons.pause_circle_outline, AppColors.steelBlue, 'PAUSADA - SOCIAL');
       case VisitaEstado.pendiente:
         return (Icons.person_pin_circle_outlined, AppColors.badgeBlue, 'PENDIENTE');
       case VisitaEstado.noAsistio:

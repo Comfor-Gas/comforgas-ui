@@ -39,6 +39,8 @@ class EstadoVisitaBadge extends StatelessWidget {
         return (AppColors.badgeBlue, 'Asignado');
       case VisitaEstado.enCurso:
         return (AppColors.badgeAmber, 'En curso');
+      case VisitaEstado.pausadaSocial:
+        return (AppColors.steelBlue, 'Pausada - Social');
       case VisitaEstado.visitado:
         return (AppColors.badgeGreen, 'Visitado');
       case VisitaEstado.completada:

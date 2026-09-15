@@ -21,6 +21,7 @@ import '../../widgets/chofer/sync_pendiente_banner.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/chofer/visita_cliente_card.dart';
 import '../../widgets/chofer/visita_estado_chip.dart';
+import '../../widgets/chofer/visitas_pausadas_section.dart';
 import '../../widgets/common/estado_conexion_badge.dart';
 import '../../widgets/primary_button.dart';
 import 'visita_activa_screen.dart';
@@ -65,6 +66,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   String? _error;
   List<VisitaModel> _visitas = [];
   bool _visitadosExpanded = false;
+  bool _pausadasExpanded = false;
   bool _iniciandoVisita = false;
   bool _sincronizando = false;
   bool _mostrandoCache = false;
@@ -194,7 +196,15 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   }
 
   List<VisitaModel> get _pendientesFiltradas => _filtrar(
-        _visitas.where((v) => !VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita)).toList(),
+        _visitas
+            .where((v) =>
+                !VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita) &&
+                v.estadoVisita != VisitaEstado.pausadaSocial)
+            .toList(),
+      );
+
+  List<VisitaModel> get _pausadasFiltradas => _filtrar(
+        _visitas.where((v) => v.estadoVisita == VisitaEstado.pausadaSocial).toList(),
       );
 
   List<VisitaModel> get _completadasFiltradas => _filtrar(
@@ -303,6 +313,9 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         if (VisitaEstadoMapper.esTerminadaEnCampo(resultado.estadoVisita)) {
           _visitadosExpanded = true;
         }
+        if (resultado.estadoVisita == VisitaEstado.pausadaSocial) {
+          _pausadasExpanded = true;
+        }
       }
     });
     if (resultado != null) {
@@ -359,6 +372,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         '${_diasSemana[now.weekday - 1]}, ${now.day} de ${_meses[now.month - 1]} ${now.year}';
 
     final pendientes = _pendientesFiltradas;
+    final pausadasVisibles = _pausadasFiltradas;
     final completadasVisibles = _completadasFiltradas;
     final completadas = _visitas
         .where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita))
@@ -366,8 +380,11 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     final recaudacion = completadas * mockMontoPromedioPorVisita;
     final siguiente = _visitaAccionable;
     final huboFiltro = _searchCtrl.text.trim().isNotEmpty;
-    final sinResultados =
-        pendientes.isEmpty && completadasVisibles.isEmpty && !_loading && _error == null;
+    final sinResultados = pendientes.isEmpty &&
+        pausadasVisibles.isEmpty &&
+        completadasVisibles.isEmpty &&
+        !_loading &&
+        _error == null;
 
     return SafeArea(
       bottom: false,
@@ -486,6 +503,18 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             onTap: () => _handleCardTap(v),
                           ),
                         ),
+                        if (pausadasVisibles.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          VisitasPausadasSection(
+                            pausadas: pausadasVisibles,
+                            expandido: _pausadasExpanded,
+                            onToggle: (value) => setState(() => _pausadasExpanded = value),
+                            nombreCliente: _nombreCliente,
+                            direccionCliente: _direccionCliente,
+                            onTapVisita: _iniciarVisita,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         if (completadasVisibles.isNotEmpty || (!huboFiltro && completadas > 0)) ...[
                           const SizedBox(height: 4),
                           ClientesVisitadosSection(

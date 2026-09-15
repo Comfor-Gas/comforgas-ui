@@ -63,9 +63,29 @@ class CanjeSyncManager {
     _sincronizando = true;
     _estadoController.add(true);
     try {
+      final drafts = <CanjeGarrafaDraft>[];
       for (final pendiente in pendientes) {
-        final continuar = await _procesar(repo, visitaRepo, pendiente);
-        if (!continuar) break;
+        final idVisita =
+            pendiente.idVisita ?? await _resolverIdVisita(visitaRepo, pendiente);
+        if (idVisita == null) continue;
+        drafts.add(_draftDe(pendiente, idVisita));
+      }
+      if (drafts.isNotEmpty) {
+        try {
+          final res = await repo.sincronizarLote(drafts);
+          for (final uuid in res.procesados) {
+            await _queue.eliminar(uuid);
+          }
+          for (final uuid in res.duplicados) {
+            await _queue.eliminar(uuid);
+          }
+          for (final entry in res.errores.entries) {
+            await _queue.registrarError(entry.key, entry.value);
+            await _queue.eliminar(entry.key);
+          }
+        } on NetworkException {
+        } on CanjeRepositoryException {
+        }
       }
     } finally {
       _sincronizando = false;
@@ -74,30 +94,6 @@ class CanjeSyncManager {
         _pendienteReintento = false;
         unawaited(sincronizar());
       }
-    }
-  }
-
-  Future<bool> _procesar(
-    CanjeRepository repo,
-    VisitaRepository visitaRepo,
-    CanjePendiente pendiente,
-  ) async {
-    final idVisita = pendiente.idVisita ?? await _resolverIdVisita(visitaRepo, pendiente);
-    if (idVisita == null) return true;
-
-    final draft = _draftDe(pendiente, idVisita);
-    try {
-      await repo.registrarCanje(idVisita, draft);
-      await _queue.eliminar(pendiente.uuidOffline);
-      return true;
-    } on NetworkException {
-      return false;
-    } on CanjeRepositoryException catch (e) {
-      await _queue.registrarError(pendiente.uuidOffline, e.message);
-      await _queue.eliminar(pendiente.uuidOffline);
-      return true;
-    } catch (_) {
-      return false;
     }
   }
 

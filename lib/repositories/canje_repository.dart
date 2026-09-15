@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
-import '../data/mock_canje_data.dart';
 import '../models/canje_garrafa.dart';
 import 'network_exception.dart';
 
@@ -11,6 +10,18 @@ class CanjeRepositoryException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class CanjeSyncLoteResultado {
+  final Set<String> procesados;
+  final Set<String> duplicados;
+  final Map<String, String> errores;
+
+  const CanjeSyncLoteResultado({
+    required this.procesados,
+    required this.duplicados,
+    required this.errores,
+  });
 }
 
 class CanjeRepository {
@@ -23,19 +34,12 @@ class CanjeRepository {
   };
 
   Future<CanjeGarrafa> registrarCanje(int idVisita, CanjeGarrafaDraft draft) async {
-    if (kCanjeMock) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      return mockCanjeDesdeDraft(draft);
-    }
-
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaCanjesSuffix}',
-    );
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.canjesPath}');
 
     http.Response response;
     try {
       response = await _client
-          .post(uri, headers: _jsonHeaders, body: jsonEncode(draft.toRequestJson()))
+          .post(uri, headers: _jsonHeaders, body: jsonEncode(draft.toRequestJson(idVisita)))
           .timeout(const Duration(seconds: 20));
     } catch (_) {
       throw NetworkException();
@@ -70,50 +74,77 @@ class CanjeRepository {
     );
   }
 
-  Future<List<CanjeGarrafa>> getCanjesDeVisita(int idVisita) async {
-    if (kCanjeMock) {
-      return mockCanjesDeVisita(idVisita);
+  Future<CanjeSyncLoteResultado> sincronizarLote(List<CanjeGarrafaDraft> drafts) async {
+    final items = <Map<String, dynamic>>[];
+    for (final d in drafts) {
+      final idVisita = d.idVisita;
+      if (idVisita == null) continue;
+      items.add(d.toSyncItemJson(idVisita));
+    }
+    if (items.isEmpty) {
+      return const CanjeSyncLoteResultado(procesados: {}, duplicados: {}, errores: {});
     }
 
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}${ApiConfig.visitasPath}/$idVisita${ApiConfig.visitaCanjesSuffix}',
-    );
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.canjesSyncLotePath}');
 
     http.Response response;
     try {
       response = await _client
-          .get(uri, headers: _jsonHeaders)
-          .timeout(const Duration(seconds: 20));
+          .post(uri, headers: _jsonHeaders, body: jsonEncode({'items': items}))
+          .timeout(const Duration(seconds: 30));
     } catch (_) {
       throw NetworkException();
     }
 
-    if (response.statusCode == 200) {
-      if (response.body.isEmpty) return const [];
+    final code = response.statusCode;
+    if (code == 200 || code == 201) {
       final decoded = jsonDecode(response.body);
-      final List<dynamic> lista =
-          decoded is List ? decoded : (decoded is Map<String, dynamic> ? (decoded['content'] as List? ?? const []) : const []);
-      return lista
-          .whereType<Map<String, dynamic>>()
-          .map(CanjeGarrafa.fromJson)
-          .toList();
+      if (decoded is! Map<String, dynamic>) {
+        throw CanjeRepositoryException('Respuesta inesperada del servidor.');
+      }
+      final procesados = <String>{};
+      for (final p in (decoded['procesados'] as List? ?? const [])) {
+        if (p is Map<String, dynamic>) {
+          final uuid = (p['uuid_offline'] ?? p['uuidOffline'])?.toString();
+          if (uuid != null && uuid.isNotEmpty) procesados.add(uuid);
+        }
+      }
+      final duplicados = <String>{};
+      for (final d in (decoded['duplicados'] as List? ?? const [])) {
+        final uuid = d?.toString();
+        if (uuid != null && uuid.isNotEmpty) duplicados.add(uuid);
+      }
+      final errores = <String, String>{};
+      for (final e in (decoded['errores'] as List? ?? const [])) {
+        if (e is Map<String, dynamic>) {
+          final uuid = (e['uuid_offline'] ?? e['uuidOffline'])?.toString();
+          final msg = (e['error'] ?? e['mensaje'])?.toString() ??
+              'Error al sincronizar el canje.';
+          if (uuid != null && uuid.isNotEmpty) errores[uuid] = msg;
+        }
+      }
+      return CanjeSyncLoteResultado(
+        procesados: procesados,
+        duplicados: duplicados,
+        errores: errores,
+      );
     }
 
-    if (response.statusCode == 404) {
-      return const [];
-    }
-
-    if (response.statusCode == 401 || response.statusCode == 403) {
+    if (code == 401 || code == 403) {
       throw CanjeRepositoryException(
         _mensajeError(response.body) ??
-            'Tu sesión no tiene permisos para ver los canjes.',
+            'Tu sesión no tiene permisos para sincronizar canjes.',
       );
     }
 
     throw CanjeRepositoryException(
       _mensajeError(response.body) ??
-          'Error del servidor (${response.statusCode}) al consultar los canjes.',
+          'Error del servidor ($code) al sincronizar los canjes.',
     );
+  }
+
+  Future<List<CanjeGarrafa>> getCanjesDeVisita(int idVisita) async {
+    return const [];
   }
 
   String? _mensajeError(String body) {

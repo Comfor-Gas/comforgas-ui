@@ -51,7 +51,7 @@ class ControlComodatoCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (_auditado) _buildResumenAuditado() else _buildResumenContrato(),
-          if (!_auditado && contrato != null) ...[
+          if (!_auditado && (contrato?.tieneComodato ?? false)) ...[
             const SizedBox(height: 14),
             _buildBoton(),
           ],

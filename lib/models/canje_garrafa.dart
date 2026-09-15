@@ -24,6 +24,8 @@ class CanjeGarrafa {
   });
 
   factory CanjeGarrafa.fromJson(Map<String, dynamic> json) {
+    final snapshot = json['producto_snapshot'] ?? json['productoSnapshot'];
+    final snap = snapshot is Map ? snapshot : const {};
     return CanjeGarrafa(
       idCanje: parseInt(json['id_canje']) ?? parseInt(json['idCanje']),
       idVisita: parseInt(json['id_visita']) ?? parseInt(json['idVisita']),
@@ -32,14 +34,19 @@ class CanjeGarrafa {
               json['id_producto'] ??
               json['idProducto'])
           ?.toString(),
-      sku: (json['sku'] ?? json['producto_codigo'] ?? json['productoCodigo'])
+      sku: (snap['sku'] ??
+              json['sku'] ??
+              json['producto_codigo'] ??
+              json['productoCodigo'])
           ?.toString(),
-      descripcion: (json['producto_descripcion'] ??
+      descripcion: (snap['descripcion'] ??
+              json['producto_descripcion'] ??
               json['productoDescripcion'] ??
               json['descripcion_producto'] ??
               '')
           .toString(),
-      kg: parseInt(json['kg']) ??
+      kg: parseInt(snap['peso_kg']) ??
+          parseInt(json['kg']) ??
           parseInt(json['kilos']) ??
           parseInt(json['tamanio']) ??
           0,
@@ -48,7 +55,10 @@ class CanjeGarrafa {
               json['descripcion'] ??
               '')
           .toString(),
-      timestamp: parseDate(json['timestamp']) ?? parseDate(json['fecha']),
+      timestamp: parseDate(json['timestamp_canje']) ??
+          parseDate(json['timestampCanje']) ??
+          parseDate(json['timestamp']) ??
+          parseDate(json['fecha']),
       uuidOffline: (json['uuid_offline'] ?? json['uuidOffline'])?.toString(),
     );
   }
@@ -85,13 +95,21 @@ class CanjeGarrafaDraft {
 
   String get etiquetaSku => descripcion.isNotEmpty ? descripcion : '$kg kg';
 
-  Map<String, dynamic> toRequestJson() {
+  Map<String, dynamic> toRequestJson(int idVisita) {
     return {
-      'productoId': productoId,
-      'sku': sku,
-      'kg': kg,
+      'idVisita': idVisita,
+      'idProducto': productoId,
       'descripcionDanio': descripcionDanio.trim(),
-      'timestamp': timestamp.toUtc().toIso8601String(),
+      'timestampCanje': timestamp.toUtc().toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toSyncItemJson(int idVisita) {
+    return {
+      'idVisita': idVisita,
+      'idProducto': productoId,
+      'descripcionDanio': descripcionDanio.trim(),
+      'timestampCanje': timestamp.toUtc().toIso8601String(),
       'uuidOffline': uuidOffline,
     };
   }

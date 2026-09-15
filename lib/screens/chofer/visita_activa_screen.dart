@@ -239,7 +239,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   bool get _mostrarComodato =>
       _controlComodato != null ||
-      _contratoComodato != null ||
+      (_contratoComodato?.tieneComodato ?? false) ||
       (_ficha.tieneComodatoActivo && _cargandoContrato);
 
   Future<void> _hidratarControlComodato() async {
@@ -353,7 +353,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     int cantidadFisicaActual,
     String? observaciones,
   ) async {
-    final idVisita = _visita.idVisita;
+    final idVisita = await _asegurarIdVisita();
     final idAgendaItem = _visita.idAgendaItem;
     final ahora = DateTime.now();
     final draft = ControlComodatoDraft(
@@ -472,8 +472,35 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
+  Future<int?> _asegurarIdVisita() async {
+    final actual = _visita.idVisita;
+    if (actual != null) return actual;
+    final idAgendaItem = _visita.idAgendaItem;
+    final fecha = _visita.fecha;
+    if (idAgendaItem == null || fecha == null) return null;
+    try {
+      final items = await _visitaRepo.getVisitasPorUsuarioYFecha(
+        idUsuario: _visita.idUsuario,
+        fecha: fecha,
+      );
+      for (final item in items) {
+        if (item.idAgendaItem == idAgendaItem && item.idVisita != null) {
+          if (mounted) {
+            setState(() => _visita = _visita.copyWith(idVisita: item.idVisita));
+          }
+          return item.idVisita;
+        }
+      }
+    } on NetworkException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   Future<void> _registrarCanje(ProductoSku producto, String descripcionDanio) async {
-    final idVisita = _visita.idVisita;
+    final idVisita = await _asegurarIdVisita();
     final idAgendaItem = _visita.idAgendaItem;
     final draft = CanjeGarrafaDraft(
       idVisita: idVisita,

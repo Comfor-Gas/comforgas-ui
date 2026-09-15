@@ -62,5 +62,8 @@ class ApiConfig {
   static const String adminComodatosAuditoriaPath = '/api/admin/comodatos/auditoria';
 
   static const String visitaCanjesSuffix = '/canjes';
+  static const String canjesPath = '/api/canjes';
+  static const String canjesSyncLotePath = '/api/canjes/sync-lote';
   static const String adminCanjesPath = '/api/admin/canjes';
+  static const String adminCanjesReportePath = '/api/admin/canjes/reporte';
 }

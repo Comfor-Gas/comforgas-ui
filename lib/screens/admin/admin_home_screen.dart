@@ -10,6 +10,7 @@ import 'cuentas_corrientes_screen.dart';
 import 'gestion_flota_screen.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
+import 'reporte_canjes_screen.dart';
 import 'seguimiento_tiempo_real_screen.dart';
 import 'tablero_hoja_ruta_screen.dart';
 
@@ -47,6 +48,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         return const ConsolaVentasScreen();
       case 8:
         return const AuditoriaComodatoAdminScreen();
+      case 9:
+        return const ReporteCanjesScreen();
       default:
         return const PlaceholderAdminSection(
           title: 'Configuración',

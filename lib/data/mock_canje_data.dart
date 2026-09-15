@@ -1,6 +1,6 @@
 import '../models/canje_garrafa.dart';
 
-const bool kCanjeMock = true;
+const bool kCanjeMock = false;
 
 CanjeGarrafa mockCanjeDesdeDraft(CanjeGarrafaDraft draft) {
   return CanjeGarrafa(

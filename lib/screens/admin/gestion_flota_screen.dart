@@ -618,6 +618,8 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
                         onEntradaMovil: _abrirEntradaMovil,
                         onVerHistorial: _abrirHistorial,
                         onVerReporte: _abrirReporte,
+                        cargarDetalle: (idUsuario) =>
+                            _rodanteRepo.detalleDiarioPorChofer(idUsuario: idUsuario, fecha: _fecha),
                         mensajeVacio: _camiones.isEmpty
                             ? 'No hay camiones registrados.'
                             : 'No hay camiones que coincidan con los filtros.',

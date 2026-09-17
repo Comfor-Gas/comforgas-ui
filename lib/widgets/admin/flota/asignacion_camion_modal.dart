@@ -166,6 +166,11 @@ class _AsignacionCamionModalState extends State<AsignacionCamionModal> {
               ),
               const SizedBox(height: 12),
               _TotalDesglose(total: _total),
+              const SizedBox(height: 10),
+              _DetalleDespachoPlegable(
+                productos: widget.productos,
+                desglose: _desglose,
+              ),
               const SizedBox(height: 22),
               Row(
                 children: [
@@ -235,6 +240,106 @@ class _DesgloseSkus extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _DetalleDespachoPlegable extends StatefulWidget {
+  final List<ProductoCatalogo> productos;
+  final Map<String, int> desglose;
+
+  const _DetalleDespachoPlegable({required this.productos, required this.desglose});
+
+  @override
+  State<_DetalleDespachoPlegable> createState() => _DetalleDespachoPlegableState();
+}
+
+class _DetalleDespachoPlegableState extends State<_DetalleDespachoPlegable> {
+  bool _abierta = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final entradas = <MapEntry<String, int>>[
+      for (final p in widget.productos)
+        if ((widget.desglose[p.idProducto] ?? 0) > 0)
+          MapEntry(
+            p.etiquetaKg.isNotEmpty ? p.etiquetaKg : 'SKU ${p.sku}',
+            widget.desglose[p.idProducto] ?? 0,
+          ),
+    ];
+    final hay = entradas.isNotEmpty;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: hay ? () => setState(() => _abierta = !_abierta) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2_outlined, size: 16, color: AppColors.steelBlue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hay
+                          ? 'Detalle de la carga por tipo'
+                          : 'Todavía no cargaste unidades',
+                      style: AppTextStyles.footer.copyWith(
+                        color: hay ? AppColors.steelBlue : AppColors.graphiteGray,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (hay)
+                    AnimatedRotation(
+                      turns: _abierta ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 160),
+                      child: const Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.graphiteGray),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (hay)
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 160),
+              crossFadeState: _abierta ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+              firstChild: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Column(
+                  children: [
+                    for (final e in entradas)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.circle, size: 5, color: AppColors.graphiteGray),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text('Garrafa ${e.key}',
+                                  style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+                            ),
+                            Text('${e.value}',
+                                style: const TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.orange)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              secondChild: const SizedBox(width: double.infinity),
+            ),
+        ],
+      ),
     );
   }
 }

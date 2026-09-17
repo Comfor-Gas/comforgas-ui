@@ -40,6 +40,27 @@ class NotaRodanteResumen {
   }
 }
 
+class DetalleNotaDiaria {
+  final String idProducto;
+  final String sku;
+  final int llenos;
+  final int vacias;
+
+  const DetalleNotaDiaria({
+    required this.idProducto,
+    required this.sku,
+    this.llenos = 0,
+    this.vacias = 0,
+  });
+
+  int? get kg {
+    final m = RegExp(r'\d+').firstMatch(sku) ?? RegExp(r'\d+').firstMatch(idProducto);
+    return m != null ? int.tryParse(m.group(0)!) : null;
+  }
+
+  String get etiqueta => kg != null ? '$kg kg' : (sku.isNotEmpty ? sku : idProducto);
+}
+
 class StockRodanteAdminRepository {
   final http.Client _client;
 
@@ -88,6 +109,40 @@ class StockRodanteAdminRepository {
         .whereType<Map<String, dynamic>>()
         .map(NotaRodanteResumen.fromJson)
         .toList();
+  }
+
+  Future<List<DetalleNotaDiaria>> detalleDiarioPorChofer({
+    required String idUsuario,
+    required DateTime fecha,
+  }) async {
+    if (idUsuario.isEmpty) return const [];
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas').replace(
+      queryParameters: {'fecha': _fechaIso(fecha)},
+    );
+    final response = await _get(uri);
+    if (response.body.isEmpty) return const [];
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return const [];
+    for (final nota in decoded.whereType<Map<String, dynamic>>()) {
+      if ('${nota['idUsuario'] ?? ''}' != idUsuario) continue;
+      final detalles = nota['detalles'];
+      if (detalles is! List) return const [];
+      final result = <DetalleNotaDiaria>[];
+      for (final d in detalles.whereType<Map<String, dynamic>>()) {
+        final llenosSalida = int.tryParse('${d['llenosSalida'] ?? 0}') ?? 0;
+        final recargaLlenos = int.tryParse('${d['recargaLlenos'] ?? 0}') ?? 0;
+        final vaciosEntrada = int.tryParse('${d['vaciosEntrada'] ?? 0}') ?? 0;
+        result.add(DetalleNotaDiaria(
+          idProducto: (d['idProducto'] ?? '').toString(),
+          sku: (d['sku'] ?? '').toString(),
+          llenos: llenosSalida + recargaLlenos,
+          vacias: vaciosEntrada,
+        ));
+      }
+      result.sort((a, b) => (a.kg ?? 0).compareTo(b.kg ?? 0));
+      return result;
+    }
+    return const [];
   }
 
   Future<CuadreRodante> getCuadre(int idNota) async {

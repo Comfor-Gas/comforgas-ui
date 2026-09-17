@@ -6,6 +6,7 @@ import '../../services/app_lock_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import 'agenda_chofer_screen.dart';
+import 'rendicion/rendicion_ruta_screen.dart';
 import 'stock/stock_chofer_screen.dart';
 
 class ChoferHomeScreen extends StatefulWidget {
@@ -26,10 +27,7 @@ class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
   final List<Widget> _tabs = const [
     AgendaChoferScreen(),
     StockChoferScreen(),
-    _ChoferPlaceholderTab(
-      icon: Icons.inventory_2_outlined,
-      title: 'Comodato',
-    ),
+    RendicionRutaScreen(),
     _ChoferPerfilTab(),
   ];
 
@@ -55,39 +53,14 @@ class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
             label: 'Stock',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Comodato',
+            icon: Icon(Icons.assignment_turned_in_outlined),
+            label: 'Rendición',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             label: 'Perfil',
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ChoferPlaceholderTab extends StatelessWidget {
-  final IconData icon;
-  final String title;
-
-  const _ChoferPlaceholderTab({required this.icon, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: AppColors.inputHint),
-            const SizedBox(height: 16),
-            Text(title, style: AppTextStyles.title),
-            const SizedBox(height: 8),
-            Text('Sección en construcción', style: AppTextStyles.link),
-          ],
-        ),
       ),
     );
   }

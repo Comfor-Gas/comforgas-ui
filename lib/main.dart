@@ -10,12 +10,14 @@ import 'local/canje_offline_service.dart';
 import 'local/cobro_offline_service.dart';
 import 'local/comodato_offline_service.dart';
 import 'local/offline_queue_service.dart';
+import 'local/rendicion_local_service.dart';
 import 'local/stock_camion_cache_service.dart';
 import 'local/venta_social_local_service.dart';
 import 'services/app_lock_controller.dart';
 import 'services/canje_sync_manager.dart';
 import 'services/cobro_sync_manager.dart';
 import 'services/comodato_sync_manager.dart';
+import 'services/rendicion_sync_manager.dart';
 import 'services/sync_manager.dart';
 import 'services/ubicacion_tracking_service.dart';
 import 'screens/auth_gate.dart';
@@ -34,6 +36,7 @@ void main() async {
   await ComodatoOfflineService.instance.init();
   await CanjeOfflineService.instance.init();
   await VentaSocialLocalService.instance.init();
+  await RendicionLocalService.instance.init();
   await AgendaCacheService.instance.init();
   await StockCamionCacheService.instance.init();
   runApp(const ComforGasApp());
@@ -111,6 +114,7 @@ class _AppShellState extends State<_AppShell> {
       CobroSyncManager.instance.configurar(auth.apiClient);
       ComodatoSyncManager.instance.configurar(auth.apiClient);
       CanjeSyncManager.instance.configurar(auth.apiClient);
+      RendicionSyncManager.instance.configurar(auth.apiClient);
       if (auth.role == UserRole.chofer) {
         unawaited(UbicacionTrackingService.instance.iniciar(auth.apiClient));
       }
@@ -121,6 +125,7 @@ class _AppShellState extends State<_AppShell> {
       CobroSyncManager.instance.detener();
       ComodatoSyncManager.instance.detener();
       CanjeSyncManager.instance.detener();
+      RendicionSyncManager.instance.detener();
       unawaited(UbicacionTrackingService.instance.detener());
       rootNavigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),

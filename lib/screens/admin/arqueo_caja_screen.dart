@@ -16,6 +16,7 @@ import '../../utils/date_format_utils.dart';
 import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/arqueo_prestamos_card.dart';
 import '../../widgets/admin/cobranza/arqueo_resumen_card.dart';
+import '../../widgets/admin/cobranza/cuadre_rendicion_modal.dart';
 import '../../widgets/admin/cobranza/arqueo_tabla.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
 
@@ -351,15 +352,47 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
 
   Widget _resumen() {
     final arqueo = _arqueo!;
-    return ArqueoResumenCard(
-      totales: arqueo.totalesPorMetodo,
-      totalGeneral: arqueo.totalGeneral,
-      totalVentaSocial: arqueo.totalVentaSocial,
-      cerrado: _cerrado,
-      cerrando: _cerrando,
-      reabriendo: _reabriendo,
-      onCerrar: _cerrarArqueo,
-      onReabrir: _reabrirArqueo,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ArqueoResumenCard(
+          totales: arqueo.totalesPorMetodo,
+          totalGeneral: arqueo.totalGeneral,
+          totalVentaSocial: arqueo.totalVentaSocial,
+          cerrado: _cerrado,
+          cerrando: _cerrando,
+          reabriendo: _reabriendo,
+          onCerrar: _cerrarArqueo,
+          onReabrir: _reabrirArqueo,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _choferId == null ? null : _abrirCuadre,
+          icon: const Icon(Icons.fact_check_outlined, size: 18),
+          label: const Text('Cuadre de rendición del chofer'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.steelBlue,
+            side: const BorderSide(color: AppColors.steelBlue),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _abrirCuadre() {
+    final idUsuario = _choferId;
+    if (idUsuario == null) return;
+    mostrarCuadreRendicion(
+      context,
+      apiClient: context.read<AuthProvider>().apiClient,
+      idUsuario: idUsuario,
+      nombreChofer: _nombreChofer,
+      fecha: _fecha,
+      sistemaEfectivo: _totalSistema('EFECTIVO'),
+      sistemaCheque: _totalSistema('CHEQUE'),
+      sistemaTransferencia: _totalSistema('TRANSFERENCIA'),
     );
   }
 }

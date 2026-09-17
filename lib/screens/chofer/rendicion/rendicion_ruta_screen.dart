@@ -1,8 +1,10 @@
 import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../local/rendicion_local_service.dart';
 import '../../../models/rendicion_ruta.dart';
 import '../../../models/stock_rodante_chofer.dart';
@@ -24,6 +26,19 @@ class _Conteo {
   int llenos;
   int averiados;
   _Conteo({this.vacios = 0, this.llenos = 0, this.averiados = 0});
+}
+
+class _ResumenProducto {
+  final String etiqueta;
+  final int vacios;
+  final int llenos;
+  final int averiados;
+  const _ResumenProducto({
+    required this.etiqueta,
+    this.vacios = 0,
+    this.llenos = 0,
+    this.averiados = 0,
+  });
 }
 
 const List<StockRodanteProducto> _productosPorDefecto = [
@@ -263,10 +278,18 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                       ),
                       const SizedBox(height: 16),
                       _Resumen(
-                        totalValores: _totalValores,
-                        vacios: _totalVacios,
-                        llenos: _totalLlenos,
-                        averiados: _totalAveriados,
+                        efectivo: _leer(_efectivo),
+                        cheques: _leer(_cheques),
+                        transferencias: _leer(_transferencias),
+                        productos: [
+                          for (final p in _productos)
+                            _ResumenProducto(
+                              etiqueta: p.etiqueta,
+                              vacios: _conteos[_clave(p)]?.vacios ?? 0,
+                              llenos: _conteos[_clave(p)]?.llenos ?? 0,
+                              averiados: _conteos[_clave(p)]?.averiados ?? 0,
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       PrimaryButton(
@@ -618,21 +641,32 @@ class _SeccionObservaciones extends StatelessWidget {
 }
 
 class _Resumen extends StatelessWidget {
-  final int totalValores;
-  final int vacios;
-  final int llenos;
-  final int averiados;
+  final int efectivo;
+  final int cheques;
+  final int transferencias;
+  final List<_ResumenProducto> productos;
 
   const _Resumen({
-    required this.totalValores,
-    required this.vacios,
-    required this.llenos,
-    required this.averiados,
+    required this.efectivo,
+    required this.cheques,
+    required this.transferencias,
+    required this.productos,
   });
 
   @override
   Widget build(BuildContext context) {
+    final totalValores = efectivo + cheques + transferencias;
+    final vacios = productos.fold(0, (a, p) => a + p.vacios);
+    final llenos = productos.fold(0, (a, p) => a + p.llenos);
+    final averiados = productos.fold(0, (a, p) => a + p.averiados);
     final totalGarrafas = vacios + llenos + averiados;
+
+    final detalleValores = <MapEntry<String, String>>[
+      if (efectivo > 0) MapEntry('Efectivo', formatMoneda(efectivo)),
+      if (cheques > 0) MapEntry('Cheques', formatMoneda(cheques)),
+      if (transferencias > 0) MapEntry('Transferencias', formatMoneda(transferencias)),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -645,13 +679,30 @@ class _Resumen extends StatelessWidget {
         children: [
           Text('Resumen a enviar', style: AppTextStyles.label.copyWith(fontSize: 15)),
           const SizedBox(height: 12),
-          _LineaResumen(etiqueta: 'Total valores declarados', valor: formatMoneda(totalValores), acento: AppColors.orange),
+          _LineaResumenPlegable(
+            etiqueta: 'Total valores declarados',
+            valor: formatMoneda(totalValores),
+            acento: AppColors.orange,
+            detalle: detalleValores,
+          ),
           const SizedBox(height: 8),
-          _LineaResumen(etiqueta: 'Vacías recuperadas', valor: '$vacios'),
+          _LineaResumenPlegable(
+            etiqueta: 'Vacías recuperadas',
+            valor: '$vacios',
+            detalle: _detallePorKilaje((p) => p.vacios),
+          ),
           const SizedBox(height: 8),
-          _LineaResumen(etiqueta: 'Llenas que vuelven', valor: '$llenos'),
+          _LineaResumenPlegable(
+            etiqueta: 'Llenas que vuelven',
+            valor: '$llenos',
+            detalle: _detallePorKilaje((p) => p.llenos),
+          ),
           const SizedBox(height: 8),
-          _LineaResumen(etiqueta: 'Dañadas / canjeadas', valor: '$averiados'),
+          _LineaResumenPlegable(
+            etiqueta: 'Dañadas / canjeadas',
+            valor: '$averiados',
+            detalle: _detallePorKilaje((p) => p.averiados),
+          ),
           const Divider(height: 20, color: AppColors.inputBorder),
           _LineaResumen(
             etiqueta: 'Total garrafas rendidas',
@@ -661,6 +712,13 @@ class _Resumen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<MapEntry<String, String>> _detallePorKilaje(int Function(_ResumenProducto) selector) {
+    return [
+      for (final p in productos)
+        if (selector(p) > 0) MapEntry(p.etiqueta, '${selector(p)}'),
+    ];
   }
 }
 
@@ -685,6 +743,100 @@ class _LineaResumen extends StatelessWidget {
             fontWeight: FontWeight.w800,
             color: acento ?? AppColors.graphiteGray,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LineaResumenPlegable extends StatefulWidget {
+  final String etiqueta;
+  final String valor;
+  final Color? acento;
+  final List<MapEntry<String, String>> detalle;
+
+  const _LineaResumenPlegable({
+    required this.etiqueta,
+    required this.valor,
+    required this.detalle,
+    this.acento,
+  });
+
+  @override
+  State<_LineaResumenPlegable> createState() => _LineaResumenPlegableState();
+}
+
+class _LineaResumenPlegableState extends State<_LineaResumenPlegable> {
+  bool _abierta = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final plegable = widget.detalle.isNotEmpty;
+    final color = widget.acento ?? AppColors.graphiteGray;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: plegable ? () => setState(() => _abierta = !_abierta) : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(widget.etiqueta, style: AppTextStyles.link.copyWith(fontSize: 13.5)),
+                ),
+                Text(
+                  widget.valor,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color),
+                ),
+                if (plegable) ...[
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: _abierta ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    child: const Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.graphiteGray),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 160),
+          crossFadeState: _abierta ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          firstChild: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 0, 2),
+            child: Column(
+              children: [
+                for (final d in widget.detalle)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.circle, size: 5, color: AppColors.graphiteGray),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            d.key,
+                            style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                          ),
+                        ),
+                        Text(
+                          d.value,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.steelBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          secondChild: const SizedBox(width: double.infinity),
         ),
       ],
     );

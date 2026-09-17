@@ -19,6 +19,7 @@ import '../../models/evidencia_tipo.dart';
 import '../../models/producto_sku.dart';
 import '../../models/nota_debito_resumen.dart';
 import '../../models/venta_draft.dart';
+import '../../models/venta_en_visita.dart';
 import '../../models/venta_social.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
@@ -112,17 +113,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _reintentandoConexion = false;
   bool _reintentandoDatos = false;
   bool _continuandoOffline = false;
-  VentaDraft? _ventaDraft;
-  bool _ventaRegistrada = false;
-  bool _ventaPendienteSync = false;
-  int? _idVentaRegistrada;
-  String? _uuidVentaOfflineRegistrada;
-  int _montoVentaSocial = 0;
+  final List<VentaEnVisita> _ventas = [];
   PausaSocialDraft? _pausaSocial;
   bool _procesandoSocial = false;
   bool _ventaSocialFinalizada = false;
   bool _ventaSocialPendienteSync = false;
-  bool _cobroRegistrado = false;
+
+  int get _montoVentaSocial =>
+      _ventas.where((v) => v.esSocial).fold(0, (a, v) => a + v.monto);
   ContratoComodato? _contratoComodato;
   bool _cargandoContrato = false;
   ControlComodatoDraft? _controlComodato;
@@ -892,6 +890,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     unawaited(UbicacionTrackingService.instance.iniciar(_apiClient));
     UbicacionTrackingService.instance.setVisitaActual(_visita.idVisita);
     unawaited(_prepararComodato());
+    unawaited(_hidratarVentas());
 
     final idVisita = _visita.idVisita;
     if (idVisita == null) return;
@@ -910,6 +909,35 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
   }
 
+  Future<void> _hidratarVentas() async {
+    final idVisita = _visita.idVisita ?? await _asegurarIdVisita();
+    if (idVisita == null) return;
+    List<VentaEnVisita> servidor;
+    try {
+      servidor = await _ventaRepo.getVentasDeVisita(idVisita);
+    } on NetworkException {
+      return;
+    } on VentaRepositoryException {
+      return;
+    } catch (_) {
+      return;
+    }
+    if (!mounted || servidor.isEmpty) return;
+    setState(() {
+      final idsServidor = servidor.map((v) => v.idVenta).whereType<int>().toSet();
+      final locales = _ventas
+          .where((v) => v.idVenta == null || !idsServidor.contains(v.idVenta))
+          .toList();
+      _ventas
+        ..clear()
+        ..addAll(servidor)
+        ..addAll(locales);
+      if (servidor.any((v) => v.esSocial)) {
+        _ventaSocialFinalizada = true;
+      }
+    });
+  }
+
   Future<void> _abrirRegistroVenta() async {
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -917,7 +945,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           visita: _visita,
           nombreCliente: widget.nombreCliente,
           direccionCliente: widget.direccionCliente,
-          inicial: _ventaRegistrada ? null : _ventaDraft,
+          inicial: null,
           onRegistrar: _registrarVenta,
         ),
       ),
@@ -1058,11 +1086,14 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           _procesandoSocial = false;
           _ventaSocialFinalizada = true;
           _ventaSocialPendienteSync = false;
+          _ventas.removeWhere((v) => v.esSocial);
           if (res.tieneVenta) {
-            _ventaRegistrada = true;
-            _idVentaRegistrada = res.idVenta;
-            _uuidVentaOfflineRegistrada = null;
-            _montoVentaSocial = res.montoTotal;
+            _ventas.add(VentaEnVisita(
+              key: draft.uuidOffline,
+              idVenta: res.idVenta,
+              monto: res.montoTotal,
+              esSocial: true,
+            ));
           }
         });
         _mostrarInfoSocial(
@@ -1105,11 +1136,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _pausaSocial = null;
       _procesandoSocial = false;
       _ventaSocialFinalizada = true;
+      _ventas.removeWhere((v) => v.esSocial);
       if (hayVenta) {
-        _ventaRegistrada = true;
-        _idVentaRegistrada = null;
-        _uuidVentaOfflineRegistrada = draft.uuidOffline;
-        _montoVentaSocial = draft.montoVendidoLocal;
+        _ventas.add(VentaEnVisita(
+          key: draft.uuidOffline,
+          uuidOffline: draft.uuidOffline,
+          monto: draft.montoVendidoLocal,
+          esSocial: true,
+          pendienteSync: true,
+        ));
         _ventaSocialPendienteSync = true;
       }
     });
@@ -1154,22 +1189,30 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
-  Future<Object?> _abrirCobro() {
+  Future<Object?> _abrirCobro(VentaEnVisita venta) {
     final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
     return Navigator.of(context).push<Object?>(
       MaterialPageRoute(
         builder: (_) => RegistroCobroScreen(
-          idVenta: _idVentaRegistrada,
-          uuidVentaOffline:
-              _idVentaRegistrada == null ? _uuidVentaOfflineRegistrada : null,
+          idVenta: venta.idVenta,
+          uuidVentaOffline: venta.idVenta == null ? venta.uuidOffline : null,
           nombreCliente: widget.nombreCliente,
-          montoSugerido: _ventaDraft?.montoTotal ?? _montoVentaSocial,
+          montoSugerido: venta.monto,
           credito: credito,
           canjes: _canjes,
-          notaDebito: NotaDebitoResumen.deVenta(_ventaDraft),
+          notaDebito: NotaDebitoResumen.deVenta(venta.draft),
         ),
       ),
     );
+  }
+
+  Future<void> _cobrarVenta(VentaEnVisita venta) async {
+    if (venta.cobrado || !venta.referenciable) return;
+    final resultado = await _abrirCobro(venta);
+    if (!mounted) return;
+    if (resultado != null) {
+      setState(() => venta.cobrado = true);
+    }
   }
 
   Future<void> _registrarVenta(VentaDraft venta) async {
@@ -1181,14 +1224,16 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         final idVenta = await _ventaRepo.registrarVenta(idVisita: idVisita, venta: venta);
         if (!mounted) return;
         setState(() {
-          _ventaDraft = venta;
-          _ventaRegistrada = true;
-          _ventaPendienteSync = false;
-          _idVentaRegistrada = idVenta;
+          _ventas.add(VentaEnVisita(
+            key: _uuid.v4(),
+            idVenta: idVenta,
+            monto: venta.montoTotal,
+            cantidadLineas: venta.lineas.length,
+            draft: venta,
+          ));
         });
         return;
       } on NetworkException {
-        _ventaPendienteSync = true;
       }
     }
 
@@ -1198,27 +1243,32 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       );
     }
 
-    await _encolarVenta(idAgendaItem: idAgendaItem, idVisita: idVisita, venta: venta);
+    final uuidVenta = await _encolarVenta(
+      idAgendaItem: idAgendaItem,
+      idVisita: idVisita,
+      venta: venta,
+    );
     if (!mounted) return;
     setState(() {
-      _ventaDraft = venta;
-      _ventaRegistrada = true;
-      _ventaPendienteSync = true;
+      _ventas.add(VentaEnVisita(
+        key: uuidVenta,
+        uuidOffline: uuidVenta,
+        monto: venta.montoTotal,
+        cantidadLineas: venta.lineas.length,
+        draft: venta,
+        pendienteSync: true,
+      ));
     });
   }
 
-  Future<void> _encolarVenta({
+  Future<String> _encolarVenta({
     required int idAgendaItem,
     int? idVisita,
     required VentaDraft venta,
   }) async {
     final ahora = DateTime.now();
     final items = venta.lineas.map((l) => l.toRequestJson()).toList();
-    // El backend persiste este UUID como uuid_offline de la venta, así que lo
-    // guardamos para poder referenciar el cobro por él mientras la venta no
-    // tenga id del servidor.
     final uuidVenta = _uuid.v4();
-    _uuidVentaOfflineRegistrada = uuidVenta;
     await OfflineQueueService.instance.encolar(
       OfflineEvento(
         uuidOffline: uuidVenta,
@@ -1231,6 +1281,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       ),
     );
     unawaited(SyncManager.instance.sincronizar());
+    return uuidVenta;
   }
 
   Future<void> _capturarFoto() async {
@@ -1284,14 +1335,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       return;
     }
 
-    // Se abre el cobro tanto si la venta ya tiene id del servidor como si se
-    // registró offline (en cuyo caso se referencia por su uuid_offline).
-    if (_ventaRegistrada &&
-        !_cobroRegistrado &&
-        (_idVentaRegistrada != null || _uuidVentaOfflineRegistrada != null)) {
-      final resultado = await _abrirCobro();
+    for (final venta in _ventas) {
+      if (venta.cobrado || !venta.referenciable) continue;
+      final resultado = await _abrirCobro(venta);
       if (!mounted) return;
-      if (resultado != null) setState(() => _cobroRegistrado = true);
+      if (resultado != null) setState(() => venta.cobrado = true);
     }
 
     setState(() => _finalizando = true);
@@ -1738,57 +1786,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Widget _buildVentaSection() {
-    if (_ventaRegistrada && _ventaDraft != null) {
-      final venta = _ventaDraft!;
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.badgeGreen.withOpacity(0.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.check_circle, size: 20, color: AppColors.badgeGreen),
-                const SizedBox(width: 8),
-                Text('Venta registrada', style: AppTextStyles.label.copyWith(fontSize: 15)),
-                const Spacer(),
-                Text(
-                  formatMoneda(venta.montoTotal),
-                  style: AppTextStyles.title.copyWith(fontSize: 18),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              venta.lineas.length == 1
-                  ? '1 producto en el detalle'
-                  : '${venta.lineas.length} productos en el detalle',
-              style: AppTextStyles.link.copyWith(fontSize: 13),
-            ),
-            if (_ventaPendienteSync && !_online) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: const [
-                  Icon(Icons.sync, size: 15, color: AppColors.badgeAmber),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Pendiente de sincronizar con el servidor. Se envía solo cuando hay señal.',
-                      style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
+    final estaPausada = _visita.estadoVisita == VisitaEstado.pausadaSocial;
+    final totalVentas = _ventas.fold(0, (a, v) => a + v.monto);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1805,29 +1804,50 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Registrar venta',
+                  'Ventas de la visita',
                   style: AppTextStyles.label.copyWith(fontSize: 15),
                 ),
               ),
+              if (_ventas.isNotEmpty)
+                Text(
+                  formatMoneda(totalVentas),
+                  style: AppTextStyles.title.copyWith(fontSize: 16, color: AppColors.orange),
+                ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Cargá las garrafas entregadas (Vacío x Lleno, préstamo o envase). Es opcional si esta visita no tuvo venta.',
-            style: AppTextStyles.footer,
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: _finalizando ? null : _abrirRegistroVenta,
-            icon: const Icon(Icons.add, size: 20),
-            label: const Text('Registrar venta'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.orange,
-              side: const BorderSide(color: AppColors.orange),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          const SizedBox(height: 10),
+          if (_ventas.isEmpty)
+            Text(
+              'Cargá las garrafas entregadas (Vacío x Lleno, préstamo o envase). '
+              'Podés registrar más de una venta en la misma visita.',
+              style: AppTextStyles.footer,
+            )
+          else
+            for (final v in _ventas) ...[
+              _FilaVentaRegistrada(
+                venta: v,
+                online: _online,
+                onCobrar: (v.referenciable && !v.cobrado && !_finalizando)
+                    ? () => _cobrarVenta(v)
+                    : null,
+              ),
+              const SizedBox(height: 10),
+            ],
+          const SizedBox(height: 4),
+          if (estaPausada)
+            const _AvisoVentaPausada()
+          else
+            OutlinedButton.icon(
+              onPressed: _finalizando ? null : _abrirRegistroVenta,
+              icon: const Icon(Icons.add, size: 20),
+              label: Text(_ventas.isEmpty ? 'Registrar venta' : 'Registrar otra venta'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.orange,
+                side: const BorderSide(color: AppColors.orange),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -2003,6 +2023,141 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           ],
         );
     }
+  }
+}
+
+class _FilaVentaRegistrada extends StatelessWidget {
+  final VentaEnVisita venta;
+  final bool online;
+  final VoidCallback? onCobrar;
+
+  const _FilaVentaRegistrada({
+    required this.venta,
+    required this.online,
+    this.onCobrar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color borde =
+        venta.cobrado ? AppColors.badgeGreen : AppColors.inputBorder;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borde.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                venta.esSocial ? Icons.volunteer_activism_outlined : Icons.point_of_sale_outlined,
+                size: 17,
+                color: venta.esSocial ? AppColors.steelBlue : AppColors.orange,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  venta.etiqueta,
+                  style: AppTextStyles.label.copyWith(fontSize: 13.5),
+                ),
+              ),
+              Text(
+                formatMoneda(venta.monto),
+                style: AppTextStyles.title.copyWith(fontSize: 15),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _estado()),
+              if (onCobrar != null)
+                TextButton(
+                  onPressed: onCobrar,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.orange,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Cobrar',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _estado() {
+    if (venta.cobrado) {
+      return Row(
+        children: const [
+          Icon(Icons.check_circle, size: 15, color: AppColors.badgeGreen),
+          SizedBox(width: 6),
+          Text(
+            'Cobrada',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.badgeGreen),
+          ),
+        ],
+      );
+    }
+    if (venta.pendienteSync && !online) {
+      return Row(
+        children: const [
+          Icon(Icons.sync, size: 15, color: AppColors.badgeAmber),
+          SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Pendiente de sincronizar. Se envía cuando haya señal.',
+              style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+            ),
+          ),
+        ],
+      );
+    }
+    final detalle = venta.esSocial
+        ? 'Liquidación social'
+        : (venta.cantidadLineas == 1 ? '1 producto' : '${venta.cantidadLineas} productos');
+    return Text(
+      '$detalle · Cobro pendiente',
+      style: const TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+    );
+  }
+}
+
+class _AvisoVentaPausada extends StatelessWidget {
+  const _AvisoVentaPausada();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.30)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.pause_circle_outline, size: 17, color: AppColors.steelBlue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Venta Social en proceso. Finalizala para registrar otras ventas.',
+              style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

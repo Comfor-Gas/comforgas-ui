@@ -47,6 +47,7 @@ class DepositoCamion {
   final RepartidorInfo? repartidor;
   final int llenos;
   final int vacios;
+  final int vaciasDelDia;
   final bool stockCargado;
   final int? cupoBaseBackend;
   final EstadoCamion? estadoBackend;
@@ -61,6 +62,7 @@ class DepositoCamion {
     this.repartidor,
     this.llenos = 0,
     this.vacios = 0,
+    this.vaciasDelDia = 0,
     this.stockCargado = false,
     this.cupoBaseBackend,
     this.estadoBackend,
@@ -107,6 +109,7 @@ class DepositoCamion {
     bool limpiarRepartidor = false,
     int? llenos,
     int? vacios,
+    int? vaciasDelDia,
     bool? stockCargado,
     int? cupoBaseBackend,
     EstadoCamion? estadoBackend,
@@ -121,6 +124,7 @@ class DepositoCamion {
       repartidor: limpiarRepartidor ? null : (repartidor ?? this.repartidor),
       llenos: llenos ?? this.llenos,
       vacios: vacios ?? this.vacios,
+      vaciasDelDia: vaciasDelDia ?? this.vaciasDelDia,
       stockCargado: stockCargado ?? this.stockCargado,
       cupoBaseBackend: cupoBaseBackend ?? this.cupoBaseBackend,
       estadoBackend: estadoBackend ?? this.estadoBackend,
@@ -153,6 +157,7 @@ class DepositoCamion {
       repartidor: rep is Map<String, dynamic> ? RepartidorInfo.fromJson(rep) : null,
       llenos: parseInt(json['llenos']) ?? 0,
       vacios: parseInt(json['vacios']) ?? 0,
+      vaciasDelDia: parseInt(json['vaciasDelDia']) ?? 0,
       stockCargado: true,
       cupoBaseBackend: parseInt(json['cupoBase']),
       estadoBackend: estadoCamionDesdeBackend(json['estadoOperativo']?.toString()),

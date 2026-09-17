@@ -32,6 +32,7 @@ List<DepositoCamion> camionesFlotaDeEjemplo() {
       repartidor: RepartidorInfo(id: 'c1', nombre: 'Diego Gómez', email: 'diego@comforgas.com'),
       llenos: 150,
       vacios: 42,
+      vaciasDelDia: 12,
       stockCargado: true,
     ),
     DepositoCamion(
@@ -43,6 +44,7 @@ List<DepositoCamion> camionesFlotaDeEjemplo() {
       repartidor: RepartidorInfo(id: 'c2', nombre: 'Canota Gómez', email: 'canota@comforgas.com'),
       llenos: 150,
       vacios: 150,
+      vaciasDelDia: 30,
       stockCargado: true,
     ),
     DepositoCamion(
@@ -54,6 +56,7 @@ List<DepositoCamion> camionesFlotaDeEjemplo() {
       repartidor: RepartidorInfo(id: 'c1', nombre: 'Diego Gómez', email: 'diego@comforgas.com'),
       llenos: 140,
       vacios: 70,
+      vaciasDelDia: 18,
       stockCargado: true,
     ),
     DepositoCamion(

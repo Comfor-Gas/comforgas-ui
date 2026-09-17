@@ -10,6 +10,7 @@ import 'arqueo_tabla.dart';
 class ArqueoResumenCard extends StatelessWidget {
   final List<ArqueoMetodoTotal> totales;
   final int totalGeneral;
+  final int totalVentaSocial;
   final bool cerrado;
   final bool cerrando;
   final bool reabriendo;
@@ -21,6 +22,7 @@ class ArqueoResumenCard extends StatelessWidget {
     required this.totales,
     required this.totalGeneral,
     required this.onCerrar,
+    this.totalVentaSocial = 0,
     this.onReabrir,
     this.cerrado = false,
     this.cerrando = false,
@@ -58,6 +60,8 @@ class ArqueoResumenCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          _LineaVentaSocial(valor: totalVentaSocial),
           const SizedBox(height: 18),
           if (cerrado) ...[
             const _ArqueoCerradoAviso(),
@@ -103,6 +107,44 @@ class ArqueoResumenCard extends StatelessWidget {
               const Icon(Icons.receipt_long_outlined, size: 15, color: AppColors.graphiteGray),
               const SizedBox(width: 6),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineaVentaSocial extends StatelessWidget {
+  final int valor;
+
+  const _LineaVentaSocial({required this.valor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.30)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.volunteer_activism_outlined, size: 17, color: AppColors.steelBlue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Recaudado Ventas Sociales',
+              style: AppTextStyles.link.copyWith(fontSize: 13, color: AppColors.graphiteGray),
+            ),
+          ),
+          Text(
+            formatMoneda(valor),
+            style: const TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.steelBlue,
+            ),
           ),
         ],
       ),

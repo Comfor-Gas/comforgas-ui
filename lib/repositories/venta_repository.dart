@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/venta_draft.dart';
+import '../models/venta_en_visita.dart';
 import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
@@ -66,6 +67,46 @@ class VentaRepository {
       throw VentaRepositoryException(
         _extractErrorMessage(response.body) ??
             'La visita asociada a la venta no existe.',
+      );
+    }
+
+    throw VentaRepositoryException(
+      _extractErrorMessage(response.body) ??
+          'Error del servidor (${response.statusCode}). Intenta más tarde.',
+    );
+  }
+
+  Future<List<VentaEnVisita>> getVentasDeVisita(int idVisita) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.ventasPath}/visita/$idVisita');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri).timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw NetworkException();
+    }
+
+    if (response.statusCode == 200) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return (decoded['ventas'] as List? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(VentaEnVisita.fromResponseJson)
+              .toList();
+        }
+      } catch (_) {}
+      return const [];
+    }
+
+    if (response.statusCode == 404) {
+      return const [];
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw VentaRepositoryException(
+        _extractErrorMessage(response.body) ??
+            'Tu sesión no tiene permisos para consultar las ventas.',
       );
     }
 

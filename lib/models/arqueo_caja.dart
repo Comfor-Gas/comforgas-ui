@@ -65,6 +65,63 @@ class ArqueoMetodoTotal {
   }
 }
 
+class ArqueoCategoriaTotal {
+  final String categoria;
+  final int total;
+  final int totalOnline;
+  final int totalSincronizadoDiferido;
+  final int cantidad;
+
+  const ArqueoCategoriaTotal({
+    required this.categoria,
+    this.total = 0,
+    this.totalOnline = 0,
+    this.totalSincronizadoDiferido = 0,
+    this.cantidad = 0,
+  });
+
+  factory ArqueoCategoriaTotal.fromJson(Map<String, dynamic> json) {
+    return ArqueoCategoriaTotal(
+      categoria: (json['categoria'] ?? '').toString(),
+      total: parseInt(json['total']) ?? 0,
+      totalOnline: parseInt(json['totalOnline']) ?? 0,
+      totalSincronizadoDiferido: parseInt(json['totalSincronizadoDiferido']) ?? 0,
+      cantidad: parseInt(json['cantidadCobros']) ?? 0,
+    );
+  }
+}
+
+class ArqueoNotaDebito {
+  final int idNotaDebito;
+  final int? idVenta;
+  final int? idClienteExt;
+  final String idProducto;
+  final int cantidadAdeudada;
+  final String estado;
+
+  const ArqueoNotaDebito({
+    required this.idNotaDebito,
+    this.idVenta,
+    this.idClienteExt,
+    required this.idProducto,
+    this.cantidadAdeudada = 0,
+    this.estado = '',
+  });
+
+  bool get pendiente => estado.toUpperCase() == 'PENDIENTE';
+
+  factory ArqueoNotaDebito.fromJson(Map<String, dynamic> json) {
+    return ArqueoNotaDebito(
+      idNotaDebito: parseInt(json['idNotaDebito']) ?? 0,
+      idVenta: parseInt(json['idVenta']),
+      idClienteExt: parseInt(json['idClienteExt']),
+      idProducto: (json['idProducto'] ?? '').toString(),
+      cantidadAdeudada: parseInt(json['cantidadAdeudada']) ?? 0,
+      estado: (json['estado'] ?? '').toString(),
+    );
+  }
+}
+
 class ArqueoCaja {
   final String idUsuario;
   final String nombreUsuario;
@@ -75,6 +132,8 @@ class ArqueoCaja {
   final int cantidadCobros;
   final List<ArqueoMetodoTotal> totalesPorMetodo;
   final List<ArqueoMovimiento> movimientos;
+  final List<ArqueoCategoriaTotal> totalesPorCategoria;
+  final List<ArqueoNotaDebito> notasDebito;
 
   /// Estado del cierre (viene del backend). Si [cerrado] es true, el arqueo ya
   /// fue auditado y no debe volver a cerrarse.
@@ -95,6 +154,8 @@ class ArqueoCaja {
     this.cantidadCobros = 0,
     this.totalesPorMetodo = const [],
     this.movimientos = const [],
+    this.totalesPorCategoria = const [],
+    this.notasDebito = const [],
     this.cerrado = false,
     this.correlativo,
     this.cerradoEn,
@@ -120,6 +181,14 @@ class ArqueoCaja {
           .whereType<Map<String, dynamic>>()
           .map(ArqueoMovimiento.fromJson)
           .toList(),
+      totalesPorCategoria: (json['totalesPorCategoria'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ArqueoCategoriaTotal.fromJson)
+          .toList(),
+      notasDebito: (json['notasDebito'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ArqueoNotaDebito.fromJson)
+          .toList(),
       cerrado: json['cerrado'] == true,
       correlativo: json['correlativo']?.toString(),
       cerradoEn: parseDate(json['cerradoAt']),
@@ -128,4 +197,21 @@ class ArqueoCaja {
       transferenciaDeclarada: parseInt(json['transferenciaDeclarada']) ?? 0,
     );
   }
+
+  int _totalCategoria(String categoria) {
+    for (final c in totalesPorCategoria) {
+      if (c.categoria.toUpperCase() == categoria) return c.total;
+    }
+    return 0;
+  }
+
+  int get totalVentaSocial => _totalCategoria('SOCIAL');
+
+  int get totalPrestamos => _totalCategoria('PRESTAMO');
+
+  int get garrafasAdeudadas =>
+      notasDebito.fold(0, (a, n) => a + n.cantidadAdeudada);
+
+  int get notasDebitoPendientes =>
+      notasDebito.where((n) => n.pendiente).length;
 }

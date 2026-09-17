@@ -149,7 +149,10 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       _productos = productosFlotaDeEjemplo();
       _choferes = _choferesDesdeCamiones();
       _vaciasRetornadasHoy = _camiones.fold(0, (a, c) => a + c.vacios);
-      _asignadoPorChofer = {};
+      _asignadoPorChofer = {
+        for (final c in _camiones)
+          if (c.repartidor != null) c.repartidor!.id: c.llenos,
+      };
       _notaPorChofer = {};
       _modoEjemplo = true;
       _aviso = mensaje;
@@ -213,7 +216,8 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     }).toList();
   }
 
-  int get _totalLlenos => _camiones.fold(0, (a, c) => a + c.llenos);
+  int get _llenosCargadosHoy =>
+      _asignadoPorChofer.values.fold(0, (a, v) => a + v);
 
   void _mostrarSnack(String mensaje, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -590,7 +594,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
               const SizedBox(height: 16),
               _StatsFlota(
                 camiones: _camiones.length,
-                llenos: _totalLlenos,
+                llenos: _llenosCargadosHoy,
                 vaciasRetornadas: _vaciasRetornadasHoy,
               ),
               if (_aviso != null) ...[
@@ -821,7 +825,7 @@ class _StatsFlota extends StatelessWidget {
           ),
           FlotaStatCard(
             icon: Icons.propane_tank_outlined,
-            etiqueta: 'Total Stock Llenos',
+            etiqueta: 'Llenos Cargados Hoy',
             valor: '$llenos',
             acento: AppColors.badgeGreen,
           ),

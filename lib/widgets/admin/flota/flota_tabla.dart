@@ -224,7 +224,7 @@ class _FilaCamion extends StatelessWidget {
           Expanded(
             flex: _colVacias,
             child: Text(
-              '${camion.vacios}',
+              '${camion.vaciasDelDia}',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -569,7 +569,7 @@ class _CamionCard extends StatelessWidget {
           const SizedBox(height: 14),
           CamionStockBar(
             llenos: asignado,
-            vacios: camion.vacios,
+            vacios: camion.vaciasDelDia,
           ),
           const SizedBox(height: 14),
           if (nota?.cerrada ?? false) ...[

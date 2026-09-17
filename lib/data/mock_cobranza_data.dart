@@ -20,6 +20,29 @@ ArqueoCaja arqueoDeEjemplo({
       ArqueoMetodoTotal(metodoPago: 'CHEQUE', total: 96000, cantidad: 1),
       ArqueoMetodoTotal(metodoPago: 'TRANSFERENCIA', total: 0, cantidad: 0),
     ],
+    totalesPorCategoria: const [
+      ArqueoCategoriaTotal(categoria: 'NORMAL', total: 240000, cantidad: 1),
+      ArqueoCategoriaTotal(categoria: 'SOCIAL', total: 87000, cantidad: 1),
+      ArqueoCategoriaTotal(categoria: 'PRESTAMO', total: 9000, cantidad: 1),
+    ],
+    notasDebito: const [
+      ArqueoNotaDebito(
+        idNotaDebito: 1,
+        idVenta: 1235,
+        idClienteExt: 101,
+        idProducto: 'GLP 10kg',
+        cantidadAdeudada: 3,
+        estado: 'PENDIENTE',
+      ),
+      ArqueoNotaDebito(
+        idNotaDebito: 2,
+        idVenta: 1240,
+        idClienteExt: 102,
+        idProducto: 'GLP 15kg',
+        cantidadAdeudada: 1,
+        estado: 'SALDADA',
+      ),
+    ],
     movimientos: [
       ArqueoMovimiento(
         idCobro: 1,

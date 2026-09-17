@@ -14,6 +14,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/date_format_utils.dart';
 import '../../utils/formato.dart';
+import '../../widgets/admin/cobranza/arqueo_prestamos_card.dart';
 import '../../widgets/admin/cobranza/arqueo_resumen_card.dart';
 import '../../widgets/admin/cobranza/arqueo_tabla.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
@@ -286,6 +287,15 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
                 _contenidoDosColumnas()
               else
                 _contenidoApilado(),
+              if (_arqueo != null && !_loading) ...[
+                const SizedBox(height: 20),
+                ArqueoPrestamosCard(
+                  notas: _arqueo!.notasDebito,
+                  garrafasAdeudadas: _arqueo!.garrafasAdeudadas,
+                  pendientes: _arqueo!.notasDebitoPendientes,
+                  totalCobrado: _arqueo!.totalPrestamos,
+                ),
+              ],
             ],
           ),
         );
@@ -344,6 +354,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
     return ArqueoResumenCard(
       totales: arqueo.totalesPorMetodo,
       totalGeneral: arqueo.totalGeneral,
+      totalVentaSocial: arqueo.totalVentaSocial,
       cerrado: _cerrado,
       cerrando: _cerrando,
       reabriendo: _reabriendo,

@@ -150,27 +150,6 @@ class FlotaRepository {
     return mapa;
   }
 
-  Future<DepositoCamion> asignarChofer(
-    DepositoCamion camion, {
-    required String repartidorId,
-  }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/depositos/${camion.id}');
-    final body = jsonEncode({
-      'nombre': camion.nombre,
-      'tipo': 'CAMION',
-      'descripcion': camion.descripcion,
-      'vehiculoPatente': camion.patente,
-      'numeroMovil': camion.numeroMovil,
-      'repartidorId': repartidorId,
-    });
-    final response = await _send('PUT', uri, body);
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw FlotaRepositoryException('Respuesta inesperada del servidor.');
-    }
-    return DepositoCamion.fromJson(decoded);
-  }
-
   Future<List<MovimientoStock>> recargarCamion(
     int idCamion, {
     int? depositoCentralId,

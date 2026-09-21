@@ -34,6 +34,7 @@ class CobroRepository {
     required int monto,
     required DateTime timestampCobro,
     required String uuidOffline,
+    String? uuidCobroGrupo,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.cobrosPath}');
     http.Response response;
@@ -48,6 +49,7 @@ class CobroRepository {
               'montoCobrado': monto,
               'timestampCobro': timestampCobro.toUtc().toIso8601String(),
               'uuidTransaccionOffline': uuidOffline,
+              if (uuidCobroGrupo != null) 'uuidCobroGrupo': uuidCobroGrupo,
             }),
           )
           .timeout(const Duration(seconds: 20));

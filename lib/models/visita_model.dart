@@ -53,6 +53,14 @@ class VisitaModel {
     this.updatedAt,
   });
 
+  String? get vendedor {
+    final v = rutaSnapshot['vendedor'];
+    return (v is String && v.trim().isNotEmpty) ? v.trim() : null;
+  }
+
+  String? get nombreChoferMostrado =>
+      vendedor ?? (nombreUsuario != null && nombreUsuario!.trim().isNotEmpty ? nombreUsuario : null);
+
   static Map<String, dynamic> _buildRutaSnapshot(Map<String, dynamic> json) {
     final base = json['rutaSnapshot'] is Map<String, dynamic>
         ? Map<String, dynamic>.from(json['rutaSnapshot'] as Map<String, dynamic>)

@@ -50,6 +50,7 @@ class DetalleVentaDraft {
       'cantidadEntregada': cantidadEntregada,
       'cantidadRecibida': tipoOperacion.usaRecibidos ? cantidadRecibida : 0,
       'precioUnitario': producto.precioUnitario,
+      'inconsistente': !concordanciaValida,
     };
   }
 }

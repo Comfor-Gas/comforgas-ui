@@ -170,7 +170,11 @@ class _SeguimientoTiempoRealScreenState
           (ch) => _visitaRepo
               .getVisitasPorUsuarioYFecha(idUsuario: ch.id, fecha: hoy)
               .then((items) => items
-                  .map((i) => i.toVisitaModel(ch.id).copyWith(nombreUsuario: ch.fullName))
+                  .map((i) => i.toVisitaModel(ch.id).copyWith(
+                        nombreUsuario: (i.vendedor != null && i.vendedor!.trim().isNotEmpty)
+                            ? i.vendedor!.trim()
+                            : ch.fullName,
+                      ))
                   .toList())
               .catchError((_) => <VisitaModel>[]),
         ),

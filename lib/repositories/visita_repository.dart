@@ -529,6 +529,7 @@ class VisitaRepository {
   Future<VisitaModel> finalizarVisita(
     int idVisita, {
     String? observaciones,
+    String? motivoFaltante,
     DateTime? timestampFin,
     double? latitudFin,
     double? longitudFin,
@@ -546,6 +547,8 @@ class VisitaRepository {
             body: jsonEncode({
               if (observaciones != null && observaciones.trim().isNotEmpty)
                 'observaciones': observaciones.trim(),
+              if (motivoFaltante != null && motivoFaltante.trim().isNotEmpty)
+                'motivoFaltante': motivoFaltante.trim(),
               'timestampFin': (timestampFin ?? DateTime.now()).toUtc().toIso8601String(),
               if (latitudFin != null) 'latitudFin': latitudFin,
               if (longitudFin != null) 'longitudFin': longitudFin,

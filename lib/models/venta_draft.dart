@@ -9,11 +9,30 @@ class VentaDraft {
   int get montoTotal =>
       lineas.fold(0, (total, linea) => total + linea.subtotal);
 
+  List<DetalleVentaDraft> get lineasSociales =>
+      lineas.where((l) => l.tipoOperacion.esSocial).toList();
+
+  List<DetalleVentaDraft> get lineasVenta =>
+      lineas.where((l) => !l.tipoOperacion.esSocial).toList();
+
+  bool get tieneSocial => lineasSociales.isNotEmpty;
+
+  bool get tieneVentaNormal => lineasVenta.isNotEmpty;
+
+  int get montoVentaNormal =>
+      lineasVenta.fold(0, (total, linea) => total + linea.subtotal);
+
+  int get montoSocialEstimado =>
+      lineasSociales.fold(0, (total, linea) => total + linea.subtotal);
+
+  int get totalGarrafasSociales =>
+      lineasSociales.fold(0, (total, linea) => total + linea.cantidadEntregada);
+
   bool get vacio => lineas.isEmpty;
 
-  bool get hayInconsistencias => lineas.any((linea) => !linea.esValido);
+  bool get hayInconsistencias => lineasVenta.any((linea) => !linea.esValido);
 
-  bool get puedeGuardar => !vacio && !hayInconsistencias;
+  bool get puedeGuardar => !vacio;
 
   bool contieneProducto(String idProducto) =>
       lineas.any((linea) => linea.producto.idProducto == idProducto);

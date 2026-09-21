@@ -109,18 +109,18 @@ class _AvisoInconsistencia extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.08),
+        color: AppColors.badgeAmber.withOpacity(0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.badgeAmber, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Hay productos con cantidades inconsistentes. La venta no puede guardarse.',
-              style: AppTextStyles.errorText.copyWith(fontSize: 13),
+              'Hay productos con cantidades inconsistentes. Se registran igual, marcados para revisión del administrador.',
+              style: AppTextStyles.footer.copyWith(fontSize: 13, color: AppColors.graphiteGray),
             ),
           ),
         ],

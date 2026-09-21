@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../local/stock_camion_cache_service.dart';
 import '../../../models/detalle_venta_draft.dart';
+import '../../../models/producto_catalogo.dart';
 import '../../../models/producto_sku.dart';
+import '../../../models/tipo_operacion_venta.dart';
 import '../../../models/venta_draft.dart';
 import '../../../models/visita_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/network_exception.dart';
+import '../../../repositories/producto_repository.dart';
 import '../../../repositories/stock_repository.dart';
 import '../../../repositories/venta_repository.dart';
 import '../../../services/catalogo_garrafas_service.dart';
@@ -14,6 +17,7 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../widgets/chofer/venta/detalle_venta_card.dart';
 import '../../../widgets/chofer/venta/detalle_venta_editor_sheet.dart';
+import '../../../widgets/chofer/venta/selector_producto_sheet.dart';
 import '../../../widgets/chofer/venta/sku_catalogo_card.dart';
 import '../../../widgets/chofer/venta/stock_aviso_banner.dart';
 import '../../../widgets/chofer/venta/tipo_operacion_sheet.dart';
@@ -61,22 +65,30 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
     final apiClient = context.read<AuthProvider>().apiClient;
     final idUsuario = widget.visita.idUsuario;
 
+    List<ProductoCatalogo> productos = const [];
+    try {
+      productos = await ProductoRepository(apiClient)
+          .listar(idAgendaItem: widget.visita.idAgendaItem);
+    } catch (_) {
+      productos = const [];
+    }
+
     List<ProductoSku> catalogo;
     String? aviso;
     try {
       final stock = await StockRepository(apiClient).getStockMiCamion();
       await StockCamionCacheService.instance.guardar(idUsuario, stock);
-      catalogo = _catalogoService.desdeStock(widget.visita, stock);
+      catalogo = _catalogoService.desdeStockYCatalogo(widget.visita, stock, productos);
     } on NetworkException {
-      final resultado = _catalogoDesdeCacheOFallback(idUsuario);
+      final resultado = _catalogoDesdeCacheOFallback(idUsuario, productos);
       catalogo = resultado.$1;
       aviso = resultado.$2;
     } on StockRepositoryException catch (e) {
-      final resultado = _catalogoDesdeCacheOFallback(idUsuario, motivo: e.message);
+      final resultado = _catalogoDesdeCacheOFallback(idUsuario, productos, motivo: e.message);
       catalogo = resultado.$1;
       aviso = resultado.$2;
     } catch (_) {
-      final resultado = _catalogoDesdeCacheOFallback(idUsuario);
+      final resultado = _catalogoDesdeCacheOFallback(idUsuario, productos);
       catalogo = resultado.$1;
       aviso = resultado.$2;
     }
@@ -90,13 +102,14 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
   }
 
   (List<ProductoSku>, String?) _catalogoDesdeCacheOFallback(
-    String idUsuario, {
+    String idUsuario,
+    List<ProductoCatalogo> productos, {
     String? motivo,
   }) {
     final cache = StockCamionCacheService.instance.obtener(idUsuario);
     if (cache != null) {
       return (
-        _catalogoService.desdeStock(widget.visita, cache),
+        _catalogoService.desdeStockYCatalogo(widget.visita, cache, productos),
         'Usando el último stock del camión guardado; puede estar desactualizado.',
       );
     }
@@ -124,6 +137,28 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
     setState(() => _venta.guardarLinea(detalle));
   }
 
+  Future<void> _agregarSocial() async {
+    final producto = await mostrarSelectorProducto(
+      context,
+      productos: _catalogo,
+      titulo: 'Elegí la garrafa para Venta Social',
+    );
+    if (producto == null || !mounted) return;
+
+    final existente =
+        _venta.buscar(producto.idProducto, TipoOperacionVenta.ventaSocial);
+
+    final detalle = await mostrarDetalleVentaEditor(
+      context,
+      producto: producto,
+      tipoOperacion: TipoOperacionVenta.ventaSocial,
+      inicial: existente,
+    );
+    if (detalle == null || !mounted) return;
+
+    setState(() => _venta.guardarLinea(detalle));
+  }
+
   Future<void> _onEditarLinea(DetalleVentaDraft linea) async {
     final detalle = await mostrarDetalleVentaEditor(
       context,
@@ -138,6 +173,16 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
 
   void _onEliminarLinea(DetalleVentaDraft linea) {
     setState(() => _venta.eliminarLinea(linea));
+  }
+
+  String get _textoBotonGuardar {
+    if (_venta.tieneSocial && !_venta.tieneVentaNormal) {
+      return 'DEJAR EN EL PUNTO Y PAUSAR';
+    }
+    if (_venta.tieneSocial && _venta.tieneVentaNormal) {
+      return 'GUARDAR VENTA Y PAUSAR SOCIAL';
+    }
+    return 'GUARDAR VENTA';
   }
 
   Future<void> _guardarVenta() async {
@@ -200,11 +245,11 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
                               onTap: () => _onAgregarSku(sku),
                             ),
                           ),
-                          if (_venta.lineas.isNotEmpty) ...[
+                          if (_venta.tieneVentaNormal) ...[
                             const SizedBox(height: 12),
                             _Seccion(titulo: 'Detalle de la venta'),
                             const SizedBox(height: 12),
-                            ..._venta.lineas.map(
+                            ..._venta.lineasVenta.map(
                               (linea) => DetalleVentaCard(
                                 detalle: linea,
                                 onEditar: () => _onEditarLinea(linea),
@@ -212,17 +257,46 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
                               ),
                             ),
                           ],
+                          if (_venta.tieneSocial) ...[
+                            const SizedBox(height: 12),
+                            _Seccion(titulo: 'Venta Social · garrafas a dejar'),
+                            const SizedBox(height: 12),
+                            ..._venta.lineasSociales.map(
+                              (linea) => DetalleVentaCard(
+                                detalle: linea,
+                                onEditar: () => _onEditarLinea(linea),
+                                onEliminar: () => _onEliminarLinea(linea),
+                              ),
+                            ),
+                          ],
+                          if (_venta.tieneSocial) ...[
+                            const SizedBox(height: 4),
+                            OutlinedButton.icon(
+                              onPressed: _guardando ? null : _agregarSocial,
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('Agregar a venta social'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.steelBlue,
+                                side: const BorderSide(color: AppColors.steelBlue),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
             ),
+            if (_venta.tieneSocial) _ResumenSocialBar(venta: _venta),
             VentaTotalBar(
-              total: _venta.montoTotal,
-              cantidadItems: _venta.lineas.length,
+              total: _venta.montoVentaNormal,
+              cantidadItems: _venta.lineasVenta.length,
               habilitado: _venta.puedeGuardar,
               cargando: _guardando,
               hayInconsistencias: _venta.hayInconsistencias,
-              textoBoton: 'GUARDAR VENTA',
+              textoBoton: _textoBotonGuardar,
               onGuardar: _guardarVenta,
             ),
           ],
@@ -304,6 +378,43 @@ class _Header extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ResumenSocialBar extends StatelessWidget {
+  final VentaDraft venta;
+
+  const _ResumenSocialBar({required this.venta});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.steelBlue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.volunteer_activism_outlined, size: 18, color: AppColors.steelBlue),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Venta Social: ${venta.totalGarrafasSociales} '
+                '${venta.totalGarrafasSociales == 1 ? 'garrafa' : 'garrafas'} a dejar en el punto. '
+                'La visita queda pausada y se liquida al volver.',
+                style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

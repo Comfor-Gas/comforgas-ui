@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
-enum TipoOperacionVenta { vacioXLleno, prestamo, envaseSolo }
+enum TipoOperacionVenta { vacioXLleno, prestamo, ventaSocial }
 
 class TipoOperacionVentaInfo {
   final String label;
@@ -22,8 +22,8 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
         return 'VACIO_X_LLENO';
       case TipoOperacionVenta.prestamo:
         return 'PRESTAMO';
-      case TipoOperacionVenta.envaseSolo:
-        return 'ENVASE';
+      case TipoOperacionVenta.ventaSocial:
+        return 'SOCIAL';
     }
   }
 
@@ -41,16 +41,19 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
           descripcion: 'El cliente recibe garrafas sin entregar envases vacíos.',
           icono: Icons.outbox_outlined,
         );
-      case TipoOperacionVenta.envaseSolo:
+      case TipoOperacionVenta.ventaSocial:
         return const TipoOperacionVentaInfo(
-          label: 'Envase',
-          descripcion: 'Movimiento de envases sin intercambio uno a uno.',
-          icono: Icons.propane_tank_outlined,
+          label: 'Venta Social',
+          descripcion: 'Dejás garrafas llenas en el punto. La visita queda en pausa y se liquida al volver.',
+          icono: Icons.volunteer_activism_outlined,
         );
     }
   }
 
-  bool get usaRecibidos => this != TipoOperacionVenta.prestamo;
+  bool get usaRecibidos =>
+      this != TipoOperacionVenta.prestamo && this != TipoOperacionVenta.ventaSocial;
+
+  bool get esSocial => this == TipoOperacionVenta.ventaSocial;
 
   bool concordanciaValida(int entregada, int recibida) {
     switch (this) {
@@ -58,7 +61,7 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
         return entregada == recibida;
       case TipoOperacionVenta.prestamo:
         return recibida == 0;
-      case TipoOperacionVenta.envaseSolo:
+      case TipoOperacionVenta.ventaSocial:
         return true;
     }
   }
@@ -67,10 +70,10 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
     if (concordanciaValida(entregada, recibida)) return null;
     switch (this) {
       case TipoOperacionVenta.vacioXLleno:
-        return 'Cantidades inconsistentes (Entregados ≠ Recibidos). La venta no puede guardarse.';
+        return 'Cantidades inconsistentes (Entregados ≠ Recibidos). Se registra igual, marcada para revisión del administrador.';
       case TipoOperacionVenta.prestamo:
         return 'En un préstamo no se reciben envases vacíos (Recibidos debe ser 0).';
-      case TipoOperacionVenta.envaseSolo:
+      case TipoOperacionVenta.ventaSocial:
         return null;
     }
   }
@@ -81,8 +84,8 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
         return AppColors.orange;
       case TipoOperacionVenta.prestamo:
         return AppColors.steelBlue;
-      case TipoOperacionVenta.envaseSolo:
-        return AppColors.graphiteGray;
+      case TipoOperacionVenta.ventaSocial:
+        return AppColors.steelBlue;
     }
   }
 }

@@ -56,9 +56,9 @@ class _TipoOperacionSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _OpcionOperacion(
-              tipo: TipoOperacionVenta.envaseSolo,
+              tipo: TipoOperacionVenta.ventaSocial,
               onTap: () =>
-                  Navigator.of(context).pop(TipoOperacionVenta.envaseSolo),
+                  Navigator.of(context).pop(TipoOperacionVenta.ventaSocial),
             ),
             const SizedBox(height: 12),
             SizedBox(

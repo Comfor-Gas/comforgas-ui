@@ -226,7 +226,7 @@ class StockRodanteAdminRepository {
   Future<http.Response> _get(Uri uri) async {
     http.Response response;
     try {
-      response = await _client.get(uri, headers: _jsonHeaders).timeout(const Duration(seconds: 20));
+      response = await _client.get(uri, headers: _jsonHeaders).timeout(const Duration(seconds: 12));
     } catch (_) {
       throw NetworkException();
     }
@@ -240,7 +240,7 @@ class StockRodanteAdminRepository {
       final request = http.Request(metodo, uri)
         ..headers.addAll(_jsonHeaders)
         ..body = body;
-      final streamed = await _client.send(request).timeout(const Duration(seconds: 20));
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 12));
       response = await http.Response.fromStream(streamed);
     } catch (_) {
       throw NetworkException();

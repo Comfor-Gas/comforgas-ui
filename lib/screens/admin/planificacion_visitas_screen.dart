@@ -227,7 +227,7 @@ class _PlanificacionVisitasScreenState
       ..._draftVisitas.map((v) => _AgendaRow(visita: v, esBorrador: true)),
       ..._serverVisitas.map((v) => _AgendaRow(visita: v, esBorrador: false)),
     ].where((row) {
-      final nombreChofer = (row.visita.nombreUsuario ?? '').toLowerCase();
+      final nombreChofer = (row.visita.nombreChoferMostrado ?? '').toLowerCase();
       if (choferQuery.isNotEmpty && !nombreChofer.contains(choferQuery)) {
         return false;
       }
@@ -253,8 +253,8 @@ class _PlanificacionVisitasScreenState
     int compare(_AgendaRow a, _AgendaRow b) {
       switch (_sortColumnIndex) {
         case 0:
-          return (a.visita.nombreUsuario ?? '')
-              .compareTo(b.visita.nombreUsuario ?? '');
+          return (a.visita.nombreChoferMostrado ?? '')
+              .compareTo(b.visita.nombreChoferMostrado ?? '');
         case 2:
           return _clienteNombre(a.visita).compareTo(_clienteNombre(b.visita));
         default:
@@ -1000,7 +1000,7 @@ Widget _buildTable(BuildContext context) {
                       const DataColumn(label: Text('Acciones')),
                     ],
                     rows: rows.map((row) {
-                      final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
+                      final nombreChofer = row.visita.nombreChoferMostrado ?? 'Sin asignar';
                       final fecha = row.visita.fecha;
                       final clienteNombre = clienteNombreOf(row.visita);
                       final rutaNombre = rutaNombreOf(row.visita);
@@ -1111,7 +1111,7 @@ Widget _buildTable(BuildContext context) {
           separatorBuilder: (_, __) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final row = rows[index];
-            final nombreChofer = row.visita.nombreUsuario ?? 'Sin asignar';
+            final nombreChofer = row.visita.nombreChoferMostrado ?? 'Sin asignar';
             final fecha = row.visita.fecha;
 
             return Container(

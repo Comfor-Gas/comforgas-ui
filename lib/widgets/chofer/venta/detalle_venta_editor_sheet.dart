@@ -43,13 +43,10 @@ class _DetalleVentaEditorSheet extends StatefulWidget {
 
 class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
   late DetalleVentaDraft _draft;
-  bool _mostrarError = false;
 
   void _intentarGuardar() {
-    if (_draft.esValido) {
+    if (_draft.tieneMovimiento) {
       Navigator.of(context).pop(_draft);
-    } else {
-      setState(() => _mostrarError = true);
     }
   }
 
@@ -74,7 +71,10 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final info = widget.tipoOperacion.info;
-    final error = _mostrarError ? _draft.mensajeError : null;
+    final esSocial = widget.tipoOperacion.esSocial;
+    final aviso = (_draft.tieneMovimiento && !_draft.concordanciaValida)
+        ? _draft.mensajeError
+        : null;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -112,7 +112,7 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                   children: [
                     Expanded(
                       child: CantidadStepper(
-                        titulo: 'Entregados',
+                        titulo: esSocial ? 'A dejar' : 'Entregados',
                         subtitulo: widget.producto.stockDisponible != null
                             ? 'Lleno · máx ${widget.producto.stockDisponible}'
                             : 'Lleno',
@@ -122,7 +122,6 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                         maximo: widget.producto.stockDisponible ?? 999,
                         onChanged: (v) => setState(() {
                           _draft.cantidadEntregada = v;
-                          _mostrarError = false;
                         }),
                       ),
                     ),
@@ -137,7 +136,6 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                           valor: _draft.cantidadRecibida,
                           onChanged: (v) => setState(() {
                             _draft.cantidadRecibida = v;
-                            _mostrarError = false;
                           }),
                         ),
                       ),
@@ -150,15 +148,15 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                   cantidad: _draft.cantidadEntregada,
                   subtotal: _draft.subtotal,
                 ),
-                if (error != null) ...[
+                if (aviso != null) ...[
                   const SizedBox(height: 14),
-                  _BannerError(mensaje: error),
+                  _BannerError(mensaje: aviso),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _intentarGuardar,
+                    onPressed: _draft.tieneMovimiento ? _intentarGuardar : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.orange,
                       disabledBackgroundColor: AppColors.inputBorder,
@@ -171,9 +169,13 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                       ),
                     ),
                     child: Text(
-                      widget.inicial == null
-                          ? 'AGREGAR AL DETALLE'
-                          : 'ACTUALIZAR DETALLE',
+                      esSocial
+                          ? (widget.inicial == null
+                              ? 'AGREGAR A VENTA SOCIAL'
+                              : 'ACTUALIZAR VENTA SOCIAL')
+                          : (widget.inicial == null
+                              ? 'AGREGAR AL DETALLE'
+                              : 'ACTUALIZAR DETALLE'),
                     ),
                   ),
                 ),
@@ -318,19 +320,19 @@ class _BannerError extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.08),
+        color: AppColors.badgeAmber.withOpacity(0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.badgeAmber, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               mensaje,
-              style: AppTextStyles.errorText.copyWith(fontSize: 13),
+              style: AppTextStyles.footer.copyWith(fontSize: 13, color: AppColors.graphiteGray),
             ),
           ),
         ],

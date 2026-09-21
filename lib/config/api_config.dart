@@ -27,6 +27,7 @@ class ApiConfig {
   static const String rutasPath = '/api/rutas';
   static const String visitasPath = '/api/visitas';
   static const String ventasPath = '/api/ventas';
+  static const String productosPath = '/api/productos';
   static const String cobrosPath = '/api/cobros';
   static const String cobrosSyncOfflinePath = '/api/cobros/sync-offline';
   static const String stockMiCamionPath = '/api/stock/mi-camion';

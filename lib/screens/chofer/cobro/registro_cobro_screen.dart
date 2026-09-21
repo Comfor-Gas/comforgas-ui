@@ -24,6 +24,22 @@ import '../../../widgets/primary_button.dart';
 
 const _uuid = Uuid();
 
+class CobroVentaRef {
+  final int? idVenta;
+  final String? uuidVentaOffline;
+  final int monto;
+  final String etiqueta;
+
+  const CobroVentaRef({
+    this.idVenta,
+    this.uuidVentaOffline,
+    required this.monto,
+    required this.etiqueta,
+  });
+
+  bool get pendienteDeSync => idVenta == null;
+}
+
 class RegistroCobroScreen extends StatefulWidget {
   final int? idVenta;
   final String? uuidVentaOffline;
@@ -32,6 +48,7 @@ class RegistroCobroScreen extends StatefulWidget {
   final CreditoCliente credito;
   final List<CanjeGarrafaDraft> canjes;
   final NotaDebitoResumen notaDebito;
+  final List<CobroVentaRef> ventas;
 
   const RegistroCobroScreen({
     super.key,
@@ -42,12 +59,11 @@ class RegistroCobroScreen extends StatefulWidget {
     this.credito = const CreditoCliente(),
     this.canjes = const [],
     this.notaDebito = const NotaDebitoResumen([]),
+    this.ventas = const [],
   }) : assert(
-          (idVenta == null) != (uuidVentaOffline == null),
-          'Informá exactamente uno entre idVenta y uuidVentaOffline',
+          ventas.length > 0 || (idVenta == null) != (uuidVentaOffline == null),
+          'Informá ventas, o exactamente uno entre idVenta y uuidVentaOffline',
         );
-
-  bool get ventaPendienteDeSync => idVenta == null;
 
   @override
   State<RegistroCobroScreen> createState() => _RegistroCobroScreenState();
@@ -77,6 +93,71 @@ class _ResultadoLinea {
   });
 
   bool get ok => error == null;
+}
+
+class _SaldoPago {
+  final MetodoPago metodo;
+  int restante;
+  _SaldoPago(this.metodo, this.restante);
+}
+
+class _CobroParcial {
+  final CobroVentaRef venta;
+  final MetodoPago metodo;
+  final int monto;
+  const _CobroParcial(this.venta, this.metodo, this.monto);
+}
+
+class _AggMetodo {
+  int monto = 0;
+  bool pendiente = false;
+  String? error;
+}
+
+class _DetalleOperaciones extends StatelessWidget {
+  final List<CobroVentaRef> ventas;
+  const _DetalleOperaciones({required this.ventas});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_outlined, size: 18, color: AppColors.orange),
+              const SizedBox(width: 8),
+              Text('Operaciones a cobrar', style: AppTextStyles.label.copyWith(fontSize: 14.5)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final v in ventas)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(v.etiqueta, style: AppTextStyles.link.copyWith(fontSize: 13.5)),
+                  ),
+                  Text(
+                    formatMoneda(v.monto),
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.steelBlue),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
@@ -110,7 +191,20 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
     super.dispose();
   }
 
-  int get _total => widget.montoSugerido;
+  List<CobroVentaRef> get _ventas => widget.ventas.isNotEmpty
+      ? widget.ventas
+      : [
+          CobroVentaRef(
+            idVenta: widget.idVenta,
+            uuidVentaOffline: widget.uuidVentaOffline,
+            monto: widget.montoSugerido,
+            etiqueta: 'Venta',
+          ),
+        ];
+
+  bool get _algunaVentaPendienteSync => _ventas.any((v) => v.pendienteDeSync);
+
+  int get _total => _ventas.fold(0, (a, v) => a + v.monto);
   int get _asignado => _lineas.fold(0, (a, l) => a + l.monto);
   int get _restante => _total - _asignado;
   bool get _puedeGuardar => _total > 0 ? _asignado == _total : _asignado > 0;
@@ -124,12 +218,13 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
   }
 
   Future<bool> _registrarUno(
-      MetodoPago metodo, int monto, String uuid, DateTime ahora) async {
-    if (widget.ventaPendienteDeSync) {
+      CobroVentaRef venta, MetodoPago metodo, int monto, String uuid, DateTime ahora,
+      {String? uuidGrupo}) async {
+    if (venta.pendienteDeSync) {
       await CobroOfflineService.instance.encolar(
         CobroPendiente(
           uuidOffline: uuid,
-          uuidVentaOffline: widget.uuidVentaOffline,
+          uuidVentaOffline: venta.uuidVentaOffline,
           metodoPago: metodo.codigoBackend,
           monto: monto,
           timestampCobro: ahora,
@@ -141,18 +236,19 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
     }
     try {
       await _repo.registrar(
-        idVenta: widget.idVenta!,
+        idVenta: venta.idVenta!,
         metodoPago: metodo.codigoBackend,
         monto: monto,
         timestampCobro: ahora,
         uuidOffline: uuid,
+        uuidCobroGrupo: uuidGrupo,
       );
       return false;
     } on NetworkException {
       await CobroOfflineService.instance.encolar(
         CobroPendiente(
           uuidOffline: uuid,
-          idVenta: widget.idVenta,
+          idVenta: venta.idVenta,
           metodoPago: metodo.codigoBackend,
           monto: monto,
           timestampCobro: ahora,
@@ -164,6 +260,23 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
     }
   }
 
+  List<_CobroParcial> _distribuir(List<_LineaPago> lineas) {
+    final restantes = [for (final l in lineas) _SaldoPago(l.metodo, l.monto)];
+    final cobros = <_CobroParcial>[];
+    for (final venta in _ventas) {
+      var falta = venta.monto;
+      for (final p in restantes) {
+        if (falta <= 0) break;
+        if (p.restante <= 0) continue;
+        final tomar = falta < p.restante ? falta : p.restante;
+        cobros.add(_CobroParcial(venta, p.metodo, tomar));
+        falta -= tomar;
+        p.restante -= tomar;
+      }
+    }
+    return cobros;
+  }
+
   Future<void> _registrar() async {
     final lineas = _lineas.where((l) => l.monto > 0).toList();
     if (lineas.isEmpty) {
@@ -172,27 +285,44 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
     }
     if (_total > 0 && _asignado != _total) {
       _mostrarError(_asignado > _total
-          ? 'La suma de los pagos supera el total de la venta.'
+          ? 'La suma de los pagos supera el total a cobrar.'
           : 'Falta asignar ${formatMoneda(_total - _asignado)}. Sumá un pago o poné el resto en Cuenta Corriente.');
       return;
     }
 
     setState(() => _guardando = true);
     final ahora = DateTime.now();
-    final resultados = <_ResultadoLinea>[];
 
-    for (final l in lineas) {
+    final cobros = _total > 0
+        ? _distribuir(lineas)
+        : [for (final l in lineas) _CobroParcial(_ventas.first, l.metodo, l.monto)];
+
+    final uuidGrupo = _ventas.length >= 2 ? _uuid.v4() : null;
+
+    final agg = <MetodoPago, _AggMetodo>{};
+    for (final c in cobros) {
       final uuid = _uuid.v4();
+      final a = agg.putIfAbsent(c.metodo, () => _AggMetodo());
       try {
-        final pendiente = await _registrarUno(l.metodo, l.monto, uuid, ahora);
-        resultados.add(_ResultadoLinea(metodo: l.metodo, monto: l.monto, pendiente: pendiente));
+        final pendiente =
+            await _registrarUno(c.venta, c.metodo, c.monto, uuid, ahora, uuidGrupo: uuidGrupo);
+        a.monto += c.monto;
+        if (pendiente) a.pendiente = true;
       } on CobroRepositoryException catch (e) {
-        resultados.add(_ResultadoLinea(metodo: l.metodo, monto: l.monto, error: e.message));
+        a.error ??= e.message;
       } catch (_) {
-        resultados.add(_ResultadoLinea(
-            metodo: l.metodo, monto: l.monto, error: 'No se pudo registrar este pago.'));
+        a.error ??= 'No se pudo registrar este pago.';
       }
     }
+
+    final resultados = agg.entries
+        .map((e) => _ResultadoLinea(
+              metodo: e.key,
+              monto: e.value.monto,
+              pendiente: e.value.pendiente,
+              error: e.value.error,
+            ))
+        .toList();
 
     if (!mounted) return;
     setState(() {
@@ -238,11 +368,15 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           MorosidadBanner(credito: widget.credito),
           const SizedBox(height: 14),
         ],
-        if (widget.ventaPendienteDeSync) ...[
+        if (_algunaVentaPendienteSync) ...[
           const _VentaPendienteAviso(),
           const SizedBox(height: 14),
         ] else if (!_online) ...[
           const _SinConexionAviso(),
+          const SizedBox(height: 14),
+        ],
+        if (_ventas.length >= 2) ...[
+          _DetalleOperaciones(ventas: _ventas),
           const SizedBox(height: 14),
         ],
         _ResumenAsignacion(total: _total, asignado: _asignado, restante: _restante),
@@ -305,7 +439,7 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
         ],
         const SizedBox(height: 20),
         PrimaryButton(
-          text: (_online && !widget.ventaPendienteDeSync)
+          text: (_online && !_algunaVentaPendienteSync)
               ? 'Registrar cobro'
               : 'Registro Local Seguro',
           isLoading: _guardando,

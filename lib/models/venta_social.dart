@@ -148,6 +148,7 @@ class RetornoSocialItem {
         'llenosRetornados': llenosRetornados,
         'vaciosRecuperados': vaciosRecuperados,
         'precioUnitario': entregado.precioUnitario,
+        'inconsistente': !cuadra,
         'productoSnapshot': {
           'sku': entregado.sku,
           'descripcion': entregado.descripcion,
@@ -183,6 +184,7 @@ class ReanudarSocialDraft {
         'vaciosRecuperados': it.vaciosRecuperados,
         'idProducto': it.entregado.idProducto,
         'precioUnitario': it.entregado.precioUnitario,
+        'inconsistente': !cuadra,
         'productoSnapshot': {
           'sku': it.entregado.sku,
           'descripcion': it.entregado.descripcion,
@@ -195,6 +197,7 @@ class ReanudarSocialDraft {
     return {
       'llenosRetornados': totalLlenos,
       'vaciosRecuperados': totalVacios,
+      'inconsistente': !cuadra,
       'items': items.map((i) => i.toItemReanudarJson()).toList(),
       'timestampOrigen': timestamp.toUtc().toIso8601String(),
       'uuidOffline': uuidOffline,
@@ -209,6 +212,7 @@ class ReanudarSocialDraft {
         'vaciosRecuperados': it.vaciosRecuperados,
         'idProducto': it.entregado.idProducto,
         'precioUnitario': it.entregado.precioUnitario,
+        'inconsistente': !cuadra,
         'productoSnapshot': {
           'sku': it.entregado.sku,
           'descripcion': it.entregado.descripcion,
@@ -219,6 +223,7 @@ class ReanudarSocialDraft {
     return {
       'llenosRetornados': totalLlenos,
       'vaciosRecuperados': totalVacios,
+      'inconsistente': !cuadra,
       'items': items.map((i) => i.toItemReanudarJson()).toList(),
     };
   }

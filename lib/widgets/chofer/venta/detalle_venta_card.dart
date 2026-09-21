@@ -72,7 +72,7 @@ class DetalleVentaCard extends StatelessWidget {
           Row(
             children: [
               _Chip(
-                label: 'Entregados',
+                label: detalle.tipoOperacion.esSocial ? 'A dejar' : 'Entregados',
                 valor: '${detalle.cantidadEntregada}',
                 color: AppColors.orange,
               ),

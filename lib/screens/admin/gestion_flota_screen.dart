@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,17 +9,14 @@ import '../../models/deposito_camion.dart';
 import '../../models/movimiento_stock.dart';
 import '../../models/nota_control_stock.dart';
 import '../../models/producto_catalogo.dart';
-import '../../models/usuario_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../repositories/catalogo_repository.dart';
 import '../../repositories/flota_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/stock_rodante_admin_repository.dart';
+import '../../repositories/visita_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
-import '../../widgets/admin/flota/asignacion_camion_modal.dart';
 import '../../widgets/admin/flota/entrada_movil_modal.dart';
-import '../../widgets/admin/flota/flota_form_controls.dart';
 import '../../widgets/admin/flota/flota_stat_card.dart';
 import '../../widgets/admin/flota/flota_tabla.dart';
 import '../../widgets/admin/flota/historial_recargas_panel.dart';
@@ -34,8 +33,8 @@ class GestionFlotaScreen extends StatefulWidget {
 
 class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   late final FlotaRepository _flotaRepo;
-  late final CatalogoRepository _catalogoRepo;
   late final StockRodanteAdminRepository _rodanteRepo;
+  late final VisitaRepository _visitaRepo;
 
   final _patenteCtrl = TextEditingController();
   final _choferCtrl = TextEditingController();
@@ -45,7 +44,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   String? _aviso;
 
   List<DepositoCamion> _camiones = [];
-  List<UsuarioModel> _choferes = [];
   List<ProductoCatalogo> _productos = [];
   int _vaciasRetornadasHoy = 0;
   Map<String, int> _asignadoPorChofer = {};
@@ -57,8 +55,8 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     super.initState();
     final apiClient = context.read<AuthProvider>().apiClient;
     _flotaRepo = FlotaRepository(apiClient);
-    _catalogoRepo = CatalogoRepository(apiClient);
     _rodanteRepo = StockRodanteAdminRepository(apiClient);
+    _visitaRepo = VisitaRepository(apiClient);
     _patenteCtrl.addListener(() => setState(() {}));
     _choferCtrl.addListener(() => setState(() {}));
     _cargar();
@@ -101,6 +99,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
         _modoEjemplo = false;
         _loading = false;
       });
+      unawaited(_enriquecerConAgenda(_fecha));
     } on NetworkException {
       _usarEjemplo('No se pudo conectar con el servidor: mostrando datos de ejemplo.');
     } on FlotaRepositoryException catch (e) {
@@ -116,30 +115,55 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     }
   }
 
+  Future<void> _enriquecerConAgenda(DateTime fecha) async {
+    final base = _camiones;
+    if (base.isEmpty || _modoEjemplo) return;
+
+    final resultados = List<DepositoCamion>.from(base);
+    await Future.wait(base.asMap().entries.map((entry) async {
+      final i = entry.key;
+      final camion = entry.value;
+      final idChofer = camion.repartidor?.id;
+      if (idChofer == null || idChofer.isEmpty) return;
+      try {
+        final items = await _visitaRepo.getVisitasPorUsuarioYFecha(
+          idUsuario: idChofer,
+          fecha: fecha,
+        );
+        String? vendedor;
+        String? patente;
+        for (final it in items) {
+          final v = it.vendedor?.trim();
+          final p = it.patente?.trim();
+          if (vendedor == null && v != null && v.isNotEmpty) vendedor = v;
+          if (patente == null && p != null && p.isNotEmpty) patente = p;
+          if (vendedor != null && patente != null) break;
+        }
+        if (vendedor == null && patente == null) return;
+        resultados[i] = camion.copyWith(
+          patente: patente,
+          repartidor: vendedor != null
+              ? RepartidorInfo(
+                  id: camion.repartidor!.id,
+                  nombre: vendedor,
+                  email: camion.repartidor!.email,
+                )
+              : null,
+        );
+      } catch (_) {}
+    }));
+
+    if (!mounted) return;
+    setState(() => _camiones = resultados);
+  }
+
   Future<void> _cargarCatalogos() async {
     try {
-      _choferes = await _catalogoRepo.listarUsuarios(rol: 'CHOFER');
-    } catch (_) {
-      _choferes = _choferes.isEmpty ? _choferesDesdeCamiones() : _choferes;
-    }
-    try {
-      _productos = await _flotaRepo.listarProductos();
+      _productos = (await _flotaRepo.listarProductos()).where((p) => p.activo).toList();
     } catch (_) {
       if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
     }
     if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
-  }
-
-  List<UsuarioModel> _choferesDesdeCamiones() {
-    final vistos = <String>{};
-    final lista = <UsuarioModel>[];
-    for (final c in _camiones) {
-      final r = c.repartidor;
-      if (r != null && vistos.add(r.id)) {
-        lista.add(UsuarioModel(id: r.id, email: r.email, fullName: r.nombre, rol: 'CHOFER'));
-      }
-    }
-    return lista;
   }
 
   void _usarEjemplo(String mensaje) {
@@ -147,7 +171,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     setState(() {
       _camiones = camionesFlotaDeEjemplo();
       _productos = productosFlotaDeEjemplo();
-      _choferes = _choferesDesdeCamiones();
       _vaciasRetornadasHoy = _camiones.fold(0, (a, c) => a + c.vacios);
       _asignadoPorChofer = {
         for (final c in _camiones)
@@ -228,109 +251,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     );
   }
 
-  void _abrirNuevaAsignacion() {
-    AsignacionCamionModal.mostrar(
-      context,
-      camiones: _camiones,
-      choferes: _choferes,
-      productos: _productos,
-      onConfirmar: _confirmarAsignacion,
-    );
-  }
-
-  Future<bool> _confirmarAsignacion({
-    required DepositoCamion camion,
-    required String choferId,
-    required List<Map<String, dynamic>> items,
-  }) async {
-    if (_modoEjemplo) {
-      _actualizarLocalAsignacion(camion, choferId, items);
-      _mostrarSnack('Asignación registrada (ejemplo).');
-      return true;
-    }
-    try {
-      await _flotaRepo.asignarChofer(camion, repartidorId: choferId);
-      if (items.isNotEmpty) {
-        final dominio = camion.patente;
-        if (dominio == null || dominio.isEmpty) {
-          _mostrarSnack(
-            'Camión asignado. Cargá la patente del camión para poder despachar el stock.',
-            error: true,
-          );
-          await _cargar();
-          return true;
-        }
-        final rodanteItems = [
-          for (final i in items)
-            {
-              'idProducto': (i['productoId'] ?? i['idProducto'] ?? '').toString(),
-              'sku': _skuDeProducto((i['productoId'] ?? i['idProducto'] ?? '').toString()),
-              'llenosSalida': (i['cantidad'] as int?) ?? 0,
-              'vaciosSalida': 0,
-            },
-        ];
-        await _rodanteRepo.asignarCargaInicial(
-          idUsuario: choferId,
-          dominioVehiculo: dominio,
-          fecha: DateTime.now(),
-          items: rodanteItems,
-          observaciones: 'Carga inicial de despacho',
-        );
-      }
-      _mostrarSnack('Camión asignado y despachado.');
-      await _cargar();
-      return true;
-    } on FlotaRepositoryException catch (e) {
-      _mostrarSnack(e.message, error: true);
-      return false;
-    } on StockRodanteAdminException catch (e) {
-      _mostrarSnack(e.message, error: true);
-      return false;
-    } on NetworkException {
-      _mostrarSnack('Sin conexión: no se pudo completar la asignación.', error: true);
-      return false;
-    } catch (_) {
-      _mostrarSnack('No se pudo completar la asignación.', error: true);
-      return false;
-    }
-  }
-
-  String _skuDeProducto(String idProducto) {
-    for (final p in _productos) {
-      if (p.idProducto == idProducto) {
-        return p.sku.isNotEmpty ? p.sku : idProducto;
-      }
-    }
-    return idProducto;
-  }
-
-  void _actualizarLocalAsignacion(
-    DepositoCamion camion,
-    String choferId,
-    List<Map<String, dynamic>> items,
-  ) {
-    final chofer = _choferes.where((c) => c.id == choferId).cast<UsuarioModel?>().firstWhere(
-          (c) => c != null,
-          orElse: () => null,
-        );
-    final total = items.fold<int>(0, (a, i) => a + ((i['cantidad'] as int?) ?? 0));
-    setState(() {
-      _camiones = [
-        for (final c in _camiones)
-          if (c.id == camion.id)
-            c.copyWith(
-              repartidor: chofer != null
-                  ? RepartidorInfo(id: chofer.id, nombre: chofer.fullName, email: chofer.email)
-                  : c.repartidor,
-              llenos: total > 0 ? total : c.llenos,
-              stockCargado: true,
-            )
-          else
-            c,
-      ];
-    });
-  }
-
   void _abrirNotaControl(DepositoCamion camion) {
     NotaControlStockModal.mostrar(
       context,
@@ -345,7 +265,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     final idUsuario = camion.repartidor?.id;
     final dominio = camion.patente;
     if (idUsuario == null || idUsuario.isEmpty) {
-      _mostrarSnack('Asigná un chofer al camión antes de cargar el stock.', error: true);
+      _mostrarSnack('Este camión todavía no tiene un chofer asignado en el sistema.', error: true);
       return false;
     }
     if (dominio == null || dominio.isEmpty) {
@@ -586,7 +506,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Cabecera(onNuevaAsignacion: _abrirNuevaAsignacion, onRefrescar: _cargar),
+              _Cabecera(onRefrescar: _cargar),
               const SizedBox(height: 20),
               _FiltrosFlota(patenteCtrl: _patenteCtrl, choferCtrl: _choferCtrl),
               const SizedBox(height: 12),
@@ -686,10 +606,9 @@ class _SelectorFecha extends StatelessWidget {
 }
 
 class _Cabecera extends StatelessWidget {
-  final VoidCallback onNuevaAsignacion;
   final VoidCallback onRefrescar;
 
-  const _Cabecera({required this.onNuevaAsignacion, required this.onRefrescar});
+  const _Cabecera({required this.onRefrescar});
 
   @override
   Widget build(BuildContext context) {
@@ -703,7 +622,7 @@ class _Cabecera extends StatelessWidget {
               Text('Gestión de Flota', style: AppTextStyles.desktopTitle),
               const SizedBox(height: 4),
               Text(
-                'Control de stock y carga de garrafas en los camiones.',
+                'El chofer y su vehículo vienen de la API. Acá asignás y controlás el stock de garrafas de cada camión.',
                 style: AppTextStyles.desktopSubtitle,
               ),
             ],
@@ -714,15 +633,6 @@ class _Cabecera extends StatelessWidget {
           onPressed: onRefrescar,
           tooltip: 'Actualizar',
           icon: const Icon(Icons.refresh, color: AppColors.steelBlue),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 190,
-          child: FlotaBotonPrimario(
-            texto: 'Nueva Asignación',
-            icono: Icons.add,
-            onTap: onNuevaAsignacion,
-          ),
         ),
       ],
     );

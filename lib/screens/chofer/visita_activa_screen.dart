@@ -57,7 +57,6 @@ import 'comodato/auditoria_comodato_screen.dart';
 import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
 import 'venta_social/finalizar_venta_social_screen.dart';
-import 'venta_social/iniciar_venta_social_screen.dart';
 
 const _uuid = Uuid();
 
@@ -130,6 +129,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   List<CanjeGarrafaDraft> _canjesServidor = [];
   bool _canjePendienteSync = false;
   bool _online = true;
+  bool _ventaSocialInconsistente = false;
+  final _motivoFaltanteCtrl = TextEditingController();
   VoidCallback? _colaListener;
   VoidCallback? _comodatoListener;
   VoidCallback? _canjeListener;
@@ -147,6 +148,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _comodatoRepo = ComodatoRepository(apiClient);
     _canjeRepo = CanjeRepository(apiClient);
     _apiClient = apiClient;
+
+    _motivoFaltanteCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     _colaListener = _actualizarPendienteSync;
     OfflineQueueService.instance.escuchar().addListener(_colaListener!);
@@ -201,9 +206,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       CanjeOfflineService.instance.escuchar().removeListener(_canjeListener!);
     }
     _conexionSub?.cancel();
+    _motivoFaltanteCtrl.dispose();
     UbicacionTrackingService.instance.setVisitaActual(null);
     super.dispose();
   }
+
+  bool get _hayFaltante {
+    final ventaConFaltante =
+        _ventas.any((v) => v.draft?.hayInconsistencias == true);
+    return ventaConFaltante || _ventaSocialInconsistente;
+  }
+
+  String get _motivoFaltante => _motivoFaltanteCtrl.text.trim();
+
+  bool get _faltanteResuelto => !_hayFaltante || _motivoFaltante.isNotEmpty;
 
   Future<void> _actualizarConexionInicial() async {
     final online = await ConnectivityService.instance.tieneConexion();
@@ -946,29 +962,42 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           nombreCliente: widget.nombreCliente,
           direccionCliente: widget.direccionCliente,
           inicial: null,
-          onRegistrar: _registrarVenta,
+          onRegistrar: _registrarVentaMixta,
         ),
       ),
     );
   }
 
-  Future<void> _iniciarVentaSocial() async {
-    if (_procesandoSocial) return;
-    final idVisita = await _asegurarIdVisita();
-    if (idVisita == null) {
-      _mostrarErrorSocial('Necesitás conexión para iniciar la Venta Social.');
-      return;
+  Future<void> _registrarVentaMixta(VentaDraft venta) async {
+    final sociales = venta.lineasSociales;
+    final normales = venta.lineasVenta;
+
+    if (normales.isNotEmpty) {
+      await _registrarVenta(VentaDraft(lineas: normales.map((l) => l.copy()).toList()));
     }
-    if (!mounted) return;
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => IniciarVentaSocialScreen(
-          visita: _visita,
-          nombreCliente: widget.nombreCliente,
-          onConfirmar: _confirmarPausaSocial,
-        ),
-      ),
-    );
+
+    if (sociales.isNotEmpty) {
+      final pausa = PausaSocialDraft(
+        items: sociales
+            .map((l) => EnvaseSocialEntregado(
+                  idProducto: l.producto.idProducto,
+                  sku: l.producto.sku,
+                  descripcion: l.producto.descripcion,
+                  kg: l.producto.kg,
+                  cantidadEntregada: l.cantidadEntregada,
+                  precioUnitario: l.producto.precioUnitario,
+                ))
+            .toList(),
+        uuidOffline: _uuid.v4(),
+        timestamp: DateTime.now(),
+      );
+      final ok = await _confirmarPausaSocial(pausa);
+      if (!ok && mounted) {
+        _mostrarErrorSocial(
+          'No se pudo iniciar la Venta Social. Podés volver a intentarlo registrando la venta social de nuevo.',
+        );
+      }
+    }
   }
 
   Future<bool> _confirmarPausaSocial(PausaSocialDraft draft) async {
@@ -1086,6 +1115,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           _procesandoSocial = false;
           _ventaSocialFinalizada = true;
           _ventaSocialPendienteSync = false;
+          _ventaSocialInconsistente = !draft.cuadra;
           _ventas.removeWhere((v) => v.esSocial);
           if (res.tieneVenta) {
             _ventas.add(VentaEnVisita(
@@ -1136,6 +1166,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _pausaSocial = null;
       _procesandoSocial = false;
       _ventaSocialFinalizada = true;
+      _ventaSocialInconsistente = !draft.cuadra;
       _ventas.removeWhere((v) => v.esSocial);
       if (hayVenta) {
         _ventas.add(VentaEnVisita(
@@ -1189,29 +1220,52 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     );
   }
 
-  Future<Object?> _abrirCobro(VentaEnVisita venta) {
+  List<VentaEnVisita> get _ventasCobrables =>
+      _ventas.where((v) => v.referenciable && !v.cobrado).toList();
+
+  int get _totalCobrable =>
+      _ventasCobrables.fold(0, (a, v) => a + v.monto);
+
+  Future<Object?> _abrirCobroCombinado(List<VentaEnVisita> ventas) {
     final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
+    final refs = ventas
+        .map((v) => CobroVentaRef(
+              idVenta: v.idVenta,
+              uuidVentaOffline: v.idVenta == null ? v.uuidOffline : null,
+              monto: v.monto,
+              etiqueta: v.etiqueta,
+            ))
+        .toList();
+    final montoTotal = ventas.fold(0, (a, v) => a + v.monto);
+    final itemsNota = <NotaDebitoItem>[];
+    for (final v in ventas) {
+      itemsNota.addAll(NotaDebitoResumen.deVenta(v.draft).items);
+    }
     return Navigator.of(context).push<Object?>(
       MaterialPageRoute(
         builder: (_) => RegistroCobroScreen(
-          idVenta: venta.idVenta,
-          uuidVentaOffline: venta.idVenta == null ? venta.uuidOffline : null,
           nombreCliente: widget.nombreCliente,
-          montoSugerido: venta.monto,
+          montoSugerido: montoTotal,
           credito: credito,
           canjes: _canjes,
-          notaDebito: NotaDebitoResumen.deVenta(venta.draft),
+          notaDebito: NotaDebitoResumen(itemsNota),
+          ventas: refs,
         ),
       ),
     );
   }
 
-  Future<void> _cobrarVenta(VentaEnVisita venta) async {
-    if (venta.cobrado || !venta.referenciable) return;
-    final resultado = await _abrirCobro(venta);
+  Future<void> _cobrarTodo() async {
+    final pendientes = _ventasCobrables;
+    if (pendientes.isEmpty) return;
+    final resultado = await _abrirCobroCombinado(pendientes);
     if (!mounted) return;
     if (resultado != null) {
-      setState(() => venta.cobrado = true);
+      setState(() {
+        for (final v in pendientes) {
+          v.cobrado = true;
+        }
+      });
     }
   }
 
@@ -1334,12 +1388,32 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       _mostrarError('La visita no tiene un identificador válido.');
       return;
     }
+    if (_visita.estadoVisita == VisitaEstado.pausadaSocial) {
+      _mostrarError(
+        'Tenés una Venta Social en curso. Finalizá la Venta Social antes de cerrar la visita.',
+      );
+      return;
+    }
+    if (_hayFaltante && _motivoFaltante.isEmpty) {
+      _mostrarError(
+        'Registrá el motivo del faltante de garrafas para poder cerrar la visita.',
+      );
+      return;
+    }
 
-    for (final venta in _ventas) {
-      if (venta.cobrado || !venta.referenciable) continue;
-      final resultado = await _abrirCobro(venta);
+    final motivoFaltante = _hayFaltante ? _motivoFaltante : null;
+
+    final porCobrar = _ventasCobrables;
+    if (porCobrar.isNotEmpty) {
+      final resultado = await _abrirCobroCombinado(porCobrar);
       if (!mounted) return;
-      if (resultado != null) setState(() => venta.cobrado = true);
+      if (resultado != null) {
+        setState(() {
+          for (final venta in porCobrar) {
+            venta.cobrado = true;
+          }
+        });
+      }
     }
 
     setState(() => _finalizando = true);
@@ -1348,7 +1422,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       idVisita = await _resolverIdVisitaOnline();
       if (!mounted) return;
       if (idVisita == null) {
-        await _finalizarOffline(idAgendaItem: idAgendaItem!, idVisita: null, foto: foto);
+        await _finalizarOffline(
+          idAgendaItem: idAgendaItem!,
+          idVisita: null,
+          foto: foto,
+          motivoFaltante: motivoFaltante,
+        );
         return;
       }
     }
@@ -1388,6 +1467,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         idVisita,
         latitudFin: latitudFin,
         longitudFin: longitudFin,
+        observaciones: motivoFaltante,
+        motivoFaltante: motivoFaltante,
       );
       UbicacionTrackingService.instance.setVisitaActual(null);
 
@@ -1409,6 +1490,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         idAgendaItem: idAgendaItem,
         idVisita: idVisita,
         foto: evidenciaConfirmadaOnline ? null : foto,
+        motivoFaltante: motivoFaltante,
       );
     } on EvidenciaRepositoryException catch (e) {
       if (!mounted) return;
@@ -1518,6 +1600,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     required int idAgendaItem,
     int? idVisita,
     required File? foto,
+    String? motivoFaltante,
   }) async {
     final ahora = DateTime.now();
     final tsEvidencia = ahora;
@@ -1549,6 +1632,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         timestampOrigen: tsCheckOut,
         creadoEn: tsCheckOut,
         timestampFin: ahora,
+        observaciones:
+            (motivoFaltante != null && motivoFaltante.isNotEmpty) ? motivoFaltante : null,
       ),
     );
 
@@ -1610,8 +1695,6 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   Widget _buildVentaSocialSection() {
     final estado = _visita.estadoVisita;
     final esPausada = estado == VisitaEstado.pausadaSocial;
-    final puedeIniciar =
-        estado == VisitaEstado.enCurso && !_finalizando && !_ventaSocialFinalizada;
 
     if (_ventaSocialFinalizada && !esPausada) {
       return Padding(
@@ -1669,7 +1752,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       );
     }
 
-    if (!esPausada && !puedeIniciar) return const SizedBox.shrink();
+    if (!esPausada) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(top: 18),
@@ -1761,23 +1844,6 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 isLoading: _procesandoSocial,
                 onPressed: _procesandoSocial ? null : _finalizarVentaSocial,
               ),
-            ] else ...[
-              Text(
-                'Dejá garrafas en el punto y pausá la visita para seguir con otros clientes. Liquidás al volver.',
-                style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _procesandoSocial ? null : _iniciarVentaSocial,
-                icon: const Icon(Icons.volunteer_activism_outlined, size: 18),
-                label: const Text('Iniciar Venta Social'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.steelBlue,
-                  side: const BorderSide(color: AppColors.steelBlue),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
             ],
           ],
         ),
@@ -1824,19 +1890,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             )
           else
             for (final v in _ventas) ...[
-              _FilaVentaRegistrada(
-                venta: v,
-                online: _online,
-                onCobrar: (v.referenciable && !v.cobrado && !_finalizando)
-                    ? () => _cobrarVenta(v)
-                    : null,
-              ),
+              _FilaVentaRegistrada(venta: v, online: _online),
               const SizedBox(height: 10),
             ],
           const SizedBox(height: 4),
           if (estaPausada)
             const _AvisoVentaPausada()
-          else
+          else ...[
             OutlinedButton.icon(
               onPressed: _finalizando ? null : _abrirRegistroVenta,
               icon: const Icon(Icons.add, size: 20),
@@ -1848,6 +1908,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
+            if (_ventasCobrables.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              PrimaryButton(
+                text: 'Cobrar ${_ventasCobrables.length > 1 ? 'todas las ventas' : 'la venta'} · ${formatMoneda(_totalCobrable)}',
+                isLoading: false,
+                onPressed: _finalizando ? null : _cobrarTodo,
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -1971,10 +2040,44 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               onCapturar: _capturarFoto,
             ),
             const SizedBox(height: 20),
+            if (_visita.estadoVisita == VisitaEstado.pausadaSocial) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.steelBlue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.pause_circle_outline, size: 18, color: AppColors.steelBlue),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Hay una Venta Social en curso. Finalizala arriba para poder cerrar la visita.',
+                        style: TextStyle(fontSize: 12.5, color: AppColors.graphiteGray),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_hayFaltante) ...[
+              _MotivoFaltanteCampo(
+                controller: _motivoFaltanteCtrl,
+                habilitado: !_finalizando,
+              ),
+              const SizedBox(height: 14),
+            ],
             PrimaryButton(
               text: 'Finalizar Visita',
               isLoading: _finalizando,
-              onPressed: ((_foto != null || _evidenciaExistente) && !_finalizando)
+              onPressed: ((_foto != null || _evidenciaExistente) &&
+                      !_finalizando &&
+                      _visita.estadoVisita != VisitaEstado.pausadaSocial &&
+                      _faltanteResuelto)
                   ? _finalizarVisita
                   : null,
             ),
@@ -2129,6 +2232,75 @@ class _FilaVentaRegistrada extends StatelessWidget {
     return Text(
       '$detalle · Cobro pendiente',
       style: const TextStyle(fontSize: 12, color: AppColors.graphiteGray),
+    );
+  }
+}
+
+class _MotivoFaltanteCampo extends StatelessWidget {
+  final TextEditingController controller;
+  final bool habilitado;
+
+  const _MotivoFaltanteCampo({required this.controller, required this.habilitado});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.badgeAmber.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.warning_amber_rounded, size: 20, color: AppColors.badgeAmber),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Hay un faltante de garrafas en esta visita. Podés cerrarla igual, '
+                  'pero registrá el motivo para que el administrador lo revise.',
+                  style: TextStyle(fontSize: 13, color: AppColors.graphiteGray),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Motivo del faltante',
+            style: AppTextStyles.label.copyWith(fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            enabled: habilitado,
+            maxLines: 2,
+            style: AppTextStyles.input,
+            decoration: InputDecoration(
+              hintText: 'Ej: el cliente no devolvió los vacíos, garrafa dañada, etc.',
+              hintStyle: AppTextStyles.hint,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              filled: true,
+              fillColor: AppColors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.orange),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

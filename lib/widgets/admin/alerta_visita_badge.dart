@@ -26,6 +26,8 @@ class AlertaVisitaBadge extends StatelessWidget {
         return (AppColors.orange, Icons.person_off_outlined);
       case VisitaAlertaTipo.coordenadasAusentes:
         return (AppColors.orange, Icons.location_disabled);
+      case VisitaAlertaTipo.faltanteGarrafas:
+        return (AppColors.badgeRed, Icons.propane_tank_outlined);
     }
   }
 

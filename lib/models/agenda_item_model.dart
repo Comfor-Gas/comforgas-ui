@@ -28,6 +28,8 @@ class AgendaItemModel {
   final String? horaFin;
   final String? vendedor;
   final String? acompanante;
+  final String? patente;
+  final int? movil;
   final int? idVisita;
   final VisitaEstado? estadoEjecucion;
 
@@ -57,6 +59,8 @@ class AgendaItemModel {
     this.horaFin,
     this.vendedor,
     this.acompanante,
+    this.patente,
+    this.movil,
     this.idVisita,
     this.estadoEjecucion,
   });
@@ -90,6 +94,8 @@ class AgendaItemModel {
       horaFin: json['horaFin'] as String?,
       vendedor: json['vendedor'] as String?,
       acompanante: json['acompanante'] as String?,
+      patente: json['patente'] as String?,
+      movil: parseInt(json['movil']),
       idVisita: parseInt(json['idVisita']),
       estadoEjecucion: json['estadoEjecucion'] == null
           ? null

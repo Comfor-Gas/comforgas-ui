@@ -30,11 +30,48 @@ class RepartidorInfo {
 
   factory RepartidorInfo.fromJson(Map<String, dynamic> json) {
     return RepartidorInfo(
-      id: (json['id'] ?? '').toString(),
-      nombre: (json['nombre'] ?? json['fullName'] ?? '').toString(),
+      id: (json['id'] ?? json['idChofer'] ?? '').toString(),
+      nombre: (json['nombre'] ??
+              json['fullName'] ??
+              json['full_name'] ??
+              json['vendedor'] ??
+              '')
+          .toString(),
       email: (json['email'] ?? '').toString(),
     );
   }
+}
+
+RepartidorInfo? _repartidorDesdeJson(Map<String, dynamic> json) {
+  final rep = json['repartidor'];
+  if (rep is Map<String, dynamic>) {
+    final info = RepartidorInfo.fromJson(rep);
+    if (info.nombre.trim().isNotEmpty || info.id.trim().isNotEmpty) return info;
+  }
+  final nombre = (json['vendedor'] ??
+          json['choferNombre'] ??
+          json['chofer'] ??
+          json['nombreChofer'] ??
+          '')
+      .toString()
+      .trim();
+  if (nombre.isNotEmpty) {
+    return RepartidorInfo(
+      id: (json['idChofer'] ?? json['repartidorId'] ?? '').toString(),
+      nombre: nombre,
+      email: (json['emailChofer'] ?? '').toString(),
+    );
+  }
+  return null;
+}
+
+String? _patenteDesdeJson(Map<String, dynamic> json) {
+  final valor = json['vehiculoPatente'] ??
+      json['patente'] ??
+      json['plate'] ??
+      json['dominio'];
+  final texto = valor?.toString().trim();
+  return (texto == null || texto.isEmpty) ? null : texto;
 }
 
 class DepositoCamion {
@@ -132,29 +169,27 @@ class DepositoCamion {
   }
 
   factory DepositoCamion.fromJson(Map<String, dynamic> json) {
-    final rep = json['repartidor'];
     return DepositoCamion(
       id: parseInt(json['id']) ?? 0,
       nombre: (json['nombre'] ?? '').toString(),
-      patente: json['vehiculoPatente']?.toString(),
-      numeroMovil: parseInt(json['numeroMovil']),
+      patente: _patenteDesdeJson(json),
+      numeroMovil: parseInt(json['numeroMovil'] ?? json['movil']),
       descripcion: json['descripcion']?.toString(),
       activo: json['activo'] == true,
-      repartidor: rep is Map<String, dynamic> ? RepartidorInfo.fromJson(rep) : null,
+      repartidor: _repartidorDesdeJson(json),
       cupoBaseBackend: parseInt(json['cupoBase']),
       estadoBackend: estadoCamionDesdeBackend(json['estadoOperativo']?.toString()),
     );
   }
 
   factory DepositoCamion.fromResumenJson(Map<String, dynamic> json) {
-    final rep = json['repartidor'];
     return DepositoCamion(
       id: parseInt(json['id']) ?? 0,
       nombre: (json['nombre'] ?? '').toString(),
-      patente: json['vehiculoPatente']?.toString(),
-      numeroMovil: parseInt(json['numeroMovil']),
+      patente: _patenteDesdeJson(json),
+      numeroMovil: parseInt(json['numeroMovil'] ?? json['movil']),
       activo: json['activo'] == true,
-      repartidor: rep is Map<String, dynamic> ? RepartidorInfo.fromJson(rep) : null,
+      repartidor: _repartidorDesdeJson(json),
       llenos: parseInt(json['llenos']) ?? 0,
       vacios: parseInt(json['vacios']) ?? 0,
       vaciasDelDia: parseInt(json['vaciasDelDia']) ?? 0,

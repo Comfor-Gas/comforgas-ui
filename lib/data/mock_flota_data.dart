@@ -10,6 +10,15 @@ List<ProductoCatalogo> productosFlotaDeEjemplo() {
       descripcion: 'Garrafa 10 kg',
       pesoKg: 10,
       tipoProducto: 'GARRAFA',
+      precioUnitario: 12000,
+    ),
+    ProductoCatalogo(
+      idProducto: 'GARRAFA-15',
+      sku: '15kg GLP',
+      descripcion: 'Garrafa 15 kg',
+      pesoKg: 15,
+      tipoProducto: 'GARRAFA',
+      precioUnitario: 17000,
     ),
     ProductoCatalogo(
       idProducto: 'GARRAFA-45',
@@ -17,6 +26,7 @@ List<ProductoCatalogo> productosFlotaDeEjemplo() {
       descripcion: 'Garrafa 45 kg',
       pesoKg: 45,
       tipoProducto: 'GARRAFA',
+      precioUnitario: 48000,
     ),
   ];
 }

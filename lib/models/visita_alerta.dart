@@ -6,6 +6,7 @@ enum VisitaAlertaTipo {
   incidenciaCampo,
   coordenadasAusentes,
   coordenadasInvalidas,
+  faltanteGarrafas,
 }
 
 enum VisitaAlertaEstado { abierta, resuelta, descartada }
@@ -30,6 +31,8 @@ class VisitaAlertaMapper {
         return VisitaAlertaTipo.coordenadasAusentes;
       case 'COORDENADAS_INVALIDAS':
         return VisitaAlertaTipo.coordenadasInvalidas;
+      case 'FALTANTE_GARRAFAS':
+        return VisitaAlertaTipo.faltanteGarrafas;
       default:
         return null;
     }
@@ -51,6 +54,8 @@ class VisitaAlertaMapper {
         return 'COORDENADAS_AUSENTES';
       case VisitaAlertaTipo.coordenadasInvalidas:
         return 'COORDENADAS_INVALIDAS';
+      case VisitaAlertaTipo.faltanteGarrafas:
+        return 'FALTANTE_GARRAFAS';
     }
   }
 
@@ -70,6 +75,8 @@ class VisitaAlertaMapper {
         return 'Sin Coordenadas';
       case VisitaAlertaTipo.coordenadasInvalidas:
         return 'Coordenadas Inválidas';
+      case VisitaAlertaTipo.faltanteGarrafas:
+        return 'Faltante de Garrafas';
     }
   }
 

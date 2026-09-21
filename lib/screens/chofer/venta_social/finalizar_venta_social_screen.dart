@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../models/venta_social.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -51,7 +52,7 @@ class _FinalizarVentaSocialScreenState extends State<FinalizarVentaSocialScreen>
   int get _totalVendidas => widget.pausa.items.fold(
       0, (a, it) => a + (it.cantidadEntregada - (_llenos[it.idProducto] ?? 0)));
 
-  bool get _valido => _cuadraTodo && !_guardando;
+  bool get _valido => !_guardando;
 
   Future<void> _confirmar() async {
     if (!_valido) return;
@@ -285,7 +286,7 @@ class _AvisoCuadre extends StatelessWidget {
             child: Text(
               cuadra
                   ? 'El cuadre coincide. Podés confirmar y liquidar la venta.'
-                  : 'No se puede finalizar: los envases devueltos (llenos + vacíos) deben coincidir con los entregados en cada producto.',
+                  : 'El cuadre no coincide (los devueltos no igualan lo entregado). Podés liquidar igual: queda marcada como inconsistente para revisión del administrador.',
               style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
             ),
           ),

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../local/stock_camion_cache_service.dart';
+import '../../../local/stock_rodante_cache_service.dart';
 import '../../../models/producto_sku.dart';
+import '../../../models/stock_rodante_chofer.dart';
 import '../../../models/visita_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/canje_repository.dart';
 import '../../../repositories/network_exception.dart';
-import '../../../repositories/stock_repository.dart';
+import '../../../repositories/stock_rodante_repository.dart';
 import '../../../services/catalogo_garrafas_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -66,25 +67,35 @@ class _CanjeGarrafaScreenState extends State<CanjeGarrafaScreen> {
   Future<void> _cargarCatalogo() async {
     final apiClient = context.read<AuthProvider>().apiClient;
     final idUsuario = widget.visita.idUsuario;
+    final fecha = widget.visita.fecha ?? DateTime.now();
+
+    StockRodanteChofer? diario;
+    var sinSenal = false;
+    try {
+      diario = await StockRodanteRepository(apiClient)
+          .getMiStock(idUsuario: idUsuario, fecha: fecha);
+      if (diario != null) {
+        await StockRodanteCacheService.instance.guardar(idUsuario, diario);
+      }
+    } on NetworkException {
+      sinSenal = true;
+      diario = StockRodanteCacheService.instance.obtener(idUsuario);
+    } catch (_) {
+      diario = StockRodanteCacheService.instance.obtener(idUsuario);
+    }
 
     List<ProductoSku> catalogo;
     String? aviso;
-    try {
-      final stock = await StockRepository(apiClient).getStockMiCamion();
-      await StockCamionCacheService.instance.guardar(idUsuario, stock);
-      catalogo = _catalogoService.desdeStockParaCanje(stock);
-    } on NetworkException {
-      final resultado = _catalogoDesdeCache(idUsuario);
-      catalogo = resultado.$1;
-      aviso = resultado.$2;
-    } on StockRepositoryException catch (e) {
-      final resultado = _catalogoDesdeCache(idUsuario, motivo: e.message);
-      catalogo = resultado.$1;
-      aviso = resultado.$2;
-    } catch (_) {
-      final resultado = _catalogoDesdeCache(idUsuario);
-      catalogo = resultado.$1;
-      aviso = resultado.$2;
+    if (diario != null) {
+      catalogo = _catalogoService.desdeStockRodanteParaCanje(diario);
+      if (sinSenal) {
+        aviso = 'Sin conexión: se muestra el último stock del día guardado.';
+      }
+    } else {
+      catalogo = const <ProductoSku>[];
+      aviso = sinSenal
+          ? 'Sin conexión: no se pudo obtener el stock del día. Conectate para ver las garrafas que podés canjear.'
+          : 'No se pudo obtener el stock del día del camión.';
     }
 
     if (!mounted) return;
@@ -93,24 +104,6 @@ class _CanjeGarrafaScreenState extends State<CanjeGarrafaScreen> {
       _avisoStock = aviso;
       _cargandoCatalogo = false;
     });
-  }
-
-  (List<ProductoSku>, String?) _catalogoDesdeCache(
-    String idUsuario, {
-    String? motivo,
-  }) {
-    final cache = StockCamionCacheService.instance.obtener(idUsuario);
-    if (cache != null) {
-      return (
-        _catalogoService.desdeStockParaCanje(cache),
-        'Usando el último stock del camión guardado; puede estar desactualizado.',
-      );
-    }
-    return (
-      const <ProductoSku>[],
-      motivo ??
-          'Sin stock del camión disponible. Conectate para ver las garrafas que podés canjear.',
-    );
   }
 
   bool get _puedeGuardar =>

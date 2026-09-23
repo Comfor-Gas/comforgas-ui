@@ -6,6 +6,7 @@ import '../../data/mock_chofer_data.dart';
 import '../../local/agenda_cache_service.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
+import '../../local/recaudacion_diaria_service.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
@@ -377,7 +378,9 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     final completadas = _visitas
         .where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita))
         .length;
-    final recaudacion = completadas * mockMontoPromedioPorVisita;
+    final recaudacion = RecaudacionDiariaService.instance
+        .obtenerTotal(auth.user?.id ?? '', DateTime.now())
+        .toDouble();
     final siguiente = _visitaAccionable;
     final huboFiltro = _searchCtrl.text.trim().isNotEmpty;
     final sinResultados = pendientes.isEmpty &&

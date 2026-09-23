@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../local/cobro_offline_service.dart';
 import '../../../local/cobro_pendiente.dart';
+import '../../../local/recaudacion_diaria_service.dart';
 import '../../../models/canje_garrafa.dart';
 import '../../../models/credito_cliente.dart';
 import '../../../models/metodo_pago.dart';
@@ -24,17 +25,31 @@ import '../../../widgets/primary_button.dart';
 
 const _uuid = Uuid();
 
+class CobroGarrafaItem {
+  final String descripcion;
+  final int cantidad;
+  final int monto;
+
+  const CobroGarrafaItem({
+    required this.descripcion,
+    required this.cantidad,
+    required this.monto,
+  });
+}
+
 class CobroVentaRef {
   final int? idVenta;
   final String? uuidVentaOffline;
   final int monto;
   final String etiqueta;
+  final List<CobroGarrafaItem> garrafas;
 
   const CobroVentaRef({
     this.idVenta,
     this.uuidVentaOffline,
     required this.monto,
     required this.etiqueta,
+    this.garrafas = const [],
   });
 
   bool get pendienteDeSync => idVenta == null;
@@ -138,7 +153,7 @@ class _DetalleOperaciones extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          for (final v in ventas)
+          for (final v in ventas) ...[
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
@@ -154,6 +169,34 @@ class _DetalleOperaciones extends StatelessWidget {
                 ],
               ),
             ),
+            for (final g in v.garrafas)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.propane_tank_outlined, size: 15, color: AppColors.inputHint),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${g.cantidad} × ${g.descripcion}',
+                        style: AppTextStyles.footer.copyWith(
+                          fontSize: 12.5,
+                          color: AppColors.graphiteGray,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      formatMoneda(g.monto),
+                      style: AppTextStyles.footer.copyWith(
+                        fontSize: 12.5,
+                        color: AppColors.graphiteGray,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -207,7 +250,26 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
   int get _total => _ventas.fold(0, (a, v) => a + v.monto);
   int get _asignado => _lineas.fold(0, (a, l) => a + l.monto);
   int get _restante => _total - _asignado;
-  bool get _puedeGuardar => _total > 0 ? _asignado == _total : _asignado > 0;
+
+  bool get _hayDatosCredito =>
+      widget.credito.limiteCredito != null ||
+      widget.credito.saldoDisponible != null;
+
+  int get _creditoDisponible {
+    final d = widget.credito.disponible;
+    if (!d.isFinite || d <= 0) return 0;
+    return d.floor();
+  }
+
+  int get _asignadoCuentaCorriente => _lineas
+      .where((l) => l.metodo == MetodoPago.cuentaCorriente)
+      .fold(0, (a, l) => a + l.monto);
+
+  bool get _creditoExcedido =>
+      _hayDatosCredito && _asignadoCuentaCorriente > _creditoDisponible;
+
+  bool get _puedeGuardar =>
+      (_total > 0 ? _asignado == _total : _asignado > 0) && !_creditoExcedido;
 
   void _agregarLinea(MetodoPago metodo, int monto) {
     setState(() => _lineas.add(_LineaPago(metodo: metodo, monto: monto)));
@@ -292,6 +354,7 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
 
     setState(() => _guardando = true);
     final ahora = DateTime.now();
+    final idUsuario = context.read<AuthProvider>().user?.id ?? '';
 
     final cobros = _total > 0
         ? _distribuir(lineas)
@@ -323,6 +386,36 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
               error: e.value.error,
             ))
         .toList();
+
+    var efectivoOk = 0;
+    var chequeOk = 0;
+    var transferenciaOk = 0;
+    var cuentaCorrienteOk = 0;
+    for (final r in resultados) {
+      if (r.error != null) continue;
+      switch (r.metodo) {
+        case MetodoPago.efectivo:
+          efectivoOk += r.monto;
+          break;
+        case MetodoPago.cheque:
+          chequeOk += r.monto;
+          break;
+        case MetodoPago.transferencia:
+          transferenciaOk += r.monto;
+          break;
+        case MetodoPago.cuentaCorriente:
+          cuentaCorrienteOk += r.monto;
+          break;
+      }
+    }
+    await RecaudacionDiariaService.instance.sumar(
+      idUsuario,
+      ahora,
+      efectivo: efectivoOk,
+      cheque: chequeOk,
+      transferencia: transferenciaOk,
+      cuentaCorriente: cuentaCorrienteOk,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -411,15 +504,48 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
             ),
           ],
         ),
-        if (_restante > 0) ...[
+        if (_restante > 0 && (!_hayDatosCredito || _creditoDisponible > 0)) ...[
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
-              onPressed: () => _agregarLinea(MetodoPago.cuentaCorriente, _restante),
+              onPressed: () => _agregarLinea(
+                MetodoPago.cuentaCorriente,
+                _hayDatosCredito && _creditoDisponible < _restante
+                    ? _creditoDisponible
+                    : _restante,
+              ),
               icon: const Icon(Icons.account_balance_outlined, size: 18),
-              label: Text('Poner el resto en Cuenta Corriente (${formatMoneda(_restante)})'),
+              label: Text(
+                _hayDatosCredito && _creditoDisponible < _restante
+                    ? 'Poner en Cuenta Corriente (${formatMoneda(_creditoDisponible)})'
+                    : 'Poner el resto en Cuenta Corriente (${formatMoneda(_restante)})',
+              ),
               style: TextButton.styleFrom(foregroundColor: AppColors.orange),
+            ),
+          ),
+        ],
+        if (_hayDatosCredito && _restante > 0 && _creditoDisponible < _restante) ...[
+          const SizedBox(height: 8),
+          Text(
+            _creditoDisponible > 0
+                ? 'El cliente tiene ${formatMoneda(_creditoDisponible)} de crédito disponible: solo podés cargar hasta ese monto en Cuenta Corriente.'
+                : 'El cliente no tiene crédito disponible: no se puede cargar en Cuenta Corriente.',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.badgeAmber,
+            ),
+          ),
+        ],
+        if (_creditoExcedido) ...[
+          const SizedBox(height: 8),
+          Text(
+            'La Cuenta Corriente supera el crédito disponible (${formatMoneda(_creditoDisponible)}). Ajustá el monto para poder registrar.',
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.error,
             ),
           ),
         ],
@@ -484,13 +610,28 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
           const SizedBox(height: 12),
           MetodoPagoSelector(
             seleccionado: linea.metodo,
-            onChanged: (m) => setState(() => linea.metodo = m),
+            onChanged: (m) => setState(() {
+              linea.metodo = m;
+              if (m == MetodoPago.cuentaCorriente &&
+                  _hayDatosCredito &&
+                  linea.monto > _creditoDisponible) {
+                linea.montoCtrl.text =
+                    _creditoDisponible > 0 ? '$_creditoDisponible' : '';
+              }
+            }),
           ),
           const SizedBox(height: 14),
           _MontoLineaField(
             controller: linea.montoCtrl,
+            maximo: linea.metodo == MetodoPago.cuentaCorriente && _hayDatosCredito
+                ? _creditoDisponible
+                : null,
             onChanged: () => setState(() {}),
           ),
+          if (linea.metodo == MetodoPago.cuentaCorriente && _hayDatosCredito) ...[
+            const SizedBox(height: 8),
+            _CreditoDisponibleHint(disponible: _creditoDisponible),
+          ],
         ],
       ),
     );
@@ -791,11 +932,54 @@ class _ResumenAsignacion extends StatelessWidget {
   }
 }
 
+class _CreditoDisponibleHint extends StatelessWidget {
+  final int disponible;
+
+  const _CreditoDisponibleHint({required this.disponible});
+
+  @override
+  Widget build(BuildContext context) {
+    final sinCredito = disponible <= 0;
+    final color = sinCredito ? AppColors.error : AppColors.badgeGreen;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.account_balance_wallet_outlined, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              sinCredito
+                  ? 'Sin crédito disponible en Cuenta Corriente.'
+                  : 'Crédito disponible: ${formatMoneda(disponible)}',
+              style: AppTextStyles.footer.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MontoLineaField extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onChanged;
+  final int? maximo;
 
-  const _MontoLineaField({required this.controller, required this.onChanged});
+  const _MontoLineaField({
+    required this.controller,
+    required this.onChanged,
+    this.maximo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -803,7 +987,19 @@ class _MontoLineaField extends StatelessWidget {
       controller: controller,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      onChanged: (_) => onChanged(),
+      onChanged: (texto) {
+        final tope = maximo;
+        if (tope != null) {
+          final parsed = int.tryParse(texto.trim()) ?? 0;
+          if (parsed > tope) {
+            controller.value = TextEditingValue(
+              text: '$tope',
+              selection: TextSelection.collapsed(offset: '$tope'.length),
+            );
+          }
+        }
+        onChanged();
+      },
       cursorColor: AppColors.orange,
       style: AppTextStyles.title.copyWith(fontSize: 20),
       decoration: InputDecoration(

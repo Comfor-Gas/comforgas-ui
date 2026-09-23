@@ -120,6 +120,7 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                         acento: AppColors.orange,
                         valor: _draft.cantidadEntregada,
                         maximo: widget.producto.stockDisponible ?? 999,
+                        editable: esSocial,
                         onChanged: (v) => setState(() {
                           _draft.cantidadEntregada = v;
                         }),

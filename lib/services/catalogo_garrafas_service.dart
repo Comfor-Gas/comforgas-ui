@@ -1,10 +1,86 @@
 import '../models/producto_catalogo.dart';
 import '../models/producto_sku.dart';
 import '../models/stock_camion.dart';
+import '../models/stock_rodante_chofer.dart';
 import '../models/visita_model.dart';
 
 class CatalogoGarrafasService {
   const CatalogoGarrafasService();
+
+  List<ProductoSku> desdeStockRodanteParaCanje(StockRodanteChofer stock) {
+    final catalogo = <ProductoSku>[];
+    for (final p in stock.productos) {
+      final kg = p.kg ?? 0;
+      catalogo.add(
+        ProductoSku(
+          idProducto: p.idProducto,
+          sku: p.sku,
+          descripcion: kg > 0 ? 'Garrafa $kg kg' : p.sku,
+          kg: kg,
+          precioUnitario: 0,
+          tipoProducto: 'GARRAFA',
+          stockDisponible: p.disponiblesParaVenta,
+        ),
+      );
+    }
+    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
+    return catalogo;
+  }
+
+  List<ProductoSku> desdeStockRodante(VisitaModel visita, StockRodanteChofer stock) {
+    final precios = ProductoSku.precioPorKg(visita);
+    final catalogo = <ProductoSku>[];
+    for (final p in stock.productos) {
+      final kg = p.kg ?? 0;
+      final precio = precios[kg] ?? 0;
+      if (precio <= 0) continue;
+      catalogo.add(
+        ProductoSku(
+          idProducto: p.idProducto,
+          sku: p.sku,
+          descripcion: kg > 0 ? 'Garrafa $kg kg' : p.sku,
+          kg: kg,
+          precioUnitario: precio,
+          tipoProducto: 'GARRAFA',
+          stockDisponible: p.disponiblesParaVenta,
+        ),
+      );
+    }
+    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
+    return catalogo;
+  }
+
+  List<ProductoSku> desdeCatalogoConStock(
+    VisitaModel visita,
+    List<ProductoCatalogo> productos,
+    int Function(ProductoCatalogo producto) disponibleDe,
+  ) {
+    final preciosSnapshot = ProductoSku.precioPorKg(visita);
+    final catalogo = <ProductoSku>[];
+    for (final prod in productos) {
+      final kg = prod.kgEntero;
+      if (kg == null) continue;
+      var precio = prod.precioUnitario;
+      if (precio <= 0) precio = preciosSnapshot[kg] ?? 0;
+      if (precio <= 0) continue;
+
+      final disponible = disponibleDe(prod);
+      catalogo.add(
+        ProductoSku(
+          idProducto: prod.idProducto,
+          sku: prod.sku,
+          descripcion:
+              prod.descripcion.isNotEmpty ? prod.descripcion : 'Garrafa $kg kg',
+          kg: kg,
+          precioUnitario: precio,
+          tipoProducto: prod.tipoProducto.isNotEmpty ? prod.tipoProducto : 'GARRAFA',
+          stockDisponible: disponible < 0 ? 0 : disponible,
+        ),
+      );
+    }
+    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
+    return catalogo;
+  }
 
   List<ProductoSku> desdeStockYCatalogo(
     VisitaModel visita,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../local/stock_rodante_cache_service.dart';
 import '../../../models/stock_rodante_chofer.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/network_exception.dart';
@@ -45,6 +46,9 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
     }
     try {
       final stock = await StockRodanteRepository(auth.apiClient).getMiStock(idUsuario: idUsuario);
+      if (stock != null) {
+        await StockRodanteCacheService.instance.guardar(idUsuario, stock);
+      }
       if (!mounted) return;
       setState(() {
         _stock = stock;
@@ -52,9 +56,16 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
         _loading = false;
       });
     } on NetworkException {
+      final cache = StockRodanteCacheService.instance.obtener(idUsuario);
       if (!mounted) return;
       setState(() {
-        _error = 'Sin conexión. No pudimos actualizar el stock de tu camión.';
+        if (cache != null) {
+          _stock = cache;
+          _sinCarga = false;
+          _error = null;
+        } else {
+          _error = 'Sin conexión. No pudimos actualizar el stock de tu camión.';
+        }
         _loading = false;
       });
     } on StockRodanteRepositoryException catch (e) {

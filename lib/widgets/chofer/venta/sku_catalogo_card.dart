@@ -82,7 +82,7 @@ class SkuCatalogoCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Disponibles en el camión: ${producto.stockDisponible}',
+                            'Disponibles hoy: ${producto.stockDisponible}',
                             style: AppTextStyles.footer.copyWith(
                               color: AppColors.steelBlue,
                               fontWeight: FontWeight.w600,

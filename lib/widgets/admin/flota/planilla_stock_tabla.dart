@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../../../models/producto_catalogo.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
-import '../../../utils/formato.dart';
 
 class ColumnaStock {
   final String key;
@@ -124,20 +123,7 @@ class PlanillaStockTabla extends StatelessWidget {
         children: [
           SizedBox(
             width: 120,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(p.etiquetaKg, style: AppTextStyles.label.copyWith(fontSize: 13.5)),
-                if (p.precioUnitario > 0) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    formatMoneda(p.precioUnitario),
-                    style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-                  ),
-                ],
-              ],
-            ),
+            child: Text(p.etiquetaKg, style: AppTextStyles.label.copyWith(fontSize: 13.5)),
           ),
           for (final c in columnas)
             SizedBox(

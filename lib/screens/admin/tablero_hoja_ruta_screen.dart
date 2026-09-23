@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/mock_chofer_data.dart';
-import '../../models/ruta_model.dart';
 import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
@@ -71,33 +70,40 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
       _loading = true;
       _error = null;
     });
+
+    List<VisitaModel> visitasDelDia;
     try {
-      final resultados = await Future.wait([
-        _visitaRepo.listarTodas(),
-        _catalogoRepo.listarRutas(),
-      ]);
+      visitasDelDia = await _visitaRepo.listarDelDia(DateTime.now());
+    } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
-      final todas = resultados[0] as List<VisitaModel>;
-      final rutas = resultados[1] as List<RutaModel>;
-      final hoy = DateTime.now();
       setState(() {
-        _rutaNombre = {for (final r in rutas) r.idRuta: r.nombre};
-        _visitas = todas.where((v) {
-          final f = v.fecha;
-          return f != null &&
-              f.year == hoy.year &&
-              f.month == hoy.month &&
-              f.day == hoy.day;
-        }).toList();
+        _error = e.message;
         _loading = false;
       });
+      return;
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _error = 'No se pudo cargar el tablero de hojas de ruta.';
         _loading = false;
       });
+      return;
     }
+
+    var rutaNombre = <int, String>{};
+    try {
+      final rutas = await _catalogoRepo.listarRutas();
+      rutaNombre = {for (final r in rutas) r.idRuta: r.nombre};
+    } catch (_) {
+      rutaNombre = {};
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _rutaNombre = rutaNombre;
+      _visitas = visitasDelDia;
+      _loading = false;
+    });
   }
 
   String _textoSnapshot(Map<String, dynamic> snapshot, List<String> claves) {

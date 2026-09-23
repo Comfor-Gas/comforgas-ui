@@ -96,13 +96,20 @@ class FlotaRepository {
     return _parseList(response.body, EstadoGarrafa.fromJson);
   }
 
-  Future<List<MovimientoStock>> historialRecargas(int idCamion) async {
+  Future<List<MovimientoStock>> historialRecargas(int idCamion, {DateTime? dia}) async {
+    final params = <String, String>{
+      'depositoId': '$idCamion',
+      'tipoMovimiento': 'CARGA_CAMION',
+      'size': '100',
+    };
+    if (dia != null) {
+      final desde = DateTime(dia.year, dia.month, dia.day).toUtc();
+      final hasta = DateTime(dia.year, dia.month, dia.day, 23, 59, 59).toUtc();
+      params['desde'] = desde.toIso8601String();
+      params['hasta'] = hasta.toIso8601String();
+    }
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/movimientos').replace(
-      queryParameters: {
-        'depositoId': '$idCamion',
-        'tipoMovimiento': 'CARGA_CAMION',
-        'size': '100',
-      },
+      queryParameters: params,
     );
     final response = await _get(uri);
     final decoded = jsonDecode(response.body);

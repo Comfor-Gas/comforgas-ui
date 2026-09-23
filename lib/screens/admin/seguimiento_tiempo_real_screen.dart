@@ -19,6 +19,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/alerta_visita_badge.dart';
 import '../../widgets/admin/estado_visita_badge.dart';
+import '../../widgets/admin/seguimiento/evidencias_visita_boton.dart';
 import '../../widgets/chofer/comodato_badge.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/labeled_text_field.dart';
@@ -1051,6 +1052,11 @@ class _VisitaInfoPanel extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+          const SizedBox(width: 8),
+          EvidenciasVisitaBoton(
+            idVisita: visita.idVisita,
+            estado: visita.estadoVisita,
           ),
           IconButton(
             onPressed: onClose,

@@ -11,17 +11,20 @@ typedef CargarHistorial = Future<List<MovimientoStock>> Function();
 class HistorialRecargasPanel extends StatefulWidget {
   final DepositoCamion camion;
   final CargarHistorial cargar;
+  final DateTime? fecha;
 
   const HistorialRecargasPanel({
     super.key,
     required this.camion,
     required this.cargar,
+    this.fecha,
   });
 
   static Future<void> mostrar(
     BuildContext context, {
     required DepositoCamion camion,
     required CargarHistorial cargar,
+    DateTime? fecha,
   }) {
     return showGeneralDialog<void>(
       context: context,
@@ -31,7 +34,7 @@ class HistorialRecargasPanel extends StatefulWidget {
       transitionDuration: const Duration(milliseconds: 260),
       pageBuilder: (_, __, ___) => Align(
         alignment: Alignment.centerRight,
-        child: HistorialRecargasPanel(camion: camion, cargar: cargar),
+        child: HistorialRecargasPanel(camion: camion, cargar: cargar, fecha: fecha),
       ),
       transitionBuilder: (_, animation, __, child) {
         final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
@@ -90,21 +93,26 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
     }
   }
 
-  bool _esHoy(DateTime? fecha) {
+  DateTime get _diaReferencia => widget.fecha ?? DateTime.now();
+
+  bool _esDelDia(DateTime? fecha) {
     if (fecha == null) return false;
-    final now = DateTime.now();
-    return fecha.year == now.year && fecha.month == now.month && fecha.day == now.day;
+    final f = fecha.toLocal();
+    final d = _diaReferencia;
+    return f.year == d.year && f.month == d.month && f.day == d.day;
   }
 
-  int get _totalHoy => _movimientos
-      .where((m) => _esHoy(m.fecha))
-      .fold(0, (a, m) => a + m.cantidad);
+  List<MovimientoStock> get _movimientosDelDia =>
+      _movimientos.where((m) => _esDelDia(m.fecha)).toList();
 
-  int get _operacionesHoy => _movimientos.where((m) => _esHoy(m.fecha)).length;
+  int get _totalDia =>
+      _movimientosDelDia.fold(0, (a, m) => a + m.cantidad);
 
-  String get _skuHoy {
-    for (final m in _movimientos) {
-      if (_esHoy(m.fecha) && m.productoSku.isNotEmpty) return m.productoSku;
+  int get _operacionesDia => _movimientosDelDia.length;
+
+  String get _skuDia {
+    for (final m in _movimientosDelDia) {
+      if (m.productoSku.isNotEmpty) return m.productoSku;
     }
     return 'Garrafas';
   }
@@ -139,23 +147,25 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.orange));
     }
+    final delDia = _movimientosDelDia;
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       children: [
         _ResumenAcumulado(
-          total: _totalHoy,
-          operaciones: _operacionesHoy,
-          sku: _skuHoy,
+          total: _totalDia,
+          operaciones: _operacionesDia,
+          sku: _skuDia,
+          fechaTexto: formatFechaCorta(_diaReferencia),
         ),
         const SizedBox(height: 18),
         if (_error != null)
           _AvisoError(mensaje: _error!)
-        else if (_movimientos.isEmpty)
+        else if (delDia.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: Center(
               child: Text(
-                'Todavía no hay recargas registradas para este camión.',
+                'No hay recargas registradas para este camión el ${formatFechaCorta(_diaReferencia)}.',
                 style: AppTextStyles.link,
                 textAlign: TextAlign.center,
               ),
@@ -173,12 +183,12 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
             ],
           ),
           const SizedBox(height: 14),
-          for (int i = 0; i < _movimientos.length; i++)
+          for (int i = 0; i < delDia.length; i++)
             _FilaHistorial(
-              movimiento: _movimientos[i],
+              movimiento: delDia[i],
               choferNombre: widget.camion.choferNombre,
               primero: i == 0,
-              ultimo: i == _movimientos.length - 1,
+              ultimo: i == delDia.length - 1,
             ),
         ],
       ],
@@ -224,11 +234,13 @@ class _ResumenAcumulado extends StatelessWidget {
   final int total;
   final int operaciones;
   final String sku;
+  final String fechaTexto;
 
   const _ResumenAcumulado({
     required this.total,
     required this.operaciones,
     required this.sku,
+    required this.fechaTexto,
   });
 
   @override
@@ -247,7 +259,7 @@ class _ResumenAcumulado extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total recargado hoy',
+            'Total recargado · $fechaTexto',
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,

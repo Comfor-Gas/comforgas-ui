@@ -130,6 +130,34 @@ class VisitaRepository {
     return acumulado;
   }
 
+  Future<List<VisitaModel>> listarDelDia(DateTime dia) async {
+    final objetivo = DateTime(dia.year, dia.month, dia.day);
+    final acumulado = <VisitaModel>[];
+
+    for (var page = 0; page < _maxPaginas; page++) {
+      final pagina = await _listarPagina(page: page, size: _pageSize);
+      if (pagina.isEmpty) break;
+
+      var alcanzoAnteriores = false;
+      for (final v in pagina) {
+        final f = v.fecha;
+        if (f == null) continue;
+        final d = DateTime(f.year, f.month, f.day);
+        if (d.isAfter(objetivo)) continue;
+        if (d.isAtSameMomentAs(objetivo)) {
+          acumulado.add(v);
+        } else {
+          alcanzoAnteriores = true;
+        }
+      }
+
+      if (alcanzoAnteriores) break;
+      if (pagina.length < _pageSize) break;
+    }
+
+    return acumulado;
+  }
+
   Future<List<VisitaModel>> _listarPagina({
     required int page,
     required int size,
@@ -141,7 +169,7 @@ class VisitaRepository {
     try {
       response = await _client
           .get(uri, headers: const {'Content-Type': 'application/json'})
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 45));
     } catch (_) {
       throw VisitaRepositoryException(
         'No se pudo conectar con el servidor. Revisa tu conexión.',

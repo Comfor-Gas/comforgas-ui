@@ -1,33 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../local/stock_camion_cache_service.dart';
+import '../../../local/stock_rodante_cache_service.dart';
 import '../../../models/detalle_venta_draft.dart';
 import '../../../models/producto_catalogo.dart';
 import '../../../models/producto_sku.dart';
+import '../../../models/stock_rodante_chofer.dart';
 import '../../../models/tipo_operacion_venta.dart';
 import '../../../models/venta_draft.dart';
 import '../../../models/visita_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/network_exception.dart';
 import '../../../repositories/producto_repository.dart';
-import '../../../repositories/stock_repository.dart';
+import '../../../repositories/stock_rodante_repository.dart';
 import '../../../repositories/venta_repository.dart';
 import '../../../services/catalogo_garrafas_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
+import '../../../utils/formato.dart';
 import '../../../widgets/chofer/venta/detalle_venta_card.dart';
 import '../../../widgets/chofer/venta/detalle_venta_editor_sheet.dart';
-import '../../../widgets/chofer/venta/selector_producto_sheet.dart';
 import '../../../widgets/chofer/venta/sku_catalogo_card.dart';
 import '../../../widgets/chofer/venta/stock_aviso_banner.dart';
 import '../../../widgets/chofer/venta/tipo_operacion_sheet.dart';
 import '../../../widgets/chofer/venta/venta_total_bar.dart';
+
+class VentaPreviaResumen {
+  final String etiqueta;
+  final int monto;
+  final String? detalle;
+
+  const VentaPreviaResumen({
+    required this.etiqueta,
+    required this.monto,
+    this.detalle,
+  });
+}
 
 class RegistroVentaScreen extends StatefulWidget {
   final VisitaModel visita;
   final String nombreCliente;
   final String direccionCliente;
   final VentaDraft? inicial;
+  final bool ventaSocialBloqueada;
+  final List<VentaPreviaResumen> ventasPrevias;
   final Future<void> Function(VentaDraft venta) onRegistrar;
 
   const RegistroVentaScreen({
@@ -37,6 +52,8 @@ class RegistroVentaScreen extends StatefulWidget {
     required this.direccionCliente,
     required this.onRegistrar,
     this.inicial,
+    this.ventaSocialBloqueada = false,
+    this.ventasPrevias = const [],
   });
 
   @override
@@ -50,6 +67,7 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
   List<ProductoSku> _catalogo = const [];
   bool _cargandoCatalogo = true;
   bool _guardando = false;
+  bool _jornadaCerrada = false;
   String? _avisoStock;
 
   @override
@@ -64,6 +82,7 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
   Future<void> _cargarCatalogo() async {
     final apiClient = context.read<AuthProvider>().apiClient;
     final idUsuario = widget.visita.idUsuario;
+    final fecha = widget.visita.fecha ?? DateTime.now();
 
     List<ProductoCatalogo> productos = const [];
     try {
@@ -73,55 +92,102 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
       productos = const [];
     }
 
+    StockRodanteChofer? diario;
+    var sinSenal = false;
+    try {
+      diario = await StockRodanteRepository(apiClient)
+          .getMiStock(idUsuario: idUsuario, fecha: fecha);
+      if (diario != null) {
+        await StockRodanteCacheService.instance.guardar(idUsuario, diario);
+      }
+    } on NetworkException {
+      sinSenal = true;
+      diario = StockRodanteCacheService.instance.obtener(idUsuario);
+    } catch (_) {
+      diario = StockRodanteCacheService.instance.obtener(idUsuario);
+    }
+
+    if (productos.isNotEmpty) {
+      List<ProductoSku> catalogo;
+      String? aviso;
+      var cerrada = false;
+      if (diario != null) {
+        final diarioRef = diario;
+        cerrada = diario.jornadaCerrada;
+        catalogo = _catalogoService.desdeCatalogoConStock(
+          widget.visita,
+          productos,
+          (prod) => _disponibleDiario(diarioRef, prod),
+        );
+        if (cerrada) {
+          aviso = 'La jornada está cerrada (rendición completa): no se pueden registrar más ventas para esta fecha.';
+        } else if (sinSenal) {
+          aviso = 'Sin conexión: se muestra el último stock del día guardado.';
+        }
+      } else {
+        catalogo = _catalogoService.desdeCatalogoConStock(
+          widget.visita,
+          productos,
+          (_) => 0,
+        );
+        aviso = sinSenal
+            ? 'Sin conexión: no se pudo obtener el stock del día. Reintentá cuando tengas señal.'
+            : 'No se pudo obtener el stock del día del camión. Actualizá para reintentar.';
+      }
+      if (!mounted) return;
+      setState(() {
+        _catalogo = catalogo;
+        _avisoStock = aviso;
+        _jornadaCerrada = cerrada;
+        _cargandoCatalogo = false;
+      });
+      return;
+    }
+
     List<ProductoSku> catalogo;
     String? aviso;
-    try {
-      final stock = await StockRepository(apiClient).getStockMiCamion();
-      await StockCamionCacheService.instance.guardar(idUsuario, stock);
-      catalogo = _catalogoService.desdeStockYCatalogo(widget.visita, stock, productos);
-    } on NetworkException {
-      final resultado = _catalogoDesdeCacheOFallback(idUsuario, productos);
-      catalogo = resultado.$1;
-      aviso = resultado.$2;
-    } on StockRepositoryException catch (e) {
-      final resultado = _catalogoDesdeCacheOFallback(idUsuario, productos, motivo: e.message);
-      catalogo = resultado.$1;
-      aviso = resultado.$2;
-    } catch (_) {
-      final resultado = _catalogoDesdeCacheOFallback(idUsuario, productos);
-      catalogo = resultado.$1;
-      aviso = resultado.$2;
+    var cerrada = false;
+    if (diario != null) {
+      cerrada = diario.jornadaCerrada;
+      catalogo = _catalogoService.desdeStockRodante(widget.visita, diario);
+      if (cerrada) {
+        aviso = 'La jornada está cerrada (rendición completa): no se pueden registrar más ventas para esta fecha.';
+      } else if (sinSenal) {
+        aviso = 'Sin conexión: se muestra el último stock del día guardado.';
+      }
+    } else {
+      catalogo = ProductoSku.desdeVisita(widget.visita);
+      aviso = sinSenal
+          ? 'Sin conexión: no se pudo obtener el stock del día. Se muestran los precios de la agenda sin control de stock.'
+          : 'No se pudo obtener el stock del día del camión: se muestran los precios de la agenda sin control de stock.';
     }
 
     if (!mounted) return;
     setState(() {
       _catalogo = catalogo;
       _avisoStock = aviso;
+      _jornadaCerrada = cerrada;
       _cargandoCatalogo = false;
     });
   }
 
-  (List<ProductoSku>, String?) _catalogoDesdeCacheOFallback(
-    String idUsuario,
-    List<ProductoCatalogo> productos, {
-    String? motivo,
-  }) {
-    final cache = StockCamionCacheService.instance.obtener(idUsuario);
-    if (cache != null) {
-      return (
-        _catalogoService.desdeStockYCatalogo(widget.visita, cache, productos),
-        'Usando el último stock del camión guardado; puede estar desactualizado.',
-      );
+  int _disponibleDiario(StockRodanteChofer diario, ProductoCatalogo prod) {
+    final kg = prod.kgEntero;
+    for (final p in diario.productos) {
+      if (p.idProducto == prod.idProducto ||
+          (p.sku.isNotEmpty && p.sku == prod.sku) ||
+          (kg != null && p.kg == kg)) {
+        return p.disponiblesParaVenta;
+      }
     }
-    return (
-      ProductoSku.desdeVisita(widget.visita),
-      motivo ??
-          'Sin stock del camión disponible: se muestran los precios de la agenda sin control de stock.',
-    );
+    return 0;
   }
 
   Future<void> _onAgregarSku(ProductoSku producto) async {
-    final tipo = await mostrarTipoOperacionSheet(context);
+    final tipo = await mostrarTipoOperacionSheet(
+      context,
+      ventaSocialBloqueada: widget.ventaSocialBloqueada,
+    );
     if (tipo == null || !mounted) return;
 
     final existente = _venta.buscar(producto.idProducto, tipo);
@@ -130,28 +196,6 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
       context,
       producto: producto,
       tipoOperacion: tipo,
-      inicial: existente,
-    );
-    if (detalle == null || !mounted) return;
-
-    setState(() => _venta.guardarLinea(detalle));
-  }
-
-  Future<void> _agregarSocial() async {
-    final producto = await mostrarSelectorProducto(
-      context,
-      productos: _catalogo,
-      titulo: 'Elegí la garrafa para Venta Social',
-    );
-    if (producto == null || !mounted) return;
-
-    final existente =
-        _venta.buscar(producto.idProducto, TipoOperacionVenta.ventaSocial);
-
-    final detalle = await mostrarDetalleVentaEditor(
-      context,
-      producto: producto,
-      tipoOperacion: TipoOperacionVenta.ventaSocial,
       inicial: existente,
     );
     if (detalle == null || !mounted) return;
@@ -187,6 +231,15 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
 
   Future<void> _guardarVenta() async {
     if (!_venta.puedeGuardar || _guardando) return;
+    if (_jornadaCerrada) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La jornada está cerrada: no se pueden registrar más ventas para esta fecha.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     setState(() => _guardando = true);
     try {
@@ -196,9 +249,33 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
     } on VentaRepositoryException catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      final low = e.message.toLowerCase();
+      if (low.contains('insuficiente') || low.contains('stock_insuficiente')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No hay stock suficiente en el camión para esta venta. Actualizamos el stock disponible.',
+            ),
+            backgroundColor: AppColors.error,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        _cargarCatalogo();
+      } else if (low.contains('jornada') ||
+          low.contains('cerrada') ||
+          low.contains('entrada_completa')) {
+        setState(() => _jornadaCerrada = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('La jornada está cerrada: no se pueden registrar más ventas para esta fecha.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -236,6 +313,10 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
                         children: [
                           if (_avisoStock != null)
                             StockAvisoBanner(mensaje: _avisoStock!),
+                          if (widget.ventasPrevias.isNotEmpty) ...[
+                            _VentasPreviasCard(ventas: widget.ventasPrevias),
+                            const SizedBox(height: 16),
+                          ],
                           _Seccion(titulo: 'Productos disponibles'),
                           const SizedBox(height: 12),
                           ..._catalogo.map(
@@ -269,22 +350,6 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
                               ),
                             ),
                           ],
-                          if (_venta.tieneSocial) ...[
-                            const SizedBox(height: 4),
-                            OutlinedButton.icon(
-                              onPressed: _guardando ? null : _agregarSocial,
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Agregar a venta social'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.steelBlue,
-                                side: const BorderSide(color: AppColors.steelBlue),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -293,7 +358,7 @@ class _RegistroVentaScreenState extends State<RegistroVentaScreen> {
             VentaTotalBar(
               total: _venta.montoVentaNormal,
               cantidadItems: _venta.lineasVenta.length,
-              habilitado: _venta.puedeGuardar,
+              habilitado: _venta.puedeGuardar && !_jornadaCerrada,
               cargando: _guardando,
               hayInconsistencias: _venta.hayInconsistencias,
               textoBoton: _textoBotonGuardar,
@@ -415,6 +480,118 @@ class _ResumenSocialBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _VentasPreviasCard extends StatelessWidget {
+  final List<VentaPreviaResumen> ventas;
+
+  const _VentasPreviasCard({required this.ventas});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = ventas.fold(0, (a, v) => a + v.monto);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_outlined, size: 18, color: AppColors.steelBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  ventas.length == 1
+                      ? 'Ya registraste 1 venta en esta visita'
+                      : 'Ya registraste ${ventas.length} ventas en esta visita',
+                  style: AppTextStyles.label.copyWith(fontSize: 13.5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final v in ventas)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          v.etiqueta,
+                          style: AppTextStyles.link.copyWith(fontSize: 13),
+                        ),
+                      ),
+                      Text(
+                        formatMoneda(v.monto),
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.steelBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (v.detalle != null) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.propane_tank_outlined, size: 13, color: AppColors.inputHint),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            v.detalle!,
+                            style: AppTextStyles.footer.copyWith(
+                              fontSize: 12,
+                              color: AppColors.graphiteGray,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          const Divider(height: 8, color: AppColors.inputBorder),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Total ya registrado',
+                  style: AppTextStyles.footer.copyWith(
+                    color: AppColors.graphiteGray,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                formatMoneda(total),
+                style: AppTextStyles.title.copyWith(fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Lo que cargues acá se suma como una venta nueva.',
+            style: AppTextStyles.footer.copyWith(
+              color: AppColors.graphiteGray,
+              fontStyle: FontStyle.italic,
+              fontSize: 11.5,
+            ),
+          ),
+        ],
       ),
     );
   }

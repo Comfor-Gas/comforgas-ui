@@ -10,7 +10,7 @@ class StockDisponibleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalLlenos = productos.fold(0, (a, p) => a + p.llenosActuales);
+    final totalLlenos = productos.fold(0, (a, p) => a + p.disponiblesParaVenta);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -78,9 +78,9 @@ class StockDisponibleCard extends StatelessWidget {
           Expanded(
             child: Text(p.etiqueta, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
           ),
-          _Chip(valor: p.llenosActuales, etiqueta: 'llenos', color: AppColors.orange),
+          _Chip(valor: p.disponiblesParaVenta, etiqueta: 'llenos', color: AppColors.orange),
           const SizedBox(width: 8),
-          _Chip(valor: p.vaciosActuales, etiqueta: 'vacíos', color: AppColors.steelBlue),
+          _Chip(valor: p.vaciosEnCamion, etiqueta: 'vacíos', color: AppColors.steelBlue),
         ],
       ),
     );

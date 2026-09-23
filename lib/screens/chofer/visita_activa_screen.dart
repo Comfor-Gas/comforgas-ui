@@ -11,6 +11,7 @@ import '../../local/comodato_offline_service.dart';
 import '../../local/comodato_pendiente.dart';
 import '../../local/offline_evento.dart';
 import '../../local/offline_queue_service.dart';
+import '../../local/stock_rodante_cache_service.dart';
 import '../../local/venta_social_local_service.dart';
 import '../../models/canje_garrafa.dart';
 import '../../models/cliente_ficha.dart';
@@ -120,6 +121,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   int get _montoVentaSocial =>
       _ventas.where((v) => v.esSocial).fold(0, (a, v) => a + v.monto);
+
+  bool get _yaTieneVentaSocial =>
+      _pausaSocial != null ||
+      _ventaSocialFinalizada ||
+      _visita.estadoVisita == VisitaEstado.pausadaSocial ||
+      _ventas.any((v) => v.esSocial);
   ContratoComodato? _contratoComodato;
   bool _cargandoContrato = false;
   ControlComodatoDraft? _controlComodato;
@@ -568,6 +575,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (idVisita != null) {
       try {
         await _canjeRepo.registrarCanje(idVisita, draft);
+        await StockRodanteCacheService.instance
+            .aplicarSalidas(_visita.idUsuario, {producto.idProducto: 1});
         if (!mounted) return;
         _canjesServidor = [..._canjesServidor, draft];
         _recomputarCanjes();
@@ -582,6 +591,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
 
     await _encolarCanje(draft: draft, idAgendaItem: idAgendaItem);
+    await StockRodanteCacheService.instance
+        .aplicarSalidas(_visita.idUsuario, {producto.idProducto: 1});
   }
 
   Future<void> _encolarCanje({
@@ -962,6 +973,16 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           nombreCliente: widget.nombreCliente,
           direccionCliente: widget.direccionCliente,
           inicial: null,
+          ventaSocialBloqueada: _yaTieneVentaSocial,
+          ventasPrevias: [
+            for (final v in _ventas)
+              if (!v.esSocial)
+                VentaPreviaResumen(
+                  etiqueta: v.etiqueta,
+                  monto: v.monto,
+                  detalle: detalleGarrafasDeVenta(v),
+                ),
+          ],
           onRegistrar: _registrarVentaMixta,
         ),
       ),
@@ -997,6 +1018,17 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           'No se pudo iniciar la Venta Social. Podés volver a intentarlo registrando la venta social de nuevo.',
         );
       }
+    }
+
+    final salidas = <String, int>{};
+    for (final l in venta.lineas) {
+      if (l.cantidadEntregada > 0) {
+        salidas[l.producto.idProducto] =
+            (salidas[l.producto.idProducto] ?? 0) + l.cantidadEntregada;
+      }
+    }
+    if (salidas.isNotEmpty) {
+      await StockRodanteCacheService.instance.aplicarSalidas(_visita.idUsuario, salidas);
     }
   }
 
@@ -1226,6 +1258,24 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   int get _totalCobrable =>
       _ventasCobrables.fold(0, (a, v) => a + v.monto);
 
+  List<CobroGarrafaItem> _garrafasDeVenta(VentaEnVisita v) {
+    final lineas = v.draft?.lineas;
+    if (lineas == null) return const [];
+    final items = <CobroGarrafaItem>[];
+    for (final l in lineas) {
+      if (l.cantidadEntregada <= 0) continue;
+      final descripcion = l.producto.descripcion.trim().isNotEmpty
+          ? l.producto.descripcion.trim()
+          : 'Garrafa ${l.producto.kg} kg';
+      items.add(CobroGarrafaItem(
+        descripcion: descripcion,
+        cantidad: l.cantidadEntregada,
+        monto: l.subtotal,
+      ));
+    }
+    return items;
+  }
+
   Future<Object?> _abrirCobroCombinado(List<VentaEnVisita> ventas) {
     final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
     final refs = ventas
@@ -1234,6 +1284,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               uuidVentaOffline: v.idVenta == null ? v.uuidOffline : null,
               monto: v.monto,
               etiqueta: v.etiqueta,
+              garrafas: _garrafasDeVenta(v),
             ))
         .toList();
     final montoTotal = ventas.fold(0, (a, v) => a + v.monto);
@@ -2129,6 +2180,23 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 }
 
+String? detalleGarrafasDeVenta(VentaEnVisita venta) {
+  final lineas = venta.draft?.lineas;
+  if (lineas == null || lineas.isEmpty) return null;
+  final partes = <String>[];
+  for (final l in lineas) {
+    if (l.cantidadEntregada <= 0) continue;
+    final kg = l.producto.kg;
+    final etiqueta = kg > 0
+        ? '$kg kg'
+        : (l.producto.descripcion.trim().isNotEmpty
+            ? l.producto.descripcion.trim()
+            : l.producto.sku);
+    partes.add('${l.cantidadEntregada}× $etiqueta');
+  }
+  return partes.isEmpty ? null : partes.join(' · ');
+}
+
 class _FilaVentaRegistrada extends StatelessWidget {
   final VentaEnVisita venta;
   final bool online;
@@ -2144,6 +2212,7 @@ class _FilaVentaRegistrada extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color borde =
         venta.cobrado ? AppColors.badgeGreen : AppColors.inputBorder;
+    final detalleGarrafas = _detalleGarrafas();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2174,6 +2243,26 @@ class _FilaVentaRegistrada extends StatelessWidget {
               ),
             ],
           ),
+          if (detalleGarrafas != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.propane_tank_outlined, size: 14, color: AppColors.inputHint),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    detalleGarrafas,
+                    style: AppTextStyles.footer.copyWith(
+                      fontSize: 12,
+                      color: AppColors.graphiteGray,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -2198,6 +2287,8 @@ class _FilaVentaRegistrada extends StatelessWidget {
       ),
     );
   }
+
+  String? _detalleGarrafas() => detalleGarrafasDeVenta(venta);
 
   Widget _estado() {
     if (venta.cobrado) {

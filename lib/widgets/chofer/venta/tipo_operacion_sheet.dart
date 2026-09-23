@@ -3,17 +3,22 @@ import '../../../models/tipo_operacion_venta.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 
-Future<TipoOperacionVenta?> mostrarTipoOperacionSheet(BuildContext context) {
+Future<TipoOperacionVenta?> mostrarTipoOperacionSheet(
+  BuildContext context, {
+  bool ventaSocialBloqueada = false,
+}) {
   return showModalBottomSheet<TipoOperacionVenta>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => const _TipoOperacionSheet(),
+    builder: (_) => _TipoOperacionSheet(ventaSocialBloqueada: ventaSocialBloqueada),
   );
 }
 
 class _TipoOperacionSheet extends StatelessWidget {
-  const _TipoOperacionSheet();
+  final bool ventaSocialBloqueada;
+
+  const _TipoOperacionSheet({this.ventaSocialBloqueada = false});
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +62,9 @@ class _TipoOperacionSheet extends StatelessWidget {
             const SizedBox(height: 12),
             _OpcionOperacion(
               tipo: TipoOperacionVenta.ventaSocial,
+              deshabilitado: ventaSocialBloqueada,
+              mensajeDeshabilitado:
+                  'Ya registraste una venta social en esta visita.',
               onTap: () =>
                   Navigator.of(context).pop(TipoOperacionVenta.ventaSocial),
             ),
@@ -87,64 +95,74 @@ class _TipoOperacionSheet extends StatelessWidget {
 class _OpcionOperacion extends StatelessWidget {
   final TipoOperacionVenta tipo;
   final bool destacado;
+  final bool deshabilitado;
+  final String? mensajeDeshabilitado;
   final VoidCallback onTap;
 
   const _OpcionOperacion({
     required this.tipo,
     required this.onTap,
     this.destacado = false,
+    this.deshabilitado = false,
+    this.mensajeDeshabilitado,
   });
 
   @override
   Widget build(BuildContext context) {
     final info = tipo.info;
+    final activo = destacado && !deshabilitado;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: destacado ? AppColors.orange : AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: destacado ? AppColors.orange : AppColors.inputBorder,
-            width: 1.4,
+    return Opacity(
+      opacity: deshabilitado ? 0.55 : 1,
+      child: InkWell(
+        onTap: deshabilitado ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: activo ? AppColors.orange : AppColors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: activo ? AppColors.orange : AppColors.inputBorder,
+              width: 1.4,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              info.icono,
-              color: destacado ? AppColors.white : AppColors.steelBlue,
-              size: 22,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    info.label,
-                    style: AppTextStyles.label.copyWith(
-                      fontSize: 15,
-                      color: destacado ? AppColors.white : AppColors.steelBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    info.descripcion,
-                    style: AppTextStyles.footer.copyWith(
-                      color: destacado
-                          ? AppColors.white.withOpacity(0.9)
-                          : AppColors.graphiteGray,
-                    ),
-                  ),
-                ],
+          child: Row(
+            children: [
+              Icon(
+                deshabilitado ? Icons.lock_outline : info.icono,
+                color: activo ? AppColors.white : AppColors.steelBlue,
+                size: 22,
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      info.label,
+                      style: AppTextStyles.label.copyWith(
+                        fontSize: 15,
+                        color: activo ? AppColors.white : AppColors.steelBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      deshabilitado && mensajeDeshabilitado != null
+                          ? mensajeDeshabilitado!
+                          : info.descripcion,
+                      style: AppTextStyles.footer.copyWith(
+                        color: activo
+                            ? AppColors.white.withOpacity(0.9)
+                            : AppColors.graphiteGray,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

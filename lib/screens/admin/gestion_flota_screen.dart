@@ -486,13 +486,14 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     HistorialRecargasPanel.mostrar(
       context,
       camion: camion,
+      fecha: _fecha,
       cargar: () => _cargarHistorial(camion),
     );
   }
 
   Future<List<MovimientoStock>> _cargarHistorial(DepositoCamion camion) async {
     if (_modoEjemplo) return historialRecargasDeEjemplo();
-    return _flotaRepo.historialRecargas(camion.id);
+    return _flotaRepo.historialRecargas(camion.id, dia: _fecha);
   }
 
   @override

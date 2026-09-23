@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../local/recaudacion_diaria_service.dart';
 import '../../../local/rendicion_local_service.dart';
 import '../../../models/rendicion_ruta.dart';
 import '../../../models/stock_rodante_chofer.dart';
@@ -68,6 +69,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
   bool _cargando = true;
   bool _enviando = false;
   bool _pendienteLocal = false;
+  bool _precargado = false;
   bool _online = true;
 
   DateTime get _hoy => DateTime.now();
@@ -109,6 +111,8 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
     if (productos.isEmpty) productos = _productosPorDefecto;
 
     final pendiente = RendicionLocalService.instance.obtener(_hoy);
+    final idUsuario = auth.user?.id ?? '';
+    final recaudacion = RecaudacionDiariaService.instance.obtener(idUsuario, _hoy);
 
     if (!mounted) return;
     setState(() {
@@ -131,6 +135,27 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
           );
         }
         _pendienteLocal = true;
+      } else {
+        if (recaudacion.efectivo > 0) _efectivo.text = '${recaudacion.efectivo}';
+        if (recaudacion.cheque > 0) _cheques.text = '${recaudacion.cheque}';
+        if (recaudacion.transferencia > 0) {
+          _transferencias.text = '${recaudacion.transferencia}';
+        }
+        var precargoGarrafas = false;
+        for (final p in productos) {
+          final vacios = p.vaciosEnCamion;
+          final llenos = p.disponiblesParaVenta;
+          final averiados = p.averiadosActuales;
+          if (vacios > 0 || llenos > 0 || averiados > 0) {
+            _conteos[_clave(p)] = _Conteo(
+              vacios: vacios,
+              llenos: llenos,
+              averiados: averiados,
+            );
+            precargoGarrafas = true;
+          }
+        }
+        _precargado = recaudacion.total > 0 || precargoGarrafas;
       }
       _cargando = false;
     });
@@ -249,6 +274,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     children: [
                       if (_pendienteLocal) const _AvisoPendiente(),
+                      if (_precargado && !_pendienteLocal) const _AvisoPrecargado(),
                       _SeccionValores(
                         efectivo: _efectivo,
                         cheques: _cheques,
@@ -345,6 +371,36 @@ class _Cabecera extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           const EstadoConexionBadge(compacto: true, claro: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvisoPrecargado extends StatelessWidget {
+  const _AvisoPrecargado();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome_outlined, size: 18, color: AppColors.steelBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Precargamos los valores cobrados y las garrafas del camión de hoy. '
+              'Revisá los números y ajustá lo que haga falta antes de enviar.',
+              style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+            ),
+          ),
         ],
       ),
     );

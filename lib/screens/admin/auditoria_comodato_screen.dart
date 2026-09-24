@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/responsive.dart';
 import '../../models/control_comodato.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/catalogo_repository.dart';
 import '../../repositories/comodato_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
@@ -18,10 +19,12 @@ class AuditoriaComodatoAdminScreen extends StatefulWidget {
 
 class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScreen> {
   late final ComodatoRepository _repo;
+  late final CatalogoRepository _catalogoRepo;
 
   bool _loading = true;
   String? _error;
   List<ControlComodato> _controles = [];
+  Map<int, String> _nombrePorCliente = {};
 
   bool _soloFaltantes = true;
   DateTime? _desde;
@@ -31,9 +34,35 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
   @override
   void initState() {
     super.initState();
-    _repo = ComodatoRepository(context.read<AuthProvider>().apiClient);
+    final apiClient = context.read<AuthProvider>().apiClient;
+    _repo = ComodatoRepository(apiClient);
+    _catalogoRepo = CatalogoRepository(apiClient);
     _filtroCtrl.addListener(() => setState(() {}));
+    _cargarClientes();
     _cargar();
+  }
+
+  Future<void> _cargarClientes() async {
+    try {
+      final clientes = await _catalogoRepo.listarClientes();
+      if (!mounted) return;
+      setState(() {
+        _nombrePorCliente = {
+          for (final c in clientes)
+            if (c.idClienteExt != null && c.nombre.trim().isNotEmpty)
+              c.idClienteExt!: c.nombre.trim(),
+        };
+      });
+    } catch (_) {}
+  }
+
+  String _nombreDe(ControlComodato c) {
+    final id = c.idClienteExt;
+    if (id != null) {
+      final nombre = _nombrePorCliente[id];
+      if (nombre != null && nombre.isNotEmpty) return nombre;
+    }
+    return '';
   }
 
   @override
@@ -84,7 +113,8 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
     if (q.isEmpty) return _controles;
     return _controles.where((c) {
       final chofer = (c.nombreChofer ?? '').toLowerCase();
-      final cliente = 'cliente #${c.idClienteExt ?? ''}'.toLowerCase();
+      final nombre = _nombreDe(c).toLowerCase();
+      final cliente = '$nombre cliente #${c.idClienteExt ?? ''}'.toLowerCase();
       final obs = (c.observaciones ?? '').toLowerCase();
       return chofer.contains(q) || cliente.contains(q) || obs.contains(q);
     }).toList();
@@ -232,7 +262,11 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
         mainAxisSize: MainAxisSize.min,
         children: [
           for (var i = 0; i < _filtrados.length; i++)
-            AuditoriaComodatoFila(control: _filtrados[i], par: i.isEven),
+            AuditoriaComodatoFila(
+              control: _filtrados[i],
+              par: i.isEven,
+              nombreCliente: _nombreDe(_filtrados[i]),
+            ),
         ],
       );
     }

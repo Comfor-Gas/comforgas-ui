@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/responsive.dart';
 import '../../data/mock_ventas_monitoreo.dart';
+import '../../models/metodo_pago.dart';
 import '../../models/venta_monitoreo.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/admin_cobro_venta_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/venta_monitoreo_repository.dart';
 import '../../theme/app_colors.dart';
@@ -22,12 +25,14 @@ class ConsolaVentasScreen extends StatefulWidget {
 
 class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
   late final VentaMonitoreoRepository _repo;
+  late final AdminCobroVentaRepository _cobroRepo;
   final TextEditingController _choferCtrl = TextEditingController();
   final TextEditingController _clienteCtrl = TextEditingController();
 
   bool _loading = true;
   String? _error;
   bool _modoEjemplo = false;
+  bool _registrandoCobro = false;
 
   DateTime _fecha = DateTime.now();
   EstadoVentaMonitoreo? _estadoFiltro;
@@ -39,7 +44,9 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
   @override
   void initState() {
     super.initState();
-    _repo = VentaMonitoreoRepository(context.read<AuthProvider>().apiClient);
+    final apiClient = context.read<AuthProvider>().apiClient;
+    _repo = VentaMonitoreoRepository(apiClient);
+    _cobroRepo = AdminCobroVentaRepository(apiClient);
     _choferCtrl.addListener(() => setState(() {}));
     _clienteCtrl.addListener(() => setState(() {}));
     _cargar();
@@ -98,6 +105,62 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
       _loading = false;
       _sincronizarSeleccion();
     });
+  }
+
+  Future<void> _registrarCobro(VentaMonitoreo venta) async {
+    if (_registrandoCobro) return;
+    if (_modoEjemplo) {
+      _snack('En modo de ejemplo no se pueden registrar cobros.', error: true);
+      return;
+    }
+    final datos = await showDialog<_DatosCobroVenta>(
+      context: context,
+      builder: (_) => _RegistrarCobroDialog(
+        cliente: venta.clienteNombre,
+        montoTotal: venta.montoTotal,
+      ),
+    );
+    if (datos == null || !mounted) return;
+
+    setState(() => _registrandoCobro = true);
+    try {
+      await _cobroRepo.registrarCobro(
+        idVenta: venta.idVenta,
+        metodoPago: datos.metodo.codigoBackend,
+        monto: datos.monto,
+      );
+      if (!mounted) return;
+      setState(() => _registrandoCobro = false);
+      _snack('Cobro registrado. La venta se actualiza a Completada.');
+      _cargar();
+    } on NetworkException {
+      if (!mounted) return;
+      setState(() => _registrandoCobro = false);
+      _snack('Sin conexión: no se pudo registrar el cobro.', error: true);
+    } on AdminCobroVentaException catch (e) {
+      if (!mounted) return;
+      setState(() => _registrandoCobro = false);
+      _snack(
+        e.endpointNoDisponible
+            ? 'El endpoint de cobro para administración todavía no está en el backend.'
+            : e.message,
+        error: true,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _registrandoCobro = false);
+      _snack('No se pudo registrar el cobro.', error: true);
+    }
+  }
+
+  void _snack(String mensaje, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
+      ),
+    );
   }
 
   void _sincronizarSeleccion() {
@@ -256,7 +319,16 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
       children: [
         Expanded(child: _tabla(true)),
         const SizedBox(width: 20),
-        SizedBox(width: 340, child: VentaDetallePanel(venta: _ventaSeleccionada)),
+        SizedBox(
+          width: 340,
+          child: VentaDetallePanel(
+            venta: _ventaSeleccionada,
+            registrandoCobro: _registrandoCobro,
+            onRegistrarCobro: _ventaSeleccionada == null
+                ? null
+                : () => _registrarCobro(_ventaSeleccionada!),
+          ),
+        ),
       ],
     );
   }
@@ -273,7 +345,14 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
       children: [
         _tabla(false),
         const SizedBox(height: 20),
-        VentaDetallePanel(venta: _ventaSeleccionada, scrollable: false),
+        VentaDetallePanel(
+          venta: _ventaSeleccionada,
+          scrollable: false,
+          registrandoCobro: _registrandoCobro,
+          onRegistrarCobro: _ventaSeleccionada == null
+              ? null
+              : () => _registrarCobro(_ventaSeleccionada!),
+        ),
       ],
     );
   }
@@ -459,6 +538,127 @@ class _AvisoBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DatosCobroVenta {
+  final MetodoPago metodo;
+  final int monto;
+  const _DatosCobroVenta({required this.metodo, required this.monto});
+}
+
+class _RegistrarCobroDialog extends StatefulWidget {
+  final String cliente;
+  final int montoTotal;
+
+  const _RegistrarCobroDialog({required this.cliente, required this.montoTotal});
+
+  @override
+  State<_RegistrarCobroDialog> createState() => _RegistrarCobroDialogState();
+}
+
+class _RegistrarCobroDialogState extends State<_RegistrarCobroDialog> {
+  MetodoPago _metodo = MetodoPago.efectivo;
+  late final TextEditingController _monto =
+      TextEditingController(text: '${widget.montoTotal}');
+
+  @override
+  void dispose() {
+    _monto.dispose();
+    super.dispose();
+  }
+
+  int get _montoIngresado => int.tryParse(_monto.text.trim()) ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final valido = _montoIngresado > 0;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Registrar cobro', style: AppTextStyles.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Cliente: ${widget.cliente}',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Monto de la venta: ${formatMoneda(widget.montoTotal)}',
+              style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 12.5),
+            ),
+            const SizedBox(height: 16),
+            Text('Método de pago', style: AppTextStyles.label.copyWith(fontSize: 13)),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.inputBorder, width: 1.2),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<MetodoPago>(
+                  isExpanded: true,
+                  value: _metodo,
+                  icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
+                  style: AppTextStyles.input,
+                  items: [
+                    for (final m in MetodoPago.values)
+                      DropdownMenuItem<MetodoPago>(value: m, child: Text(m.etiqueta)),
+                  ],
+                  onChanged: (m) => setState(() => _metodo = m ?? _metodo),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('Monto a cobrar', style: AppTextStyles.label.copyWith(fontSize: 13)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _monto,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (_) => setState(() {}),
+              cursorColor: AppColors.orange,
+              style: AppTextStyles.input,
+              decoration: const InputDecoration(
+                prefixText: '\$ ',
+                isDense: true,
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.inputBorder)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.orange)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'El monto debe cubrir el total para que la venta pase a Completada.',
+              style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray, fontSize: 11.5),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancelar', style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray)),
+        ),
+        TextButton(
+          onPressed: valido
+              ? () => Navigator.of(context).pop(
+                    _DatosCobroVenta(metodo: _metodo, monto: _montoIngresado),
+                  )
+              : null,
+          child: Text(
+            'Registrar',
+            style: AppTextStyles.button.copyWith(
+              color: valido ? AppColors.orange : AppColors.inputHint,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

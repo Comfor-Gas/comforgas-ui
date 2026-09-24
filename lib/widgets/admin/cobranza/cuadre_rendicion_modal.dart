@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../data/mock_cuadre_rendicion.dart';
 import '../../../models/cuadre_rendicion.dart';
 import '../../../repositories/network_exception.dart';
 import '../../../repositories/rendicion_admin_repository.dart';
@@ -16,9 +15,6 @@ Future<void> mostrarCuadreRendicion(
   required String idUsuario,
   required String nombreChofer,
   required DateTime fecha,
-  required int sistemaEfectivo,
-  required int sistemaCheque,
-  required int sistemaTransferencia,
 }) {
   return showDialog<void>(
     context: context,
@@ -28,9 +24,6 @@ Future<void> mostrarCuadreRendicion(
       idUsuario: idUsuario,
       nombreChofer: nombreChofer,
       fecha: fecha,
-      sistemaEfectivo: sistemaEfectivo,
-      sistemaCheque: sistemaCheque,
-      sistemaTransferencia: sistemaTransferencia,
     ),
   );
 }
@@ -40,9 +33,6 @@ class CuadreRendicionModal extends StatefulWidget {
   final String idUsuario;
   final String nombreChofer;
   final DateTime fecha;
-  final int sistemaEfectivo;
-  final int sistemaCheque;
-  final int sistemaTransferencia;
 
   const CuadreRendicionModal({
     super.key,
@@ -50,9 +40,6 @@ class CuadreRendicionModal extends StatefulWidget {
     required this.idUsuario,
     required this.nombreChofer,
     required this.fecha,
-    required this.sistemaEfectivo,
-    required this.sistemaCheque,
-    required this.sistemaTransferencia,
   });
 
   @override
@@ -84,29 +71,27 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
       if (!mounted) return;
       setState(() {
         _cuadre = cuadre;
-        _modoEjemplo = false;
-        _aviso = null;
+        _modoEjemplo = !cuadre.hayRendicion;
+        _aviso = cuadre.hayRendicion
+            ? null
+            : 'El chofer todavía no envió la rendición del día. Los valores quedan en cero hasta recibirla.';
         _loading = false;
       });
     } on NetworkException {
-      _usarEjemplo('Sin conexión: mostrando un cuadre de ejemplo.');
+      _usarVacio('Sin conexión: no se pudo cargar el cuadre.');
     } on RendicionAdminRepositoryException catch (e) {
-      _usarEjemplo(
-        e.endpointNoDisponible
-            ? 'El endpoint de conciliación aún no está disponible: mostrando un cuadre de ejemplo.'
-            : e.message,
-      );
+      _usarVacio(e.message);
     } catch (_) {
-      _usarEjemplo('No se pudo cargar el cuadre: mostrando un ejemplo.');
+      _usarVacio('No se pudo cargar el cuadre.');
     }
   }
 
-  void _usarEjemplo(String mensaje) {
+  void _usarVacio(String mensaje) {
     if (!mounted) return;
     setState(() {
-      _cuadre = cuadreRendicionDeEjemplo(
+      _cuadre = CuadreRendicion.vacio(
         idUsuario: widget.idUsuario,
-        nombre: widget.nombreChofer,
+        nombreChofer: widget.nombreChofer,
         fecha: widget.fecha,
       );
       _modoEjemplo = true;
@@ -120,14 +105,19 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
 
   Future<void> _aprobar() async {
     if (_aprobando || _bloqueada) return;
+    final hayDiferencias = _cuadre?.tieneDiferencias ?? false;
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (dc) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Aprobar conciliación', style: AppTextStyles.title),
-        content: const Text(
-          'Al aprobar, la ruta del chofer queda cerrada y bloqueada. '
-          'No se podrán registrar más movimientos de esta jornada.',
+        content: Text(
+          hayDiferencias
+              ? 'Hay diferencias sin ajustar. Si aprobás, quedan registradas como diferencia '
+                  'y la ruta del chofer queda cerrada y bloqueada. No se podrán registrar más '
+                  'movimientos de esta jornada.'
+              : 'Al aprobar, la ruta del chofer queda cerrada y bloqueada. '
+                  'No se podrán registrar más movimientos de esta jornada.',
         ),
         actions: [
           TextButton(
@@ -145,8 +135,9 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
 
     setState(() => _aprobando = true);
     try {
-      if (!_modoEjemplo) {
-        await _repo.aprobarConciliacion(idUsuario: widget.idUsuario, fecha: widget.fecha);
+      final idRendicion = _cuadre?.idRendicion;
+      if (!_modoEjemplo && idRendicion != null) {
+        await _repo.aprobarConciliacion(idRendicion: idRendicion);
       }
       if (!mounted) return;
       setState(() {
@@ -163,7 +154,7 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
       _snack(
         e.endpointNoDisponible
             ? 'Aprobación local: el endpoint de cierre todavía no está en el backend.'
-            : e.message,
+            : _mensajeAprobacion(e.message),
         error: !e.endpointNoDisponible,
       );
     } catch (_) {
@@ -211,6 +202,22 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
     }
   }
 
+  String _mensajeAprobacion(String backend) {
+    const marcador = 'aprobar la rendicion:';
+    final idx = backend.toLowerCase().indexOf(marcador);
+    if (idx >= 0) {
+      final codigos = backend.substring(idx + marcador.length).split(';');
+      final traducidos = codigos
+          .map((c) => traducirBloqueoCuadre(c))
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+      if (traducidos.isNotEmpty) {
+        return 'No se puede aprobar todavía. ${traducidos.join(' ')}';
+      }
+    }
+    return backend;
+  }
+
   void _snack(String mensaje, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -255,12 +262,11 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
   Widget _contenido() {
     final cuadre = _cuadre!;
     final valores = <_LineaCuadre>[
-      _LineaCuadre('Efectivo', widget.sistemaEfectivo, cuadre.efectivoDeclarado, esMoneda: true),
-      _LineaCuadre('Cheques', widget.sistemaCheque, cuadre.chequesDeclarado, esMoneda: true),
-      _LineaCuadre('Transferencias', widget.sistemaTransferencia, cuadre.transferenciasDeclarado, esMoneda: true),
+      _LineaCuadre('Efectivo', cuadre.efectivoSistema, cuadre.efectivoDeclarado, esMoneda: true),
+      _LineaCuadre('Cheques', cuadre.chequesSistema, cuadre.chequesDeclarado, esMoneda: true),
+      _LineaCuadre('Transferencias', cuadre.transferenciasSistema, cuadre.transferenciasDeclarado, esMoneda: true),
     ];
-    final totalSistema =
-        widget.sistemaEfectivo + widget.sistemaCheque + widget.sistemaTransferencia;
+    final totalSistema = cuadre.totalSistemaValores;
 
     final totalDeclarado = cuadre.totalDeclaradoValores;
     final cuadraEnvases = cuadre.envases.every((e) => e.cuadra);
@@ -302,16 +308,56 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
                 ),
         ),
         const SizedBox(height: 18),
-        if (_bloqueada)
+        if (!cuadre.hayRendicion)
+          const _RendicionPendienteAviso()
+        else if (_bloqueada)
           const _RutaCerradaAviso()
-        else
+        else ...[
+          if (cuadre.bloqueosDuros.isNotEmpty) ...[
+            _BloqueosAviso(bloqueos: cuadre.bloqueosDuros),
+            const SizedBox(height: 12),
+          ],
+          if (cuadre.bloqueosBlandos.isNotEmpty) ...[
+            _DiferenciasAviso(bloqueos: cuadre.bloqueosBlandos),
+            const SizedBox(height: 12),
+          ],
           _PanelAcciones(
             aprobando: _aprobando,
             procesandoAjuste: _procesandoAjuste,
+            aprobarHabilitado: cuadre.bloqueosDuros.isEmpty,
             onAprobar: _aprobar,
             onAjuste: _registrarAjuste,
           ),
+        ],
       ],
+    );
+  }
+}
+
+class _RendicionPendienteAviso extends StatelessWidget {
+  const _RendicionPendienteAviso();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.badgeAmber.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_empty, size: 18, color: AppColors.badgeAmber),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Todavía no se puede conciliar: el chofer no envió la rendición de esta jornada.',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -769,12 +815,14 @@ class _BloqueEnvaseState extends State<_BloqueEnvase> {
 class _PanelAcciones extends StatelessWidget {
   final bool aprobando;
   final bool procesandoAjuste;
+  final bool aprobarHabilitado;
   final VoidCallback onAprobar;
   final VoidCallback onAjuste;
 
   const _PanelAcciones({
     required this.aprobando,
     required this.procesandoAjuste,
+    this.aprobarHabilitado = true,
     required this.onAprobar,
     required this.onAjuste,
   });
@@ -806,7 +854,7 @@ class _PanelAcciones extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: aprobando ? null : onAprobar,
+            onPressed: (aprobando || !aprobarHabilitado) ? null : onAprobar,
             icon: aprobando
                 ? const SizedBox(
                     height: 16, width: 16,
@@ -816,6 +864,8 @@ class _PanelAcciones extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.badgeGreen,
               foregroundColor: AppColors.white,
+              disabledBackgroundColor: AppColors.badgeGreen.withOpacity(0.35),
+              disabledForegroundColor: AppColors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -849,6 +899,134 @@ class _RutaCerradaAviso extends StatelessWidget {
               style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BloqueosAviso extends StatelessWidget {
+  final List<String> bloqueos;
+  const _BloqueosAviso({required this.bloqueos});
+
+  @override
+  Widget build(BuildContext context) {
+    final mensajes = <String>[
+      for (final b in bloqueos)
+        if (traducirBloqueoCuadre(b).trim().isNotEmpty) traducirBloqueoCuadre(b),
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.badgeAmber.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.report_gmailerrorred_outlined, size: 18, color: AppColors.badgeAmber),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Todavía no se puede aprobar la conciliación. Resolvé estos puntos:',
+                  style: AppTextStyles.link.copyWith(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.graphiteGray,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final m in mensajes) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 28, bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(Icons.fiber_manual_record, size: 7, color: AppColors.badgeAmber),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      m,
+                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DiferenciasAviso extends StatelessWidget {
+  final List<String> bloqueos;
+  const _DiferenciasAviso({required this.bloqueos});
+
+  @override
+  Widget build(BuildContext context) {
+    final mensajes = <String>[
+      for (final b in bloqueos)
+        if (traducirBloqueoCuadre(b).trim().isNotEmpty) traducirBloqueoCuadre(b),
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, size: 18, color: AppColors.steelBlue),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Diferencias sin ajustar. Podés aprobar igual: quedan registradas.',
+                  style: AppTextStyles.link.copyWith(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.graphiteGray,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final m in mensajes) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 28, bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(Icons.fiber_manual_record, size: 7, color: AppColors.steelBlue),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      m,
+                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

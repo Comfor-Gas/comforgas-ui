@@ -9,8 +9,16 @@ import 'venta_estado_badge.dart';
 class VentaDetallePanel extends StatelessWidget {
   final VentaMonitoreo? venta;
   final bool scrollable;
+  final VoidCallback? onRegistrarCobro;
+  final bool registrandoCobro;
 
-  const VentaDetallePanel({super.key, required this.venta, this.scrollable = true});
+  const VentaDetallePanel({
+    super.key,
+    required this.venta,
+    this.scrollable = true,
+    this.onRegistrarCobro,
+    this.registrandoCobro = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +30,12 @@ class VentaDetallePanel extends StatelessWidget {
       ),
       child: venta == null
           ? const _PanelVacio()
-          : _PanelContenido(venta: venta!, scrollable: scrollable),
+          : _PanelContenido(
+              venta: venta!,
+              scrollable: scrollable,
+              onRegistrarCobro: onRegistrarCobro,
+              registrandoCobro: registrandoCobro,
+            ),
     );
   }
 }
@@ -60,8 +73,15 @@ class _PanelVacio extends StatelessWidget {
 class _PanelContenido extends StatelessWidget {
   final VentaMonitoreo venta;
   final bool scrollable;
+  final VoidCallback? onRegistrarCobro;
+  final bool registrandoCobro;
 
-  const _PanelContenido({required this.venta, this.scrollable = true});
+  const _PanelContenido({
+    required this.venta,
+    this.scrollable = true,
+    this.onRegistrarCobro,
+    this.registrandoCobro = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +160,33 @@ class _PanelContenido extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Center(child: ConsistenciaBadge(consistente: venta.consistente)),
+          if (venta.estado == EstadoVentaMonitoreo.pendiente &&
+              onRegistrarCobro != null) ...[
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: registrandoCobro ? null : onRegistrarCobro,
+                icon: registrandoCobro
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.white),
+                      )
+                    : const Icon(Icons.attach_money, size: 20),
+                label: const Text('Registrar cobro'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.orange,
+                  foregroundColor: AppColors.white,
+                  disabledBackgroundColor: AppColors.inputBorder,
+                  disabledForegroundColor: AppColors.inputHint,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
         ],
     );
 

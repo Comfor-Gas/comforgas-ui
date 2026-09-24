@@ -32,6 +32,7 @@ class ApiConfig {
   static const String cobrosSyncOfflinePath = '/api/cobros/sync-offline';
   static const String stockMiCamionPath = '/api/stock/mi-camion';
   static const String adminVentasMonitoreoPath = '/api/admin/ventas/monitoreo';
+  static const String adminVentasPath = '/api/admin/ventas';
   static const String visitaCheckInSuffix = '/check-in';
   static const String visitaCheckOutSuffix = '/check-out';
   static const String visitaPausarSocialSuffix = '/pausar-social';
@@ -39,6 +40,8 @@ class ApiConfig {
   static const String repartidorVisitasPath = '/api/repartidor/visitas';
   static const String repartidorRendicionPath = '/api/repartidor/rendicion';
   static const String adminRendicionCuadrePath = '/api/admin/stock-rodante/rendiciones/cuadre';
+  static const String adminConciliacionPath = '/api/admin/conciliacion';
+  static const String adminConciliacionChoferPath = '/api/admin/conciliacion/chofer';
   static const String adminRendicionAprobarPath = '/api/admin/stock-rodante/rendiciones/aprobar';
   static const String adminRendicionAjustePath = '/api/admin/stock-rodante/rendiciones/ajuste';
   static const String visitaResultadoSuffix = '/resultado';

@@ -24,8 +24,9 @@ class RendicionAdminRepository {
     required String idUsuario,
     required DateTime fecha,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.adminRendicionCuadrePath}').replace(
-      queryParameters: {'idUsuario': idUsuario, 'fecha': formatDateOnly(fecha)},
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.adminConciliacionChoferPath}'
+      '/$idUsuario/${formatDateOnly(fecha)}',
     );
 
     http.Response response;
@@ -38,16 +39,13 @@ class RendicionAdminRepository {
     if (response.statusCode == 200 && response.body.isNotEmpty) {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
-        return CuadreRendicion.fromJson(decoded);
+        return CuadreRendicion.fromConciliacion(decoded);
       }
       throw RendicionAdminRepositoryException('Respuesta inesperada del servidor.');
     }
 
-    if (_noDisponible(response.statusCode)) {
-      throw RendicionAdminRepositoryException(
-        'El endpoint de conciliación todavía no está disponible en el backend.',
-        endpointNoDisponible: true,
-      );
+    if (response.statusCode == 404) {
+      return CuadreRendicion.vacio(idUsuario: idUsuario, fecha: fecha);
     }
 
     throw RendicionAdminRepositoryException(
@@ -57,14 +55,11 @@ class RendicionAdminRepository {
   }
 
   Future<void> aprobarConciliacion({
-    required String idUsuario,
-    required DateTime fecha,
+    required int idRendicion,
     String? observacion,
   }) async {
-    await _post(ApiConfig.adminRendicionAprobarPath, {
-      'idUsuario': idUsuario,
-      'fecha': formatDateOnly(fecha),
-      if (observacion != null && observacion.isNotEmpty) 'observacion': observacion,
+    await _post('${ApiConfig.adminConciliacionPath}/$idRendicion/aprobar', {
+      if (observacion != null && observacion.isNotEmpty) 'observacionesAdmin': observacion,
     });
   }
 

@@ -66,6 +66,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   bool _loading = true;
   String? _error;
   List<VisitaModel> _visitas = [];
+  int? _recaudacionBackend;
   bool _visitadosExpanded = false;
   bool _pausadasExpanded = false;
   bool _iniciandoVisita = false;
@@ -121,11 +122,14 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         fecha: hoy,
       );
       final data = agendaItems.map((item) => item.toVisitaModel(idUsuario)).toList()
-      
+
         ..sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
+      final recaudacionBackend =
+          agendaItems.fold(0, (a, item) => a + item.montoCobrado);
       if (!mounted) return;
       setState(() {
         _visitas = data;
+        _recaudacionBackend = recaudacionBackend;
         _loading = false;
         _mostrandoCache = false;
         _avisoCache = null;
@@ -150,6 +154,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     if (cache != null) {
       setState(() {
         _visitas = cache;
+        _recaudacionBackend = null;
         _loading = false;
         _error = null;
         _mostrandoCache = true;
@@ -378,8 +383,9 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     final completadas = _visitas
         .where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita))
         .length;
-    final recaudacion = RecaudacionDiariaService.instance
-        .obtenerTotal(auth.user?.id ?? '', DateTime.now())
+    final recaudacion = (_recaudacionBackend ??
+            RecaudacionDiariaService.instance
+                .obtenerTotal(auth.user?.id ?? '', DateTime.now()))
         .toDouble();
     final siguiente = _visitaAccionable;
     final huboFiltro = _searchCtrl.text.trim().isNotEmpty;

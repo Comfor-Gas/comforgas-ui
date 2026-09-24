@@ -7,7 +7,9 @@ class StockRodanteProducto {
   final int vaciosSalida;
   final int recargasLlenos;
   final int llenosActuales;
+  final int llenosEntrada;
   final int vaciosActuales;
+  final int vaciosEntrada;
   final int averiadosActuales;
   final int disponiblesParaVenta;
   final int vaciosEnCamion;
@@ -20,7 +22,9 @@ class StockRodanteProducto {
     this.vaciosSalida = 0,
     this.recargasLlenos = 0,
     this.llenosActuales = 0,
+    this.llenosEntrada = 0,
     this.vaciosActuales = 0,
+    this.vaciosEntrada = 0,
     this.averiadosActuales = 0,
     this.disponiblesParaVenta = 0,
     this.vaciosEnCamion = 0,
@@ -41,7 +45,9 @@ class StockRodanteProducto {
         'vaciosSalida': vaciosSalida,
         'recargaLlenos': recargasLlenos,
         'llenosActuales': llenosActuales,
+        'llenosEntrada': llenosEntrada,
         'vaciosActuales': vaciosActuales,
+        'vaciosEntrada': vaciosEntrada,
         'averiadosActuales': averiadosActuales,
         'disponiblesParaVenta': disponiblesParaVenta,
         'vaciosEnCamion': vaciosEnCamion,
@@ -59,7 +65,9 @@ class StockRodanteProducto {
       vaciosSalida: vaciosSalida,
       recargasLlenos: recargasLlenos,
       llenosActuales: nuevoActual < 0 ? 0 : nuevoActual,
+      llenosEntrada: llenosEntrada,
       vaciosActuales: vaciosActuales,
+      vaciosEntrada: vaciosEntrada,
       averiadosActuales: averiadosActuales,
       disponiblesParaVenta: nuevoDisponible < 0 ? 0 : nuevoDisponible,
       vaciosEnCamion: vaciosEnCamion,
@@ -78,8 +86,12 @@ class StockRodanteProducto {
         0;
     final llenosActualesRaw =
         parseInt(json['llenosActuales']) ?? parseInt(json['llenos_actuales']);
+    final llenosEntradaRaw = parseInt(json['llenosEntrada']) ??
+        parseInt(json['llenos_entrada']);
     final vaciosActualesRaw =
         parseInt(json['vaciosActuales']) ?? parseInt(json['vacios_actuales']);
+    final vaciosEntradaRaw = parseInt(json['vaciosEntrada']) ??
+        parseInt(json['vacios_entrada']);
     final averiadosRaw = parseInt(json['averiadosActuales']) ??
         parseInt(json['averiadosEntrada']) ??
         parseInt(json['averiados_entrada']);
@@ -98,7 +110,9 @@ class StockRodanteProducto {
       vaciosSalida: vaciosSalida,
       recargasLlenos: recargasLlenos,
       llenosActuales: llenosActuales,
+      llenosEntrada: llenosEntradaRaw ?? 0,
       vaciosActuales: vaciosActualesRaw ?? vaciosSalida,
+      vaciosEntrada: vaciosEntradaRaw ?? 0,
       averiadosActuales: averiadosRaw ?? 0,
       disponiblesParaVenta: disponibles ?? llenosActuales,
       vaciosEnCamion: vaciosCamion ?? (vaciosActualesRaw ?? vaciosSalida),

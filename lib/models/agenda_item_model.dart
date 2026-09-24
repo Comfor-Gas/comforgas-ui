@@ -32,6 +32,11 @@ class AgendaItemModel {
   final int? movil;
   final int? idVisita;
   final VisitaEstado? estadoEjecucion;
+  final DateTime? timestampInicio;
+  final DateTime? timestampFin;
+  final int montoCobrado;
+  final int totalVendido;
+  final Map<String, int> cobrosPorMetodo;
 
   const AgendaItemModel({
     required this.idAgendaItem,
@@ -63,6 +68,11 @@ class AgendaItemModel {
     this.movil,
     this.idVisita,
     this.estadoEjecucion,
+    this.timestampInicio,
+    this.timestampFin,
+    this.montoCobrado = 0,
+    this.totalVendido = 0,
+    this.cobrosPorMetodo = const {},
   });
 
   factory AgendaItemModel.fromJson(Map<String, dynamic> json) {
@@ -100,7 +110,22 @@ class AgendaItemModel {
       estadoEjecucion: json['estadoEjecucion'] == null
           ? null
           : VisitaEstadoMapper.fromValue(json['estadoEjecucion']),
+      timestampInicio: parseDate(json['timestampInicio']),
+      timestampFin: parseDate(json['timestampFin']),
+      montoCobrado: (parseDouble(json['montoCobrado']) ?? 0).round(),
+      totalVendido: (parseDouble(json['totalVendido']) ?? 0).round(),
+      cobrosPorMetodo: _parseCobrosPorMetodo(json['cobrosPorMetodo']),
     );
+  }
+
+  static Map<String, int> _parseCobrosPorMetodo(dynamic raw) {
+    if (raw is! Map) return const {};
+    final result = <String, int>{};
+    raw.forEach((key, value) {
+      final monto = (parseDouble(value) ?? 0).round();
+      if (monto != 0) result[key.toString().toUpperCase()] = monto;
+    });
+    return result;
   }
 
   AgendaItemModel copyWith({DateTime? fecha}) {
@@ -132,6 +157,11 @@ class AgendaItemModel {
       acompanante: acompanante,
       idVisita: idVisita,
       estadoEjecucion: estadoEjecucion,
+      timestampInicio: timestampInicio,
+      timestampFin: timestampFin,
+      montoCobrado: montoCobrado,
+      totalVendido: totalVendido,
+      cobrosPorMetodo: cobrosPorMetodo,
     );
   }
 
@@ -175,6 +205,8 @@ class AgendaItemModel {
       ordenVisita: orden,
       estadoVisita: estadoEfectivo,
       fecha: fecha,
+      timestampInicio: timestampInicio,
+      timestampFin: timestampFin,
       horaInicioPlanificada: horaInicio,
       horaFinPlanificada: horaFin,
     );

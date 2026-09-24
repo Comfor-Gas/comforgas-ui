@@ -69,6 +69,7 @@ class ControlComodato {
   final int? idControl;
   final int? idVisita;
   final int? idClienteExt;
+  final String? nombreCliente;
   final String? idChofer;
   final String? nombreChofer;
   final int cantidadContratada;
@@ -84,6 +85,7 @@ class ControlComodato {
     this.idControl,
     this.idVisita,
     this.idClienteExt,
+    this.nombreCliente,
     this.idChofer,
     this.nombreChofer,
     required this.cantidadContratada,
@@ -119,6 +121,10 @@ class ControlComodato {
       idVisita: parseInt(json['id_visita']) ?? parseInt(json['idVisita']),
       idClienteExt:
           parseInt(json['id_cliente_ext']) ?? parseInt(json['idClienteExt']),
+      nombreCliente: (json['nombre_cliente'] ??
+          json['nombreCliente'] ??
+          json['razon_social'] ??
+          json['razonSocial']) as String?,
       idChofer: (json['id_chofer'] ?? json['idChofer'])?.toString(),
       nombreChofer: (json['nombre_chofer'] ?? json['nombreChofer']) as String?,
       cantidadContratada: contratada,

@@ -191,14 +191,14 @@ class _FilaNota extends StatelessWidget {
         Expanded(
           flex: 3,
           child: Text(
-            nota.idProducto.isNotEmpty ? nota.idProducto : 'Producto',
+            nota.productoMostrable,
             style: AppTextStyles.input.copyWith(fontSize: 13),
           ),
         ),
         Expanded(
           flex: 3,
           child: Text(
-            nota.idClienteExt != null ? 'Cliente #${nota.idClienteExt}' : 'Sin cliente',
+            nota.clienteMostrable,
             style: AppTextStyles.link.copyWith(fontSize: 12.5),
           ),
         ),

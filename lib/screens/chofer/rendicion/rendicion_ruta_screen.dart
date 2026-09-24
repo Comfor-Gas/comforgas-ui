@@ -13,6 +13,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../repositories/network_exception.dart';
 import '../../../repositories/rendicion_repository.dart';
 import '../../../repositories/stock_rodante_repository.dart';
+import '../../../repositories/visita_repository.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../services/rendicion_sync_manager.dart';
 import '../../../theme/app_colors.dart';
@@ -65,6 +66,8 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
 
   List<StockRodanteProducto> _productos = const [];
   final Map<String, _Conteo> _conteos = {};
+  Set<String> _clavesNota = <String>{};
+  bool _rendicionEnviada = false;
 
   bool _cargando = true;
   bool _enviando = false;
@@ -95,28 +98,64 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
   String _clave(StockRodanteProducto p) =>
       p.idProducto.isNotEmpty ? p.idProducto : p.sku;
 
+  List<StockRodanteProducto> _completarCatalogo(
+      List<StockRodanteProducto> base) {
+    final completos = [...base];
+    final kgsPresentes = completos.map((p) => p.kg).whereType<int>().toSet();
+    for (final def in _productosPorDefecto) {
+      if (def.kg != null && !kgsPresentes.contains(def.kg)) {
+        completos.add(def);
+      }
+    }
+    completos.sort((a, b) => (a.kg ?? 0).compareTo(b.kg ?? 0));
+    return completos;
+  }
+
   Future<void> _cargar() async {
     setState(() => _cargando = true);
     final auth = context.read<AuthProvider>();
     List<StockRodanteProducto> productos = const [];
+    var jornadaCerrada = false;
     try {
       final stock = await StockRodanteRepository(auth.apiClient).getMiStock(
         idUsuario: auth.user?.id ?? '',
         fecha: _hoy,
       );
       productos = stock?.ordenados ?? const [];
+      jornadaCerrada = stock?.jornadaCerrada ?? false;
     } catch (_) {
       productos = const [];
     }
-    if (productos.isEmpty) productos = _productosPorDefecto;
+    final clavesNota = productos.map(_clave).toSet();
+    if (productos.isEmpty) {
+      productos = _completarCatalogo(productos);
+    }
 
     final pendiente = RendicionLocalService.instance.obtener(_hoy);
     final idUsuario = auth.user?.id ?? '';
-    final recaudacion = RecaudacionDiariaService.instance.obtener(idUsuario, _hoy);
+
+    final local = RecaudacionDiariaService.instance.obtener(idUsuario, _hoy);
+    var efectivoPrecarga = local.efectivo;
+    var chequePrecarga = local.cheque;
+    var transferenciaPrecarga = local.transferencia;
+
+    if (efectivoPrecarga + chequePrecarga + transferenciaPrecarga == 0) {
+      try {
+        final items = await VisitaRepository(auth.apiClient)
+            .getVisitasPorUsuarioYFecha(idUsuario: idUsuario, fecha: _hoy);
+        for (final item in items) {
+          efectivoPrecarga += item.cobrosPorMetodo['EFECTIVO'] ?? 0;
+          chequePrecarga += item.cobrosPorMetodo['CHEQUE'] ?? 0;
+          transferenciaPrecarga += item.cobrosPorMetodo['TRANSFERENCIA'] ?? 0;
+        }
+      } catch (_) {}
+    }
 
     if (!mounted) return;
     setState(() {
       _productos = productos;
+      _clavesNota = clavesNota;
+      _rendicionEnviada = jornadaCerrada;
       _conteos.clear();
       for (final p in productos) {
         _conteos[_clave(p)] = _Conteo();
@@ -136,15 +175,15 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
         }
         _pendienteLocal = true;
       } else {
-        if (recaudacion.efectivo > 0) _efectivo.text = '${recaudacion.efectivo}';
-        if (recaudacion.cheque > 0) _cheques.text = '${recaudacion.cheque}';
-        if (recaudacion.transferencia > 0) {
-          _transferencias.text = '${recaudacion.transferencia}';
+        if (efectivoPrecarga > 0) _efectivo.text = '$efectivoPrecarga';
+        if (chequePrecarga > 0) _cheques.text = '$chequePrecarga';
+        if (transferenciaPrecarga > 0) {
+          _transferencias.text = '$transferenciaPrecarga';
         }
         var precargoGarrafas = false;
         for (final p in productos) {
-          final vacios = p.vaciosEnCamion;
-          final llenos = p.disponiblesParaVenta;
+          final vacios = p.vaciosEnCamion > 0 ? p.vaciosEnCamion : p.vaciosEntrada;
+          final llenos = p.llenosEntrada > 0 ? p.llenosEntrada : p.disponiblesParaVenta;
           final averiados = p.averiadosActuales;
           if (vacios > 0 || llenos > 0 || averiados > 0) {
             _conteos[_clave(p)] = _Conteo(
@@ -155,7 +194,9 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
             precargoGarrafas = true;
           }
         }
-        _precargado = recaudacion.total > 0 || precargoGarrafas;
+        final totalValoresPrecarga =
+            efectivoPrecarga + chequePrecarga + transferenciaPrecarga;
+        _precargado = totalValoresPrecarga > 0 || precargoGarrafas;
       }
       _cargando = false;
     });
@@ -180,7 +221,8 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
     final envases = <RendicionEnvaseItem>[];
     for (final p in _productos) {
       final c = _conteos[_clave(p)] ?? _Conteo();
-      if (c.vacios > 0 || c.llenos > 0 || c.averiados > 0) {
+      final esDeLaNota = _clavesNota.contains(_clave(p));
+      if (esDeLaNota || c.vacios > 0 || c.llenos > 0 || c.averiados > 0) {
         envases.add(RendicionEnvaseItem(
           idProducto: p.idProducto,
           sku: p.sku,
@@ -217,6 +259,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
       setState(() {
         _enviando = false;
         _pendienteLocal = false;
+        _rendicionEnviada = true;
       });
       _mostrar('Rendición enviada. Queda pendiente de conciliación del administrador.');
     } on NetworkException {
@@ -273,8 +316,14 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     children: [
-                      if (_pendienteLocal) const _AvisoPendiente(),
-                      if (_precargado && !_pendienteLocal) const _AvisoPrecargado(),
+                      if (_rendicionEnviada) ...[
+                        const _RendicionEnviadaAviso(),
+                        const SizedBox(height: 12),
+                      ],
+                      if (!_rendicionEnviada && _pendienteLocal)
+                        const _AvisoPendiente(),
+                      if (!_rendicionEnviada && _precargado && !_pendienteLocal)
+                        const _AvisoPrecargado(),
                       _SeccionValores(
                         efectivo: _efectivo,
                         cheques: _cheques,
@@ -288,7 +337,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                       _SeccionEnvases(
                         productos: _productos,
                         conteos: _conteos,
-                        habilitado: !_enviando,
+                        habilitado: !_enviando && !_rendicionEnviada,
                         resumen: _totalGarrafas > 0
                             ? '$_totalGarrafas garrafas'
                             : 'Sin garrafas cargadas',
@@ -318,11 +367,14 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      PrimaryButton(
-                        text: 'Enviar Rendición',
-                        isLoading: _enviando,
-                        onPressed: _valido ? _enviar : null,
-                      ),
+                      if (_rendicionEnviada)
+                        const _RendicionEnviadaAviso()
+                      else
+                        PrimaryButton(
+                          text: 'Enviar Rendición',
+                          isLoading: _enviando,
+                          onPressed: _valido ? _enviar : null,
+                        ),
                       const SizedBox(height: 8),
                       if (!_online)
                         Text(
@@ -399,6 +451,47 @@ class _AvisoPrecargado extends StatelessWidget {
               'Precargamos los valores cobrados y las garrafas del camión de hoy. '
               'Revisá los números y ajustá lo que haga falta antes de enviar.',
               style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RendicionEnviadaAviso extends StatelessWidget {
+  const _RendicionEnviadaAviso();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.badgeGreen.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.badgeGreen.withOpacity(0.45)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_outline, size: 26, color: AppColors.badgeGreen),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ya enviaste la rendición de hoy',
+                  style: AppTextStyles.label.copyWith(
+                    fontSize: 15,
+                    color: AppColors.badgeGreen,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'La jornada quedó cerrada. Queda pendiente de conciliación del administrador.',
+                  style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                ),
+              ],
             ),
           ),
         ],

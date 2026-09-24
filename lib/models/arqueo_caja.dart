@@ -95,7 +95,9 @@ class ArqueoNotaDebito {
   final int idNotaDebito;
   final int? idVenta;
   final int? idClienteExt;
+  final String? nombreCliente;
   final String idProducto;
+  final String? descripcionProducto;
   final int cantidadAdeudada;
   final String estado;
 
@@ -103,19 +105,36 @@ class ArqueoNotaDebito {
     required this.idNotaDebito,
     this.idVenta,
     this.idClienteExt,
+    this.nombreCliente,
     required this.idProducto,
+    this.descripcionProducto,
     this.cantidadAdeudada = 0,
     this.estado = '',
   });
 
   bool get pendiente => estado.toUpperCase() == 'PENDIENTE';
 
+  String get clienteMostrable {
+    final nombre = nombreCliente?.trim();
+    if (nombre != null && nombre.isNotEmpty) return nombre;
+    if (idClienteExt != null) return 'Cliente #$idClienteExt';
+    return 'Sin cliente';
+  }
+
+  String get productoMostrable {
+    final desc = descripcionProducto?.trim();
+    if (desc != null && desc.isNotEmpty) return desc;
+    return idProducto.isNotEmpty ? idProducto : 'Producto';
+  }
+
   factory ArqueoNotaDebito.fromJson(Map<String, dynamic> json) {
     return ArqueoNotaDebito(
       idNotaDebito: parseInt(json['idNotaDebito']) ?? 0,
       idVenta: parseInt(json['idVenta']),
       idClienteExt: parseInt(json['idClienteExt']),
+      nombreCliente: (json['nombreCliente'] as String?)?.trim(),
       idProducto: (json['idProducto'] ?? '').toString(),
+      descripcionProducto: (json['descripcionProducto'] as String?)?.trim(),
       cantidadAdeudada: parseInt(json['cantidadAdeudada']) ?? 0,
       estado: (json['estado'] ?? '').toString(),
     );

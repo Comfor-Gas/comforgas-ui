@@ -1250,6 +1250,7 @@ class _FormularioCard extends StatelessWidget {
   final VoidCallback onGuardar;
   final VoidCallback onSincronizar;
   final bool sincronizando;
+  final bool camposHabilitados;
 
   const _FormularioCard({
     required this.chofer,
@@ -1270,6 +1271,7 @@ class _FormularioCard extends StatelessWidget {
     required this.onGuardar,
     required this.onSincronizar,
     this.sincronizando = false,
+    this.camposHabilitados = false,
   });
 
   @override
@@ -1296,8 +1298,11 @@ class _FormularioCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '"Agregar a la lista": deja como borrador en el listado.'
-                    ' Usá "Publicar Visitas del Día" para confirmarlas en el sistema.',
+                    camposHabilitados
+                        ? '"Agregar a la lista": deja como borrador en el listado.'
+                            ' Usá "Publicar Visitas del Día" para confirmarlas en el sistema.'
+                        : 'Las visitas ahora se cargan automáticamente desde la API.'
+                            ' Usá "Sincronizar agenda" para traer la agenda del día.',
                     style: AppTextStyles.link.copyWith(
                       color: AppColors.steelBlue,
                       fontSize: 12,
@@ -1311,14 +1316,21 @@ class _FormularioCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text('Campos', style: AppTextStyles.label),
           const SizedBox(height: 10),
-          if (loadingCatalogos) ...[
+          IgnorePointer(
+            ignoring: !camposHabilitados,
+            child: Opacity(
+              opacity: camposHabilitados ? 1 : 0.5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+          if (camposHabilitados && loadingCatalogos) ...[
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
               ),
             ),
-          ] else if (catalogoError != null) ...[
+          ] else if (camposHabilitados && catalogoError != null) ...[
             Text(catalogoError!, style: AppTextStyles.errorText),
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -1392,6 +1404,10 @@ class _FormularioCard extends StatelessWidget {
               onChanged: onRutaChanged,
             ),
           ],
+                ],
+              ),
+            ),
+          ),
           if (error != null) ...[
             const SizedBox(height: 10),
             Text(error!, style: AppTextStyles.errorText),
@@ -1420,12 +1436,14 @@ class _FormularioCard extends StatelessWidget {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: onGuardar,
+                onPressed: camposHabilitados ? onGuardar : null,
                 icon: const Icon(Icons.playlist_add, size: 18),
                 label: const Text('Agregar a la lista'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.steelBlue,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppColors.inputBorder,
+                  disabledForegroundColor: AppColors.inputHint,
                   padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),

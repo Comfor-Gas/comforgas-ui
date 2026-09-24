@@ -196,28 +196,82 @@ class _ProductoCard extends StatelessWidget {
               if (p.canjes > 0) _Stat(etiqueta: 'Canjes', valor: '${p.canjes}'),
             ],
           ),
-          const SizedBox(height: 10),
-          _LineaTriple(
-            titulo: 'Teórico a retornar',
-            llenos: p.llenosTeoricos,
-            vacios: p.vaciosTeoricos,
-            averiados: p.averiadosTeoricos,
-          ),
           if (entrada) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             _LineaTriple(
               titulo: 'Contado (entrada)',
               llenos: p.llenosEntrada ?? 0,
               vacios: p.vaciosEntrada ?? 0,
               averiados: p.averiadosEntrada ?? 0,
             ),
+            const SizedBox(height: 10),
+            _EnvasesResumen(
+              salida: p.envasesSalida ?? 0,
+              entrada: p.envasesEntrada ?? 0,
+              diferencia: p.diferenciaEnvases ?? 0,
+              faltante: p.faltanteNoExplicado ?? 0,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EnvasesResumen extends StatelessWidget {
+  final int salida;
+  final int entrada;
+  final int diferencia;
+  final int faltante;
+
+  const _EnvasesResumen({
+    required this.salida,
+    required this.entrada,
+    required this.diferencia,
+    required this.faltante,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('Envases (llenos + vacíos + averiados)',
+                  style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+              const Spacer(),
+              Text('Salida $salida  →  Entrada $entrada',
+                  style: AppTextStyles.label.copyWith(fontSize: 13, color: AppColors.steelBlue)),
+            ],
+          ),
+          if (faltante > 0) ...[
             const SizedBox(height: 6),
-            _LineaTriple(
-              titulo: 'Diferencia',
-              llenos: p.diferenciaLlenos ?? 0,
-              vacios: p.diferenciaVacios ?? 0,
-              averiados: p.diferenciaAveriados ?? 0,
-              resaltarNoCero: true,
+            Row(
+              children: [
+                Text('Faltante no explicado',
+                    style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+                const Spacer(),
+                Text('$faltante',
+                    style: AppTextStyles.label.copyWith(fontSize: 13, color: AppColors.error)),
+              ],
+            ),
+          ] else if (diferencia > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text('Sobrante',
+                    style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+                const Spacer(),
+                Text('+$diferencia',
+                    style: AppTextStyles.label.copyWith(fontSize: 13, color: AppColors.badgeAmber)),
+              ],
             ),
           ],
         ],

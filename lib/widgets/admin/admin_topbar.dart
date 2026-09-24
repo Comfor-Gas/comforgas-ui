@@ -30,25 +30,6 @@ class AdminTopbar extends StatelessWidget implements PreferredSizeWidget {
               icon: const Icon(Icons.menu, color: Colors.white),
             ),
           const Spacer(),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.notifications_none, color: Colors.white, size: 24),
-              Positioned(
-                right: -1,
-                top: -1,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: const BoxDecoration(
-                    color: AppColors.orange,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 20),
           CircleAvatar(
             radius: 18,
             backgroundColor: Colors.white.withOpacity(0.15),

@@ -390,9 +390,6 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
       idUsuario: idUsuario,
       nombreChofer: _nombreChofer,
       fecha: _fecha,
-      sistemaEfectivo: _totalSistema('EFECTIVO'),
-      sistemaCheque: _totalSistema('CHEQUE'),
-      sistemaTransferencia: _totalSistema('TRANSFERENCIA'),
     );
   }
 }

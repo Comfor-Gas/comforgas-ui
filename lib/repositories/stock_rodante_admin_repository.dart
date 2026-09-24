@@ -146,13 +146,14 @@ class StockRodanteAdminRepository {
   }
 
   Future<CuadreRodante> getCuadre(int idNota) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/$idNota/cuadre');
+    final uri = Uri.parse(
+        '${ApiConfig.baseUrl}/api/admin/stock-rodante/notas/$idNota/informe');
     final response = await _get(uri);
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
       throw StockRodanteAdminException('Respuesta inesperada del servidor.');
     }
-    return CuadreRodante.fromJson(decoded);
+    return CuadreRodante.fromInforme(decoded);
   }
 
   Future<Map<String, int>> asignadoLlenosPorChofer(DateTime fecha) async {

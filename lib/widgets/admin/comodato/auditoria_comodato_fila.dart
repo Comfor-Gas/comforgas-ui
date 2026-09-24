@@ -7,11 +7,13 @@ import 'faltante_badge.dart';
 class AuditoriaComodatoFila extends StatefulWidget {
   final ControlComodato control;
   final bool par;
+  final String? nombreCliente;
 
   const AuditoriaComodatoFila({
     super.key,
     required this.control,
     required this.par,
+    this.nombreCliente,
   });
 
   @override
@@ -34,6 +36,10 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
   }
 
   String _cliente() {
+    final nombre = widget.nombreCliente?.trim();
+    if (nombre != null && nombre.isNotEmpty) return nombre;
+    final nombreControl = widget.control.nombreCliente?.trim();
+    if (nombreControl != null && nombreControl.isNotEmpty) return nombreControl;
     final id = widget.control.idClienteExt;
     return id == null ? 'Cliente s/d' : 'Cliente #$id';
   }

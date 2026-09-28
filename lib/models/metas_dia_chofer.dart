@@ -53,6 +53,31 @@ class MetasDiaChofer {
     );
   }
 
+  MetasDiaChofer conVisitas({
+    required int programadas,
+    required int cerradas,
+    required int completadas,
+    required int noAsistio,
+    required int pendientes,
+  }) {
+    return MetasDiaChofer(
+      fecha: fecha,
+      visitasProgramadas: programadas,
+      visitasCerradas: cerradas,
+      visitasCompletadas: completadas,
+      visitasNoAsistio: noAsistio,
+      visitasPendientes: pendientes,
+      efectividadVenta: efectividadVenta,
+      efectividadRecupero: efectividadRecupero,
+      envasesEntregados: envasesEntregados,
+      envasesRecuperados: envasesRecuperados,
+      envasesPrestamo: envasesPrestamo,
+      montoTotalVentas: montoTotalVentas,
+      metaEfectividadVenta: metaEfectividadVenta,
+      metaEfectividadRecupero: metaEfectividadRecupero,
+    );
+  }
+
   double get progresoVisitas =>
       visitasProgramadas == 0 ? 0 : (visitasCerradas / visitasProgramadas).clamp(0.0, 1.0).toDouble();
 

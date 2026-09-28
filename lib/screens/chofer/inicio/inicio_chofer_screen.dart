@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../local/agenda_cache_service.dart';
 import '../../../local/metas_chofer_cache_service.dart';
 import '../../../models/metas_dia_chofer.dart';
+import '../../../models/visita_estado.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../repositories/metas_chofer_repository.dart';
 import '../../../repositories/network_exception.dart';
@@ -33,9 +35,47 @@ class _InicioChoferScreenState extends State<InicioChoferScreen> {
   @override
   void initState() {
     super.initState();
+    AgendaCacheService.instance.escuchar().addListener(_alCambiarAgenda);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _cargar();
     });
+  }
+
+  @override
+  void dispose() {
+    AgendaCacheService.instance.escuchar().removeListener(_alCambiarAgenda);
+    super.dispose();
+  }
+
+  void _alCambiarAgenda() {
+    if (mounted) setState(() {});
+  }
+
+  MetasDiaChofer _conAgenda(MetasDiaChofer metas) {
+    final idUsuario = context.read<AuthProvider>().user?.id;
+    if (idUsuario == null || idUsuario.isEmpty) return metas;
+    final agenda = AgendaCacheService.instance.obtener(idUsuario, DateTime.now());
+    if (agenda == null || agenda.isEmpty) return metas;
+    var cerradas = 0;
+    var completadas = 0;
+    var sinOperar = 0;
+    for (final v in agenda) {
+      final estado = v.estadoVisita;
+      if (!VisitaEstadoMapper.esTerminadaEnCampo(estado)) continue;
+      cerradas++;
+      if (VisitaEstadoMapper.tieneComprobante(estado)) {
+        completadas++;
+      } else {
+        sinOperar++;
+      }
+    }
+    return metas.conVisitas(
+      programadas: agenda.length,
+      cerradas: cerradas,
+      completadas: completadas,
+      noAsistio: sinOperar,
+      pendientes: agenda.length - cerradas,
+    );
   }
 
   @override
@@ -139,7 +179,8 @@ class _InicioChoferScreenState extends State<InicioChoferScreen> {
   }
 
   List<Widget> _contenido() {
-    final metas = _metas;
+    final base = _metas;
+    final metas = base == null ? null : _conAgenda(base);
     if (metas == null) {
       if (_error != null) return [_Aviso(icono: Icons.cloud_off_outlined, texto: _error!, onReintentar: _cargar)];
       return const [SizedBox(height: 280)];

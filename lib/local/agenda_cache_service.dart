@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'package:hive/hive.dart';
+import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/visita_estado.dart';
 import '../models/visita_model.dart';
 
@@ -30,6 +31,8 @@ class AgendaCacheService {
         '${fecha.day.toString().padLeft(2, '0')}';
     return '$idUsuario|$f';
   }
+
+  ValueListenable<Box<String>> escuchar() => _requireBox.listenable();
 
   Future<void> guardar(String idUsuario, DateTime fecha, List<VisitaModel> visitas) async {
     final data = visitas.map(_toCacheJson).toList();

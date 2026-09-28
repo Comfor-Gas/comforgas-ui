@@ -21,7 +21,9 @@ import '../../../theme/app_text_styles.dart';
 import '../../../utils/formato.dart';
 import '../../../widgets/chofer/comodato/contador_envases.dart';
 import '../../../widgets/common/estado_conexion_badge.dart';
+import '../../../widgets/common/carga/zona_carga.dart';
 import '../../../widgets/primary_button.dart';
+import '../../../core/feedback/app_feedback.dart';
 
 class _Conteo {
   int vacios;
@@ -293,13 +295,11 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
   }
 
   void _mostrar(String mensaje, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
-      ),
-    );
+    if (error) {
+      AppFeedback.error(mensaje);
+    } else {
+      AppFeedback.exito(mensaje);
+    }
   }
 
   @override
@@ -311,79 +311,84 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
         children: [
           const _Cabecera(),
           Expanded(
-            child: _cargando
-                ? const Center(child: CircularProgressIndicator(color: AppColors.orange))
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    children: [
-                      if (_rendicionEnviada) ...[
-                        const _RendicionEnviadaAviso(),
-                        const SizedBox(height: 12),
-                      ],
-                      if (!_rendicionEnviada && _pendienteLocal)
-                        const _AvisoPendiente(),
-                      if (!_rendicionEnviada && _precargado && !_pendienteLocal)
-                        const _AvisoPrecargado(),
-                      _SeccionValores(
-                        efectivo: _efectivo,
-                        cheques: _cheques,
-                        transferencias: _transferencias,
-                        resumen: _totalValores > 0
-                            ? formatMoneda(_totalValores)
-                            : 'Sin valores cargados',
-                        onChanged: () => setState(() {}),
-                      ),
-                      const SizedBox(height: 16),
-                      _SeccionEnvases(
-                        productos: _productos,
-                        conteos: _conteos,
-                        habilitado: !_enviando && !_rendicionEnviada,
-                        resumen: _totalGarrafas > 0
-                            ? '$_totalGarrafas garrafas'
-                            : 'Sin garrafas cargadas',
-                        onChanged: () => setState(() {}),
-                        claveDe: _clave,
-                      ),
-                      const SizedBox(height: 16),
-                      _SeccionObservaciones(
-                        controller: _observaciones,
-                        resumen: _observaciones.text.trim().isEmpty
-                            ? 'Sin observaciones'
-                            : 'Con observaciones',
-                      ),
-                      const SizedBox(height: 16),
-                      _Resumen(
-                        efectivo: _leer(_efectivo),
-                        cheques: _leer(_cheques),
-                        transferencias: _leer(_transferencias),
-                        productos: [
-                          for (final p in _productos)
-                            _ResumenProducto(
-                              etiqueta: p.etiqueta,
-                              vacios: _conteos[_clave(p)]?.vacios ?? 0,
-                              llenos: _conteos[_clave(p)]?.llenos ?? 0,
-                              averiados: _conteos[_clave(p)]?.averiados ?? 0,
+            child: ZonaCarga(
+              child: ReportarCarga(
+                cargando: _cargando,
+                child: _cargando
+                    ? const SizedBox.shrink()
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        children: [
+                          if (_rendicionEnviada) ...[
+                            const _RendicionEnviadaAviso(),
+                            const SizedBox(height: 12),
+                          ],
+                          if (!_rendicionEnviada && _pendienteLocal)
+                            const _AvisoPendiente(),
+                          if (!_rendicionEnviada && _precargado && !_pendienteLocal)
+                            const _AvisoPrecargado(),
+                          _SeccionValores(
+                            efectivo: _efectivo,
+                            cheques: _cheques,
+                            transferencias: _transferencias,
+                            resumen: _totalValores > 0
+                                ? formatMoneda(_totalValores)
+                                : 'Sin valores cargados',
+                            onChanged: () => setState(() {}),
+                          ),
+                          const SizedBox(height: 16),
+                          _SeccionEnvases(
+                            productos: _productos,
+                            conteos: _conteos,
+                            habilitado: !_enviando && !_rendicionEnviada,
+                            resumen: _totalGarrafas > 0
+                                ? '$_totalGarrafas garrafas'
+                                : 'Sin garrafas cargadas',
+                            onChanged: () => setState(() {}),
+                            claveDe: _clave,
+                          ),
+                          const SizedBox(height: 16),
+                          _SeccionObservaciones(
+                            controller: _observaciones,
+                            resumen: _observaciones.text.trim().isEmpty
+                                ? 'Sin observaciones'
+                                : 'Con observaciones',
+                          ),
+                          const SizedBox(height: 16),
+                          _Resumen(
+                            efectivo: _leer(_efectivo),
+                            cheques: _leer(_cheques),
+                            transferencias: _leer(_transferencias),
+                            productos: [
+                              for (final p in _productos)
+                                _ResumenProducto(
+                                  etiqueta: p.etiqueta,
+                                  vacios: _conteos[_clave(p)]?.vacios ?? 0,
+                                  llenos: _conteos[_clave(p)]?.llenos ?? 0,
+                                  averiados: _conteos[_clave(p)]?.averiados ?? 0,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          if (_rendicionEnviada)
+                            const _RendicionEnviadaAviso()
+                          else
+                            PrimaryButton(
+                              text: 'Enviar Rendición',
+                              isLoading: _enviando,
+                              onPressed: _valido ? _enviar : null,
+                            ),
+                          const SizedBox(height: 8),
+                          if (!_online)
+                            Text(
+                              'Estás sin conexión: la rendición se guarda y se envía sola cuando vuelva la señal.',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 20),
-                      if (_rendicionEnviada)
-                        const _RendicionEnviadaAviso()
-                      else
-                        PrimaryButton(
-                          text: 'Enviar Rendición',
-                          isLoading: _enviando,
-                          onPressed: _valido ? _enviar : null,
-                        ),
-                      const SizedBox(height: 8),
-                      if (!_online)
-                        Text(
-                          'Estás sin conexión: la rendición se guarda y se envía sola cuando vuelva la señal.',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-                        ),
-                    ],
-                  ),
+              ),
+            ),
           ),
         ],
       ),

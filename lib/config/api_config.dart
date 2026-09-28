@@ -22,7 +22,6 @@ class ApiConfig {
   static const String mePath = '/api/auth/me';
   static const String registerPath = '/api/admin/usuarios';
   static const String usuariosPath = '/api/admin/usuarios';
-  static const String sucursalesPath = '/api/sucursales';
   static const String clientesPath = '/api/clientes';
   static const String rutasPath = '/api/rutas';
   static const String visitasPath = '/api/visitas';
@@ -30,7 +29,10 @@ class ApiConfig {
   static const String productosPath = '/api/productos';
   static const String cobrosPath = '/api/cobros';
   static const String cobrosSyncOfflinePath = '/api/cobros/sync-offline';
-  static const String stockMiCamionPath = '/api/stock/mi-camion';
+  static const String repartidorRutaEstadoPath = '/api/repartidor/ruta/estado';
+  static const String repartidorMiCargaPath = '/api/repartidor/stock-rodante/mi-carga';
+  static const String adminStockRodantePath = '/api/admin/stock-rodante';
+  static const String adminFlotaCamionesPath = '/api/admin/flota/camiones';
   static const String adminVentasMonitoreoPath = '/api/admin/ventas/monitoreo';
   static const String adminVentasPath = '/api/admin/ventas';
   static const String visitaCheckInSuffix = '/check-in';
@@ -76,4 +78,7 @@ class ApiConfig {
   static const String canjesSyncLotePath = '/api/canjes/sync-lote';
   static const String adminCanjesPath = '/api/admin/canjes';
   static const String adminCanjesReportePath = '/api/admin/canjes/reporte';
+  static const String adminDashboardKpisPath = '/api/admin/dashboard/kpis';
+  static String choferMetasDiaPath(String idUsuario) => '/api/kpis/chofer/$idUsuario/metas-dia';
+  static const String adminReportesPath = '/api/admin/reportes';
 }

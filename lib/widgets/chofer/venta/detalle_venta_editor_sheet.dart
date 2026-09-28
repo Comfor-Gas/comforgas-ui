@@ -50,6 +50,12 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
     }
   }
 
+  int get _maximoEntregable {
+    final stock = widget.producto.stockDisponible;
+    if (stock == null) return 999;
+    return stock < 1 ? 1 : stock;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -57,14 +63,14 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
     final stock = widget.producto.stockDisponible;
     var entregada = base?.cantidadEntregada ?? 1;
     if (stock != null && entregada > stock) entregada = stock;
+    if (entregada < 1) entregada = 1;
     _draft = DetalleVentaDraft(
       producto: widget.producto,
       tipoOperacion: widget.tipoOperacion,
       cantidadEntregada: entregada,
-      cantidadRecibida: widget.tipoOperacion == TipoOperacionVenta.prestamo
-          ? 0
-          : base?.cantidadRecibida ??
-              (widget.tipoOperacion == TipoOperacionVenta.vacioXLleno ? 1 : 0),
+      cantidadRecibida: widget.tipoOperacion.usaRecibidos
+          ? (base?.cantidadRecibida ?? entregada)
+          : 0,
     );
   }
 
@@ -119,10 +125,14 @@ class _DetalleVentaEditorSheetState extends State<_DetalleVentaEditorSheet> {
                         icono: Icons.propane_tank,
                         acento: AppColors.orange,
                         valor: _draft.cantidadEntregada,
-                        maximo: widget.producto.stockDisponible ?? 999,
+                        minimo: 1,
+                        maximo: _maximoEntregable,
                         editable: esSocial,
                         onChanged: (v) => setState(() {
+                          final acompanaRecibidos = widget.tipoOperacion.usaRecibidos &&
+                              _draft.cantidadRecibida == _draft.cantidadEntregada;
                           _draft.cantidadEntregada = v;
+                          if (acompanaRecibidos) _draft.cantidadRecibida = v;
                         }),
                       ),
                     ),

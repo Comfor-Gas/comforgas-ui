@@ -22,7 +22,8 @@ import '../../widgets/admin/estado_visita_badge.dart';
 import '../../widgets/admin/seguimiento/evidencias_visita_boton.dart';
 import '../../widgets/chofer/comodato_badge.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
-import '../../widgets/labeled_text_field.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
 
 const LatLng formosaCenter = LatLng(-26.1849, -58.1731);
 
@@ -444,7 +445,7 @@ class _SeguimientoTiempoRealScreenState
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange));
+      return ReportarCarga(cargando: _loading);
     }
 
     if (_loadError != null) {
@@ -473,6 +474,7 @@ class _SeguimientoTiempoRealScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ReportarCarga(cargando: _loading),
           _Header(connected: _wsConnected),
           const SizedBox(height: 20),
           LayoutBuilder(
@@ -499,6 +501,14 @@ class _SeguimientoTiempoRealScreenState
                 choferCtrl: _choferFilterCtrl,
                 estadoFilter: _estadoFilter,
                 onEstadoChanged: (v) => setState(() => _estadoFilter = v),
+                onLimpiar: () {
+                  _choferFilterCtrl.clear();
+                  setState(() => _estadoFilter = null);
+                },
+                onActualizar: () {
+                  _cargarDatos();
+                  _cargarUbicaciones();
+                },
                 grupos: _agrupadasPorChofer,
                 selectedVisitaId: _selectedVisitaId,
                 onSelect: _selectVisita,
@@ -1072,6 +1082,8 @@ class _ListadoCard extends StatelessWidget {
   final TextEditingController choferCtrl;
   final String? estadoFilter;
   final ValueChanged<String?> onEstadoChanged;
+  final VoidCallback onLimpiar;
+  final VoidCallback onActualizar;
   final Map<String, List<VisitaModel>> grupos;
   final int? selectedVisitaId;
   final ValueChanged<VisitaModel> onSelect;
@@ -1084,6 +1096,8 @@ class _ListadoCard extends StatelessWidget {
     required this.choferCtrl,
     required this.estadoFilter,
     required this.onEstadoChanged,
+    required this.onLimpiar,
+    required this.onActualizar,
     required this.grupos,
     required this.selectedVisitaId,
     required this.onSelect,
@@ -1093,69 +1107,47 @@ class _ListadoCard extends StatelessWidget {
     required this.alertaPorVisita,
   });
 
-  static const List<(String value, String label)> _estados = [
-    ('PENDIENTE', 'Pendiente'),
-    ('EN_CURSO', 'En curso'),
-    ('VISITADO', 'Visitado'),
-    ('COMPLETADA', 'Completada'),
-    ('CANCELADA', 'Cancelada'),
-    ('NO_ASISTIO', 'No asistió'),
+  static const List<OpcionFiltro> _estados = [
+    OpcionFiltro('PENDIENTE', 'Pendiente'),
+    OpcionFiltro('EN_CURSO', 'En curso'),
+    OpcionFiltro('VISITADO', 'Visitado'),
+    OpcionFiltro('COMPLETADA', 'Completada'),
+    OpcionFiltro('CANCELADA', 'Cancelada'),
+    OpcionFiltro('NO_ASISTIO', 'No asistió'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final totalVisitas = grupos.values.fold<int>(0, (a, l) => a + l.length);
+    final hayFiltros = choferCtrl.text.trim().isNotEmpty || estadoFilter != null;
 
     return _CardContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: LabeledTextField(
-                  label: 'Buscador por Chofer',
-                  hint: 'Nombre del chofer',
-                  icon: Icons.search,
-                  controller: choferCtrl,
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 170,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Estado', style: AppTextStyles.label),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.inputBorder, width: 1.2),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String?>(
-                          isExpanded: true,
-                          value: estadoFilter,
-                          hint: Text('Todos', style: AppTextStyles.hint),
-                          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
-                          style: AppTextStyles.input,
-                          items: [
-                            const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
-                            for (final (value, label) in _estados)
-                              DropdownMenuItem<String?>(
-                                value: value,
-                                child: Text(label),
-                              ),
-                          ],
-                          onChanged: onEstadoChanged,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          FiltrosPanel(
+            padding: const EdgeInsets.all(12),
+            filas: [
+              FilaFiltros(
+                children: [
+                  CampoBusquedaFiltro(
+                    controller: choferCtrl,
+                    etiqueta: 'Chofer',
+                    hint: 'Nombre del chofer',
+                    icono: Icons.person_search_outlined,
+                    ancho: 240,
+                  ),
+                  FiltroBuscable(
+                    etiqueta: 'Estado',
+                    icono: Icons.flag_outlined,
+                    opciones: _estados,
+                    seleccion: estadoFilter,
+                    onCambio: onEstadoChanged,
+                    ancho: 190,
+                  ),
+                  if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
+                  BotonActualizar(onPressed: onActualizar),
+                ],
               ),
             ],
           ),

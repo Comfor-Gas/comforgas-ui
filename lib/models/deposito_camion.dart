@@ -182,20 +182,16 @@ class DepositoCamion {
     );
   }
 
-  factory DepositoCamion.fromResumenJson(Map<String, dynamic> json) {
+  factory DepositoCamion.fromFlotaJson(Map<String, dynamic> json) {
+    final patente = _patenteDesdeJson(json);
+    final movil = parseInt(json['numeroMovil']);
     return DepositoCamion(
       id: parseInt(json['id']) ?? 0,
-      nombre: (json['nombre'] ?? '').toString(),
-      patente: _patenteDesdeJson(json),
-      numeroMovil: parseInt(json['numeroMovil'] ?? json['movil']),
-      activo: json['activo'] == true,
+      nombre: patente ?? (movil != null ? 'Móvil $movil' : 'Camión'),
+      patente: patente,
+      numeroMovil: movil,
       repartidor: _repartidorDesdeJson(json),
-      llenos: parseInt(json['llenos']) ?? 0,
-      vacios: parseInt(json['vacios']) ?? 0,
-      vaciasDelDia: parseInt(json['vaciasDelDia']) ?? 0,
-      stockCargado: true,
       cupoBaseBackend: parseInt(json['cupoBase']),
-      estadoBackend: estadoCamionDesdeBackend(json['estadoOperativo']?.toString()),
     );
   }
 }

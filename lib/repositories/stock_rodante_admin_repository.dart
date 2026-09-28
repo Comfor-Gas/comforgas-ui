@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/cuadre_rodante.dart';
+import '../models/nota_stock_movimiento.dart';
+import '../models/stock_rodante_chofer.dart';
+import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
 class StockRodanteAdminException implements Exception {
@@ -12,55 +15,6 @@ class StockRodanteAdminException implements Exception {
   String toString() => message;
 }
 
-class NotaRodanteResumen {
-  final int idNota;
-  final String? numeroNota;
-  final String? idUsuario;
-  final String? dominioVehiculo;
-  final String estado;
-
-  const NotaRodanteResumen({
-    required this.idNota,
-    this.numeroNota,
-    this.idUsuario,
-    this.dominioVehiculo,
-    this.estado = '',
-  });
-
-  bool get cerrada => estado.toUpperCase() == 'ENTRADA_COMPLETA';
-
-  factory NotaRodanteResumen.fromJson(Map<String, dynamic> json) {
-    return NotaRodanteResumen(
-      idNota: int.tryParse('${json['idNota'] ?? 0}') ?? 0,
-      numeroNota: json['numeroNota']?.toString(),
-      idUsuario: json['idUsuario']?.toString(),
-      dominioVehiculo: json['dominioVehiculo']?.toString(),
-      estado: (json['estado'] ?? '').toString(),
-    );
-  }
-}
-
-class DetalleNotaDiaria {
-  final String idProducto;
-  final String sku;
-  final int llenos;
-  final int vacias;
-
-  const DetalleNotaDiaria({
-    required this.idProducto,
-    required this.sku,
-    this.llenos = 0,
-    this.vacias = 0,
-  });
-
-  int? get kg {
-    final m = RegExp(r'\d+').firstMatch(sku) ?? RegExp(r'\d+').firstMatch(idProducto);
-    return m != null ? int.tryParse(m.group(0)!) : null;
-  }
-
-  String get etiqueta => kg != null ? '$kg kg' : (sku.isNotEmpty ? sku : idProducto);
-}
-
 class StockRodanteAdminRepository {
   final http.Client _client;
 
@@ -68,87 +22,65 @@ class StockRodanteAdminRepository {
 
   static const Map<String, String> _jsonHeaders = {'Content-Type': 'application/json'};
 
-  static String _fechaIso(DateTime fecha) {
-    return '${fecha.year.toString().padLeft(4, '0')}-'
-        '${fecha.month.toString().padLeft(2, '0')}-'
-        '${fecha.day.toString().padLeft(2, '0')}';
+  Uri _uri(String sufijo, [Map<String, String>? query]) =>
+      Uri.parse('${ApiConfig.baseUrl}${ApiConfig.adminStockRodantePath}$sufijo')
+          .replace(queryParameters: query);
+
+  StockRodanteChofer _nota(String body) {
+    final decoded = jsonDecode(body);
+    if (decoded is! Map<String, dynamic>) {
+      throw StockRodanteAdminException('Respuesta inesperada del servidor.');
+    }
+    return StockRodanteChofer.fromJson(decoded);
   }
 
-  Future<NotaRodanteResumen> asignarCargaInicial({
+  Future<StockRodanteChofer> asignarCargaInicial({
     required String idUsuario,
     required String dominioVehiculo,
     required DateTime fecha,
     required List<Map<String, dynamic>> items,
     String? observaciones,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/asignar-inicial');
     final body = jsonEncode({
       'idUsuario': idUsuario,
       'dominioVehiculo': dominioVehiculo,
-      'fechaRuta': _fechaIso(fecha),
+      'fechaRuta': formatDateOnly(fecha),
       'items': items,
       'observaciones': observaciones,
     });
-    final response = await _send('POST', uri, body);
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw StockRodanteAdminException('Respuesta inesperada del servidor.');
-    }
-    return NotaRodanteResumen.fromJson(decoded);
+    final response = await _send('POST', _uri('/asignar-inicial'), body);
+    return _nota(response.body);
   }
 
-  Future<List<NotaRodanteResumen>> notasDelDia(DateTime fecha) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas').replace(
-      queryParameters: {'fecha': _fechaIso(fecha)},
-    );
-    final response = await _get(uri);
+  Future<List<StockRodanteChofer>> notasDelDia(DateTime fecha) async {
+    final response = await _get(_uri('/notas', {'fecha': formatDateOnly(fecha)}));
     if (response.body.isEmpty) return const [];
     final decoded = jsonDecode(response.body);
     if (decoded is! List) return const [];
     return decoded
         .whereType<Map<String, dynamic>>()
-        .map(NotaRodanteResumen.fromJson)
+        .map(StockRodanteChofer.fromJson)
         .toList();
   }
 
-  Future<List<DetalleNotaDiaria>> detalleDiarioPorChofer({
-    required String idUsuario,
-    required DateTime fecha,
-  }) async {
-    if (idUsuario.isEmpty) return const [];
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas').replace(
-      queryParameters: {'fecha': _fechaIso(fecha)},
-    );
-    final response = await _get(uri);
+  Future<StockRodanteChofer> nota(int idNota) async {
+    final response = await _get(_uri('/notas/$idNota'));
+    return _nota(response.body);
+  }
+
+  Future<List<NotaStockMovimiento>> movimientos(int idNota) async {
+    final response = await _get(_uri('/notas/$idNota/movimientos'));
     if (response.body.isEmpty) return const [];
     final decoded = jsonDecode(response.body);
     if (decoded is! List) return const [];
-    for (final nota in decoded.whereType<Map<String, dynamic>>()) {
-      if ('${nota['idUsuario'] ?? ''}' != idUsuario) continue;
-      final detalles = nota['detalles'];
-      if (detalles is! List) return const [];
-      final result = <DetalleNotaDiaria>[];
-      for (final d in detalles.whereType<Map<String, dynamic>>()) {
-        final llenosSalida = int.tryParse('${d['llenosSalida'] ?? 0}') ?? 0;
-        final recargaLlenos = int.tryParse('${d['recargaLlenos'] ?? 0}') ?? 0;
-        final vaciosEntrada = int.tryParse('${d['vaciosEntrada'] ?? 0}') ?? 0;
-        result.add(DetalleNotaDiaria(
-          idProducto: (d['idProducto'] ?? '').toString(),
-          sku: (d['sku'] ?? '').toString(),
-          llenos: llenosSalida + recargaLlenos,
-          vacias: vaciosEntrada,
-        ));
-      }
-      result.sort((a, b) => (a.kg ?? 0).compareTo(b.kg ?? 0));
-      return result;
-    }
-    return const [];
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(NotaStockMovimiento.fromJson)
+        .toList();
   }
 
   Future<CuadreRodante> getCuadre(int idNota) async {
-    final uri = Uri.parse(
-        '${ApiConfig.baseUrl}/api/admin/stock-rodante/notas/$idNota/informe');
-    final response = await _get(uri);
+    final response = await _get(_uri('/notas/$idNota/informe'));
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
       throw StockRodanteAdminException('Respuesta inesperada del servidor.');
@@ -156,61 +88,13 @@ class StockRodanteAdminRepository {
     return CuadreRodante.fromInforme(decoded);
   }
 
-  Future<Map<String, int>> asignadoLlenosPorChofer(DateTime fecha) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas').replace(
-      queryParameters: {'fecha': _fechaIso(fecha)},
-    );
-    final response = await _get(uri);
-    final mapa = <String, int>{};
-    if (response.body.isEmpty) return mapa;
-    final decoded = jsonDecode(response.body);
-    if (decoded is! List) return mapa;
-    for (final nota in decoded.whereType<Map<String, dynamic>>()) {
-      final idUsuario = nota['idUsuario']?.toString();
-      if (idUsuario == null || idUsuario.isEmpty) continue;
-      final detalles = nota['detalles'];
-      int suma = 0;
-      if (detalles is List) {
-        for (final d in detalles.whereType<Map<String, dynamic>>()) {
-          final llenosSalida = int.tryParse('${d['llenosSalida'] ?? 0}') ?? 0;
-          final recargaLlenos = int.tryParse('${d['recargaLlenos'] ?? 0}') ?? 0;
-          suma += llenosSalida + recargaLlenos;
-        }
-      }
-      mapa[idUsuario] = suma;
-    }
-    return mapa;
-  }
-
-  Future<int?> resolverIdNota({
-    required DateTime fecha,
-    String? idUsuario,
-    String? dominioVehiculo,
-  }) async {
-    final notas = await notasDelDia(fecha);
-    for (final n in notas) {
-      if (idUsuario != null && idUsuario.isNotEmpty && n.idUsuario == idUsuario) {
-        return n.idNota;
-      }
-    }
-    for (final n in notas) {
-      if (dominioVehiculo != null &&
-          dominioVehiculo.isNotEmpty &&
-          n.dominioVehiculo == dominioVehiculo) {
-        return n.idNota;
-      }
-    }
-    return null;
-  }
-
   Future<void> registrarRecarga(
     int idNota, {
     required List<Map<String, dynamic>> items,
     String? observaciones,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas/$idNota/recarga');
     final body = jsonEncode({'items': items, 'observaciones': observaciones});
-    await _send('POST', uri, body);
+    await _send('POST', _uri('/notas/$idNota/recarga'), body);
   }
 
   Future<void> registrarEntrada(
@@ -218,10 +102,8 @@ class StockRodanteAdminRepository {
     required List<Map<String, dynamic>> items,
     String? observaciones,
   }) async {
-    final uri =
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/stock-rodante/notas/$idNota/cierre');
     final body = jsonEncode({'items': items, 'observaciones': observaciones});
-    await _send('POST', uri, body);
+    await _send('POST', _uri('/notas/$idNota/cierre'), body);
   }
 
   Future<http.Response> _get(Uri uri) async {

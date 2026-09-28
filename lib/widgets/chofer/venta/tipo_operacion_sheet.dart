@@ -3,22 +3,37 @@ import '../../../models/tipo_operacion_venta.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 
+const String mensajeVentaNormalBloqueada =
+    'Esta visita tiene Venta Social: no admite VACÍO X LLENO ni PRÉSTAMO.';
+
 Future<TipoOperacionVenta?> mostrarTipoOperacionSheet(
   BuildContext context, {
   bool ventaSocialBloqueada = false,
+  String mensajeVentaSocialBloqueada = 'Ya registraste una venta social en esta visita.',
+  bool ventaNormalBloqueada = false,
 }) {
   return showModalBottomSheet<TipoOperacionVenta>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _TipoOperacionSheet(ventaSocialBloqueada: ventaSocialBloqueada),
+    builder: (_) => _TipoOperacionSheet(
+      ventaSocialBloqueada: ventaSocialBloqueada,
+      mensajeVentaSocialBloqueada: mensajeVentaSocialBloqueada,
+      ventaNormalBloqueada: ventaNormalBloqueada,
+    ),
   );
 }
 
 class _TipoOperacionSheet extends StatelessWidget {
   final bool ventaSocialBloqueada;
+  final String mensajeVentaSocialBloqueada;
+  final bool ventaNormalBloqueada;
 
-  const _TipoOperacionSheet({this.ventaSocialBloqueada = false});
+  const _TipoOperacionSheet({
+    this.ventaSocialBloqueada = false,
+    required this.mensajeVentaSocialBloqueada,
+    this.ventaNormalBloqueada = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -50,12 +65,16 @@ class _TipoOperacionSheet extends StatelessWidget {
             _OpcionOperacion(
               tipo: TipoOperacionVenta.vacioXLleno,
               destacado: true,
+              deshabilitado: ventaNormalBloqueada,
+              mensajeDeshabilitado: mensajeVentaNormalBloqueada,
               onTap: () =>
                   Navigator.of(context).pop(TipoOperacionVenta.vacioXLleno),
             ),
             const SizedBox(height: 12),
             _OpcionOperacion(
               tipo: TipoOperacionVenta.prestamo,
+              deshabilitado: ventaNormalBloqueada,
+              mensajeDeshabilitado: mensajeVentaNormalBloqueada,
               onTap: () =>
                   Navigator.of(context).pop(TipoOperacionVenta.prestamo),
             ),
@@ -63,8 +82,7 @@ class _TipoOperacionSheet extends StatelessWidget {
             _OpcionOperacion(
               tipo: TipoOperacionVenta.ventaSocial,
               deshabilitado: ventaSocialBloqueada,
-              mensajeDeshabilitado:
-                  'Ya registraste una venta social en esta visita.',
+              mensajeDeshabilitado: mensajeVentaSocialBloqueada,
               onTap: () =>
                   Navigator.of(context).pop(TipoOperacionVenta.ventaSocial),
             ),

@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
+import '../local/comodato_offline_service.dart';
 import '../local/offline_queue_service.dart';
 import '../repositories/network_exception.dart';
 import '../repositories/sincronizacion_repository.dart';
+import 'comodato_sync_manager.dart';
 import 'connectivity_service.dart';
 
 /// Coordina el envío de la cola offline hacia `POST /api/visitas/sync-lote`:
@@ -78,6 +80,10 @@ class SyncManager {
             item.mensaje ?? 'Error desconocido al sincronizar.',
           );
         }
+      }
+
+      if (resultado.errores > 0 && ComodatoOfflineService.instance.cantidadPendiente > 0) {
+        unawaited(ComodatoSyncManager.instance.sincronizar());
       }
 
       return resultado;

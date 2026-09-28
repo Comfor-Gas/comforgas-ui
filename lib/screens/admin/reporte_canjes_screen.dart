@@ -8,6 +8,8 @@ import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/canje/reporte_canje_fila.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
 
 class ReporteCanjesScreen extends StatefulWidget {
   const ReporteCanjesScreen({super.key});
@@ -114,61 +116,10 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
     return set.length;
   }
 
-  Future<void> _elegirFecha({required bool desde}) async {
-    final ahora = DateTime.now();
-    final hoy = DateTime(ahora.year, ahora.month, ahora.day);
-    final firstDate = desde ? DateTime(ahora.year - 2) : (_desde ?? DateTime(ahora.year - 2));
-    final lastDate = desde ? (_hasta ?? hoy) : hoy;
-    var inicial = (desde ? _desde : _hasta) ?? hoy;
-    if (inicial.isBefore(firstDate)) inicial = firstDate;
-    if (inicial.isAfter(lastDate)) inicial = lastDate;
-    final elegida = await showDatePicker(
-      context: context,
-      initialDate: inicial,
-      firstDate: firstDate,
-      lastDate: lastDate,
-      builder: (context, child) {
-        final base = Theme.of(context);
-        return Theme(
-          data: base.copyWith(
-            colorScheme: base.colorScheme.copyWith(
-              primary: AppColors.orange,
-              onPrimary: AppColors.white,
-              onSurface: AppColors.steelBlue,
-              surface: AppColors.white,
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: AppColors.orange),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (elegida == null) return;
+  void _cambiarRango(DateTime? desde, DateTime? hasta) {
     setState(() {
-      if (desde) {
-        _desde = elegida;
-      } else {
-        _hasta = elegida;
-      }
-    });
-    _cargar();
-  }
-
-  void _limpiarFechas() {
-    setState(() {
-      _desde = null;
-      _hasta = null;
-    });
-    _cargar();
-  }
-
-  void _hoy() {
-    final ahora = DateTime.now();
-    setState(() {
-      _desde = DateTime(ahora.year, ahora.month, ahora.day);
-      _hasta = DateTime(ahora.year, ahora.month, ahora.day);
+      _desde = desde;
+      _hasta = hasta;
     });
     _cargar();
   }
@@ -184,6 +135,7 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              ReportarCarga(cargando: _loading),
               const _Cabecera(),
               const SizedBox(height: 18),
               _Stats(
@@ -196,10 +148,8 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
                 filtroCtrl: _filtroCtrl,
                 desde: _desde,
                 hasta: _hasta,
-                onElegirDesde: () => _elegirFecha(desde: true),
-                onElegirHasta: () => _elegirFecha(desde: false),
-                onLimpiarFechas: _limpiarFechas,
-                onHoy: _hoy,
+                cargando: _loading,
+                onCambioRango: _cambiarRango,
                 onRefrescar: _cargar,
               ),
               const SizedBox(height: 18),
@@ -214,10 +164,7 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
   Widget _buildTabla(double anchoDisponible) {
     Widget contenido;
     if (_loading) {
-      contenido = const Padding(
-        padding: EdgeInsets.symmetric(vertical: 60),
-        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-      );
+      contenido = const SizedBox(height: 160);
     } else if (_error != null) {
       contenido = Padding(
         padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
@@ -402,173 +349,44 @@ class _Filtros extends StatelessWidget {
   final TextEditingController filtroCtrl;
   final DateTime? desde;
   final DateTime? hasta;
-  final VoidCallback onElegirDesde;
-  final VoidCallback onElegirHasta;
-  final VoidCallback onLimpiarFechas;
-  final VoidCallback onHoy;
+  final bool cargando;
+  final void Function(DateTime? desde, DateTime? hasta) onCambioRango;
   final VoidCallback onRefrescar;
 
   const _Filtros({
     required this.filtroCtrl,
     required this.desde,
     required this.hasta,
-    required this.onElegirDesde,
-    required this.onElegirHasta,
-    required this.onLimpiarFechas,
-    required this.onHoy,
+    required this.cargando,
+    required this.onCambioRango,
     required this.onRefrescar,
   });
 
-  String _fecha(DateTime? f) {
-    if (f == null) return '';
-    final dd = f.day.toString().padLeft(2, '0');
-    final mm = f.month.toString().padLeft(2, '0');
-    return '$dd/$mm/${f.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          SizedBox(
-            width: 280,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.inputBorder),
-              ),
-              child: TextField(
-                controller: filtroCtrl,
-                style: AppTextStyles.input,
-                cursorColor: AppColors.steelBlue,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  hintText: 'Buscar por chofer, móvil, producto o daño',
-                  hintStyle: AppTextStyles.hint,
-                  prefixIcon: Icon(Icons.search, color: AppColors.inputHint, size: 20),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                ),
-              ),
-            ),
-          ),
-          _ChipFecha(
-            etiqueta: desde == null ? 'Desde' : 'Desde ${_fecha(desde)}',
-            activo: desde != null,
-            onTap: onElegirDesde,
-          ),
-          _ChipFecha(
-            etiqueta: hasta == null ? 'Hasta' : 'Hasta ${_fecha(hasta)}',
-            activo: hasta != null,
-            onTap: onElegirHasta,
-          ),
-          _BotonChip(etiqueta: 'Hoy', icon: Icons.today_outlined, onTap: onHoy),
-          if (desde != null || hasta != null)
-            TextButton.icon(
-              onPressed: onLimpiarFechas,
-              icon: const Icon(Icons.close, size: 16, color: AppColors.graphiteGray),
-              label: const Text(
-                'Limpiar fechas',
-                style: TextStyle(fontSize: 12.5, color: AppColors.graphiteGray, fontWeight: FontWeight.w600),
-              ),
-            ),
-          OutlinedButton.icon(
-            onPressed: onRefrescar,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Refrescar'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.steelBlue,
-              side: const BorderSide(color: AppColors.inputBorder),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BotonChip extends StatelessWidget {
-  final String etiqueta;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _BotonChip({required this.etiqueta, required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.inputBorder),
+    return FiltrosPanel(
+      filas: [
+        SelectorRangoFechas(
+          desde: desde,
+          hasta: hasta,
+          permitirSinRango: true,
+          onCambio: onCambioRango,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        FilaFiltros(
           children: [
-            Icon(icon, size: 15, color: AppColors.steelBlue),
-            const SizedBox(width: 8),
-            Text(
-              etiqueta,
-              style: AppTextStyles.label.copyWith(fontSize: 12.5, color: AppColors.steelBlue),
+            CampoBusquedaFiltro(
+              controller: filtroCtrl,
+              etiqueta: 'Buscar',
+              hint: 'Chofer, móvil, producto o daño',
+              icono: Icons.search,
+              ancho: 320,
             ),
+            if (filtroCtrl.text.trim().isNotEmpty)
+              BotonLimpiarFiltros(onPressed: filtroCtrl.clear),
+            BotonActualizar(onPressed: onRefrescar, cargando: cargando),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ChipFecha extends StatelessWidget {
-  final String etiqueta;
-  final bool activo;
-  final VoidCallback onTap;
-
-  const _ChipFecha({required this.etiqueta, required this.activo, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = activo ? AppColors.orange : AppColors.graphiteGray;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: activo ? AppColors.orange.withOpacity(0.1) : AppColors.background,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: activo ? AppColors.orange.withOpacity(0.5) : AppColors.inputBorder),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.calendar_today_outlined, size: 15, color: color),
-            const SizedBox(width: 8),
-            Text(
-              etiqueta,
-              style: AppTextStyles.label.copyWith(fontSize: 12.5, color: color),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

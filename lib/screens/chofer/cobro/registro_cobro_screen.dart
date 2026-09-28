@@ -21,7 +21,9 @@ import '../../../utils/formato.dart';
 import '../../../widgets/chofer/cobro/cobro_pendiente_indicator.dart';
 import '../../../widgets/chofer/cobro/metodo_pago_selector.dart';
 import '../../../widgets/chofer/cobro/morosidad_banner.dart';
+import '../../../widgets/common/aviso_regla_cuenta_corriente.dart';
 import '../../../widgets/primary_button.dart';
+import '../../../core/feedback/app_feedback.dart';
 
 const _uuid = Uuid();
 
@@ -425,9 +427,7 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
   }
 
   void _mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
-    );
+    AppFeedback.error(mensaje);
   }
 
   @override
@@ -536,6 +536,14 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
               fontWeight: FontWeight.w600,
               color: AppColors.badgeAmber,
             ),
+          ),
+        ],
+        if (_asignadoCuentaCorriente > 0) ...[
+          const SizedBox(height: 10),
+          AvisoReglaCuentaCorriente(
+            destacado: true,
+            texto: 'Los ${formatMoneda(_asignadoCuentaCorriente)} en Cuenta Corriente se deben cobrar hoy. '
+                'Si no se pagan en el día, desde mañana el cliente pasa a moroso.',
           ),
         ],
         if (_creditoExcedido) ...[

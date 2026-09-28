@@ -40,6 +40,22 @@ class ContratoComodato {
     return total;
   }
 
+  factory ContratoComodato.desdeAgenda(Map<String, dynamic> snapshot) {
+    final kg10 = parseInt(snapshot['kg10']);
+    final comodato10 = _bool(snapshot['comodato10']);
+    final comodato11 = _bool(snapshot['comodato11']);
+    final comodato12 = _bool(snapshot['comodato12']);
+    final cantidad = kg10 ?? (comodato10 ? 1 : 0);
+    return ContratoComodato(
+      idClienteExt: parseInt(snapshot['clienteId']) ?? parseInt(snapshot['idClienteExt']),
+      cantidadContratada: cantidad,
+      tieneComodato: cantidad > 0 || comodato10 || comodato11 || comodato12,
+      comodato10: comodato10,
+      comodato11: comodato11,
+      comodato12: comodato12,
+    );
+  }
+
   factory ContratoComodato.fromJson(Map<String, dynamic> json) {
     final cantidad = parseInt(json['cantidad_contratada']) ??
         parseInt(json['cantidadContratada']) ??

@@ -1,16 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../../../models/control_comodato.dart';
 import '../../../repositories/comodato_repository.dart';
 import '../../../repositories/network_exception.dart';
+import '../../../services/photo_capture_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../widgets/chofer/comodato/contador_envases.dart';
 import '../../../widgets/chofer/comodato/discrepancia_indicator.dart';
+import '../../../widgets/chofer/evidencia_captura_card.dart';
 import '../../../widgets/primary_button.dart';
+import '../../../core/feedback/app_feedback.dart';
 
 typedef GuardarControlComodato = Future<void> Function(
   int cantidadFisicaActual,
   String? observaciones,
+  File foto,
 );
 
 class AuditoriaComodatoScreen extends StatefulWidget {
@@ -35,6 +41,9 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
   late int _contratada;
   late int _fisica;
   late final TextEditingController _obsController;
+  final _photoService = PhotoCaptureService();
+  File? _foto;
+  bool _capturandoFoto = false;
   bool _guardando = false;
 
   @override
@@ -63,12 +72,32 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
     return dif > 0 ? dif : 0;
   }
 
+  Future<void> _capturarFoto() async {
+    if (_capturandoFoto || _guardando) return;
+    setState(() => _capturandoFoto = true);
+    try {
+      final archivo = await _photoService.capturarFoto();
+      if (!mounted) return;
+      if (archivo != null) setState(() => _foto = archivo);
+    } on PhotoCaptureException catch (e) {
+      if (!mounted) return;
+      _mostrarError(e.message);
+    } finally {
+      if (mounted) setState(() => _capturandoFoto = false);
+    }
+  }
+
   Future<void> _guardar() async {
     if (_guardando) return;
+    final foto = _foto;
+    if (foto == null) {
+      _mostrarError('Sacá la foto de las garrafas en comodato para guardar el control.');
+      return;
+    }
     setState(() => _guardando = true);
     final obs = _obsController.text.trim();
     try {
-      await widget.onGuardar(_fisica, obs.isEmpty ? null : obs);
+      await widget.onGuardar(_fisica, obs.isEmpty ? null : obs, foto);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ComodatoRepositoryException catch (e) {
@@ -87,9 +116,7 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
   }
 
   void _mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
-    );
+    AppFeedback.error(mensaje);
   }
 
   @override
@@ -118,6 +145,18 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
                     ),
                     const SizedBox(height: 20),
                     _Seccion(
+                      titulo: 'Foto de evidencia del comodato',
+                      child: EvidenciaCapturaCard(
+                        titulo: _foto == null
+                            ? 'Fotografiá las garrafas\nen comodato'
+                            : 'Foto cargada.\nTocá para reemplazarla',
+                        foto: _foto,
+                        cargando: _capturandoFoto,
+                        onCapturar: _capturarFoto,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _Seccion(
                       titulo: 'Observaciones de campo',
                       child: _buildObservaciones(),
                     ),
@@ -132,7 +171,7 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
               child: PrimaryButton(
                 text: 'Guardar control de comodato',
                 isLoading: _guardando,
-                onPressed: _guardando ? null : _guardar,
+                onPressed: (_guardando || _foto == null) ? null : _guardar,
               ),
             ),
           ],

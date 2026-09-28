@@ -81,6 +81,10 @@ class StockDisponibleCard extends StatelessWidget {
           _Chip(valor: p.disponiblesParaVenta, etiqueta: 'llenos', color: AppColors.orange),
           const SizedBox(width: 8),
           _Chip(valor: p.vaciosEnCamion, etiqueta: 'vacíos', color: AppColors.steelBlue),
+          if (p.averiadosEnCamion > 0) ...[
+            const SizedBox(width: 8),
+            _Chip(valor: p.averiadosEnCamion, etiqueta: 'averiados', color: AppColors.graphiteGray),
+          ],
         ],
       ),
     );

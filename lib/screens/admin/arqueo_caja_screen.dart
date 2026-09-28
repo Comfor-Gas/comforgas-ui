@@ -12,13 +12,14 @@ import '../../repositories/cobranza_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
-import '../../utils/date_format_utils.dart';
 import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/arqueo_prestamos_card.dart';
 import '../../widgets/admin/cobranza/arqueo_resumen_card.dart';
 import '../../widgets/admin/cobranza/cuadre_rendicion_modal.dart';
 import '../../widgets/admin/cobranza/arqueo_tabla.dart';
-import '../../widgets/admin/flota/flota_form_controls.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
+import '../../core/feedback/app_feedback.dart';
 
 class ArqueoCajaScreen extends StatefulWidget {
   const ArqueoCajaScreen({super.key});
@@ -122,27 +123,9 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
     });
   }
 
-  Future<void> _elegirFecha() async {
-    final elegida = await showDatePicker(
-      context: context,
-      initialDate: _fecha,
-      firstDate: DateTime(2023),
-      lastDate: DateTime(2100),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: AppColors.orange,
-            onPrimary: AppColors.white,
-            onSurface: AppColors.steelBlue,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-    if (elegida != null) {
-      setState(() => _fecha = elegida);
-      _cargarArqueo();
-    }
+  void _cambiarFecha(DateTime fecha) {
+    setState(() => _fecha = fecha);
+    _cargarArqueo();
   }
 
   int _totalSistema(String metodo) {
@@ -240,12 +223,11 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   }
 
   void _snack(String mensaje, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
-      ),
-    );
+    if (error) {
+      AppFeedback.error(mensaje);
+    } else {
+      AppFeedback.exito(mensaje);
+    }
   }
 
   @override
@@ -260,6 +242,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              ReportarCarga(cargando: _loading),
               _Cabecera(nombreChofer: _nombreChofer),
               const SizedBox(height: 20),
               _Filtros(
@@ -270,7 +253,9 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
                   setState(() => _choferId = id);
                   _cargarArqueo();
                 },
-                onFecha: _elegirFecha,
+                onFecha: _cambiarFecha,
+                onRefrescar: _choferId == null ? null : _cargarArqueo,
+                cargando: _loading,
               ),
               if (_aviso != null) ...[
                 const SizedBox(height: 16),
@@ -278,10 +263,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
               ],
               const SizedBox(height: 20),
               if (_loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 70),
-                  child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-                )
+                const SizedBox(height: 180)
               else if (_arqueo == null)
                 _Placeholder()
               else if (dosColumnas)
@@ -420,7 +402,9 @@ class _Filtros extends StatelessWidget {
   final String? choferId;
   final DateTime fecha;
   final ValueChanged<String> onChofer;
-  final VoidCallback onFecha;
+  final ValueChanged<DateTime> onFecha;
+  final VoidCallback? onRefrescar;
+  final bool cargando;
 
   const _Filtros({
     required this.choferes,
@@ -428,68 +412,41 @@ class _Filtros extends StatelessWidget {
     required this.fecha,
     required this.onChofer,
     required this.onFecha,
+    required this.onRefrescar,
+    required this.cargando,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SizedBox(
-          width: 260,
-          child: FlotaDropdown<String>(
-            value: choferId,
-            hint: 'Seleccionar chofer',
-            prefijo: Icons.person_outline,
-            items: [
-              for (final c in choferes)
-                DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.fullName.isNotEmpty ? c.fullName : c.email),
-                ),
-            ],
-            onChanged: (id) {
-              if (id != null) onChofer(id);
-            },
-          ),
+    return FiltrosPanel(
+      filas: [
+        SelectorFechaUnica(
+          fecha: fecha,
+          primera: DateTime(2023),
+          ultima: DateTime(2100),
+          onCambio: onFecha,
         ),
-        _BotonFecha(fecha: fecha, onTap: onFecha),
-      ],
-    );
-  }
-}
-
-class _BotonFecha extends StatelessWidget {
-  final DateTime fecha;
-  final VoidCallback onTap;
-
-  const _BotonFecha({required this.fecha, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.inputBorder),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        FilaFiltros(
           children: [
-            const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.inputHint),
-            const SizedBox(width: 10),
-            Text(
-              formatFechaCorta(fecha),
-              style: AppTextStyles.input,
+            FiltroBuscable(
+              etiqueta: 'Chofer',
+              icono: Icons.person_outline,
+              obligatorio: true,
+              hint: 'Seleccionar chofer',
+              ancho: 260,
+              opciones: [
+                for (final c in choferes)
+                  OpcionFiltro(c.id, c.fullName.isNotEmpty ? c.fullName : c.email),
+              ],
+              seleccion: choferId,
+              onCambio: (id) {
+                if (id != null) onChofer(id);
+              },
             ),
+            BotonActualizar(onPressed: onRefrescar, cargando: cargando),
           ],
         ),
-      ),
+      ],
     );
   }
 }

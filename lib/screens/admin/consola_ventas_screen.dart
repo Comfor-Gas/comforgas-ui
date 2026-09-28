@@ -15,6 +15,8 @@ import '../../utils/formato.dart';
 import '../../widgets/admin/ventas/ventas_filtros_bar.dart';
 import '../../widgets/admin/ventas/ventas_tabla.dart';
 import '../../widgets/admin/ventas/venta_detalle_panel.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../core/feedback/app_feedback.dart';
 
 class ConsolaVentasScreen extends StatefulWidget {
   const ConsolaVentasScreen({super.key});
@@ -154,13 +156,11 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
   }
 
   void _snack(String mensaje, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
-      ),
-    );
+    if (error) {
+      AppFeedback.error(mensaje);
+    } else {
+      AppFeedback.exito(mensaje);
+    }
   }
 
   void _sincronizarSeleccion() {
@@ -205,29 +205,18 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
     return null;
   }
 
-  Future<void> _elegirFecha() async {
-    final elegida = await showDatePicker(
-      context: context,
-      initialDate: _fecha,
-      firstDate: DateTime(2023),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.orange,
-              onPrimary: AppColors.white,
-              onSurface: AppColors.steelBlue,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (elegida != null) {
-      setState(() => _fecha = elegida);
-      _cargar();
-    }
+  void _cambiarFecha(DateTime fecha) {
+    setState(() => _fecha = fecha);
+    _cargar();
+  }
+
+  void _limpiarFiltros() {
+    _choferCtrl.clear();
+    _clienteCtrl.clear();
+    setState(() {
+      _estadoFiltro = null;
+      _sincronizarSeleccion();
+    });
   }
 
   @override
@@ -269,10 +258,10 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
 
   List<Widget> _encabezadoYFiltros() {
     return [
+      ReportarCarga(cargando: _loading),
       _Cabecera(
         cantidad: _ventasFiltradas.length,
         montoTotal: _montoTotalDia,
-        onRefrescar: _cargar,
       ),
       const SizedBox(height: 20),
       VentasFiltrosBar(
@@ -286,7 +275,10 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
           });
         },
         fecha: _fecha,
-        onTapFecha: _elegirFecha,
+        onFechaChanged: _cambiarFecha,
+        onLimpiar: _limpiarFiltros,
+        onRefrescar: _cargar,
+        cargando: _loading,
       ),
       if (_error != null) ...[
         const SizedBox(height: 16),
@@ -312,7 +304,7 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
 
   Widget _contenidoDosColumnas() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.orange));
+      return const SizedBox.shrink();
     }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -335,10 +327,7 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
 
   Widget _contenidoApilado() {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 80),
-        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-      );
+      return const SizedBox(height: 200);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -361,12 +350,10 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
 class _Cabecera extends StatelessWidget {
   final int cantidad;
   final int montoTotal;
-  final VoidCallback onRefrescar;
 
   const _Cabecera({
     required this.cantidad,
     required this.montoTotal,
-    required this.onRefrescar,
   });
 
   @override
@@ -391,12 +378,6 @@ class _Cabecera extends StatelessWidget {
         _ResumenChip(
           etiqueta: 'Total del día',
           valor: formatMoneda(montoTotal),
-        ),
-        const SizedBox(width: 12),
-        IconButton(
-          onPressed: onRefrescar,
-          tooltip: 'Actualizar',
-          icon: const Icon(Icons.refresh, color: AppColors.steelBlue),
         ),
       ],
     );

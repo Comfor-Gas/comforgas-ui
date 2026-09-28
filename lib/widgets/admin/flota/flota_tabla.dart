@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/deposito_camion.dart';
-import '../../../repositories/stock_rodante_admin_repository.dart';
+import '../../../models/stock_rodante_chofer.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import 'camion_stock_bar.dart';
-
-typedef CargarDetalleDia = Future<List<DetalleNotaDiaria>> Function(String idUsuario);
+import 'detalle_carga_nota.dart';
 
 class FlotaTabla extends StatelessWidget {
   final List<DepositoCamion> camiones;
@@ -16,9 +15,7 @@ class FlotaTabla extends StatelessWidget {
   final ValueChanged<DepositoCamion> onEntradaMovil;
   final ValueChanged<DepositoCamion> onVerHistorial;
   final ValueChanged<DepositoCamion> onVerReporte;
-  final CargarDetalleDia cargarDetalle;
-  final Map<String, int> asignadoPorChofer;
-  final Map<String, NotaRodanteResumen> notaPorChofer;
+  final Map<String, StockRodanteChofer> notaPorChofer;
   final String mensajeVacio;
 
   const FlotaTabla({
@@ -29,20 +26,14 @@ class FlotaTabla extends StatelessWidget {
     required this.onEntradaMovil,
     required this.onVerHistorial,
     required this.onVerReporte,
-    required this.cargarDetalle,
-    this.asignadoPorChofer = const {},
     this.notaPorChofer = const {},
     this.idSeleccionado,
     this.mensajeVacio = 'No hay camiones para mostrar.',
   });
 
-  int _asignadoDe(DepositoCamion camion) {
-    final id = camion.repartidor?.id;
-    if (id == null || id.isEmpty) return 0;
-    return asignadoPorChofer[id] ?? 0;
-  }
+  int _asignadoDe(DepositoCamion camion) => _notaDe(camion)?.totalLlenosCargados ?? 0;
 
-  NotaRodanteResumen? _notaDe(DepositoCamion camion) {
+  StockRodanteChofer? _notaDe(DepositoCamion camion) {
     final id = camion.repartidor?.id;
     if (id == null || id.isEmpty) return null;
     return notaPorChofer[id];
@@ -70,7 +61,6 @@ class FlotaTabla extends StatelessWidget {
                   seleccionado: camion.id == idSeleccionado,
                   asignado: _asignadoDe(camion),
                   nota: _notaDe(camion),
-                  cargarDetalle: cargarDetalle,
                   onNota: () => onNota(camion),
                   onRecargaRuta: () => onRecargaRuta(camion),
                   onEntradaMovil: () => onEntradaMovil(camion),
@@ -91,7 +81,6 @@ class FlotaTabla extends StatelessWidget {
                 seleccionado: camion.id == idSeleccionado,
                 asignado: _asignadoDe(camion),
                 nota: _notaDe(camion),
-                cargarDetalle: cargarDetalle,
                 onNota: () => onNota(camion),
                 onRecargaRuta: () => onRecargaRuta(camion),
                 onEntradaMovil: () => onEntradaMovil(camion),
@@ -169,8 +158,7 @@ class _FilaCamion extends StatelessWidget {
   final DepositoCamion camion;
   final bool seleccionado;
   final int asignado;
-  final NotaRodanteResumen? nota;
-  final CargarDetalleDia cargarDetalle;
+  final StockRodanteChofer? nota;
   final VoidCallback onNota;
   final VoidCallback onRecargaRuta;
   final VoidCallback onEntradaMovil;
@@ -182,7 +170,6 @@ class _FilaCamion extends StatelessWidget {
     required this.seleccionado,
     required this.asignado,
     required this.nota,
-    required this.cargarDetalle,
     required this.onNota,
     required this.onRecargaRuta,
     required this.onEntradaMovil,
@@ -226,7 +213,7 @@ class _FilaCamion extends StatelessWidget {
               padding: const EdgeInsets.only(right: 14),
               child: CamionStockBar(
                 llenos: asignado,
-                vacios: camion.vacios,
+                vacios: nota?.totalVaciosEnCamion ?? 0,
                 compacto: true,
                 mostrarVacios: false,
               ),
@@ -235,7 +222,7 @@ class _FilaCamion extends StatelessWidget {
           Expanded(
             flex: _colVacias,
             child: Text(
-              '${camion.vaciasDelDia}',
+              '${nota?.totalVaciosEnCamion ?? 0}',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -264,7 +251,7 @@ class _FilaCamion extends StatelessWidget {
           ),
             ],
           ),
-          _DetalleStockCamion(idUsuario: camion.repartidor?.id ?? '', cargar: cargarDetalle),
+          DetalleCargaNota(nota: nota),
         ],
       ),
     );
@@ -432,13 +419,13 @@ class _MenuMas extends StatelessWidget {
 }
 
 class _NotaEstadoChip extends StatelessWidget {
-  final NotaRodanteResumen? nota;
+  final StockRodanteChofer? nota;
 
   const _NotaEstadoChip({required this.nota});
 
   @override
   Widget build(BuildContext context) {
-    final estado = nota?.estado.toUpperCase() ?? '';
+    final estado = nota?.estadoNormalizado ?? '';
     late final String texto;
     late final Color color;
     if (nota == null) {
@@ -525,8 +512,7 @@ class _CamionCard extends StatelessWidget {
   final DepositoCamion camion;
   final bool seleccionado;
   final int asignado;
-  final NotaRodanteResumen? nota;
-  final CargarDetalleDia cargarDetalle;
+  final StockRodanteChofer? nota;
   final VoidCallback onNota;
   final VoidCallback onRecargaRuta;
   final VoidCallback onEntradaMovil;
@@ -538,7 +524,6 @@ class _CamionCard extends StatelessWidget {
     required this.seleccionado,
     required this.asignado,
     required this.nota,
-    required this.cargarDetalle,
     required this.onNota,
     required this.onRecargaRuta,
     required this.onEntradaMovil,
@@ -585,7 +570,7 @@ class _CamionCard extends StatelessWidget {
           const SizedBox(height: 14),
           CamionStockBar(
             llenos: asignado,
-            vacios: camion.vaciasDelDia,
+            vacios: nota?.totalVaciosEnCamion ?? 0,
           ),
           const SizedBox(height: 14),
           if (nota?.cerrada ?? false) ...[
@@ -650,197 +635,10 @@ class _CamionCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          _DetalleStockCamion(idUsuario: camion.repartidor?.id ?? '', cargar: cargarDetalle),
+          DetalleCargaNota(nota: nota),
         ],
       ),
     );
   }
 }
 
-class _DetalleStockCamion extends StatefulWidget {
-  final String idUsuario;
-  final CargarDetalleDia cargar;
-
-  const _DetalleStockCamion({required this.idUsuario, required this.cargar});
-
-  @override
-  State<_DetalleStockCamion> createState() => _DetalleStockCamionState();
-}
-
-class _DetalleStockCamionState extends State<_DetalleStockCamion> {
-  bool _abierta = false;
-  bool _cargando = false;
-  bool _cargado = false;
-  String? _error;
-  List<DetalleNotaDiaria> _items = const [];
-
-  Future<void> _toggle() async {
-    setState(() => _abierta = !_abierta);
-    if (_abierta && !_cargado && !_cargando) {
-      await _fetch();
-    }
-  }
-
-  Future<void> _fetch() async {
-    setState(() {
-      _cargando = true;
-      _error = null;
-    });
-    try {
-      final items = await widget.cargar(widget.idUsuario);
-      if (!mounted) return;
-      setState(() {
-        _items = items;
-        _cargado = true;
-        _cargando = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'No se pudo cargar la carga del día.';
-        _cargando = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: _toggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                const Icon(Icons.inventory_2_outlined, size: 15, color: AppColors.steelBlue),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Detalle de la carga del día por tipo',
-                    style: AppTextStyles.footer.copyWith(
-                      color: AppColors.steelBlue,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                AnimatedRotation(
-                  turns: _abierta ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 160),
-                  child: const Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.graphiteGray),
-                ),
-              ],
-            ),
-          ),
-        ),
-        AnimatedCrossFade(
-          duration: const Duration(milliseconds: 160),
-          crossFadeState: _abierta ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-          firstChild: Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 6),
-            child: _cuerpo(),
-          ),
-          secondChild: const SizedBox(width: double.infinity),
-        ),
-      ],
-    );
-  }
-
-  Widget _cuerpo() {
-    if (_cargando) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            height: 18, width: 18,
-            child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.orange),
-          ),
-        ),
-      );
-    }
-    if (_error != null) {
-      return Text(_error!, style: AppTextStyles.footer.copyWith(color: AppColors.badgeRed));
-    }
-    final items = _items.where((i) => i.llenos > 0 || i.vacias > 0).toList();
-    if (items.isEmpty) {
-      return Text(
-        'El camión no tiene carga asignada hoy. Empieza en 0 hasta que le asignes su carga inicial.',
-        style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: Row(
-              children: const [
-                Expanded(flex: 4, child: _CeldaMini('TIPO')),
-                Expanded(flex: 3, child: _CeldaMini('LLENAS', alinearFinal: true)),
-                Expanded(flex: 3, child: _CeldaMini('VACÍAS', alinearFinal: true)),
-              ],
-            ),
-          ),
-          for (final it in items) ...[
-            const Divider(height: 1, color: AppColors.inputBorder),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Text('Garrafa ${it.etiqueta}',
-                        style: AppTextStyles.input.copyWith(fontSize: 13)),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text('${it.llenos}',
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                            fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.badgeGreen)),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text('${it.vacias}',
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                            fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.steelBlue)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _CeldaMini extends StatelessWidget {
-  final String texto;
-  final bool alinearFinal;
-  const _CeldaMini(this.texto, {this.alinearFinal = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: alinearFinal ? Alignment.centerRight : Alignment.centerLeft,
-      child: Text(
-        texto,
-        style: const TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-          color: AppColors.graphiteGray,
-        ),
-      ),
-    );
-  }
-}

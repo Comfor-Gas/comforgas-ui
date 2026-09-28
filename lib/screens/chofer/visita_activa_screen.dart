@@ -17,6 +17,7 @@ import '../../models/canje_garrafa.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/control_comodato.dart';
 import '../../models/evidencia_tipo.dart';
+import '../../models/motivo_sin_operar.dart';
 import '../../models/producto_sku.dart';
 import '../../models/nota_debito_resumen.dart';
 import '../../models/venta_draft.dart';
@@ -30,13 +31,13 @@ import '../../repositories/comodato_repository.dart';
 import '../../repositories/evidencia_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/venta_repository.dart';
-import '../../repositories/stock_rodante_repository.dart';
 import '../../repositories/visita_repository.dart';
 import '../../services/canje_sync_manager.dart';
 import '../../services/comodato_sync_manager.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_capture_service.dart';
+import '../../services/ruta_habilitada_service.dart';
 import '../../services/sync_manager.dart';
 import '../../services/ubicacion_tracking_service.dart';
 import '../../theme/app_colors.dart';
@@ -48,16 +49,20 @@ import '../../widgets/chofer/canje/canje_garrafa_card.dart';
 import '../../widgets/chofer/comodato/control_comodato_card.dart';
 import '../../widgets/chofer/cobro/morosidad_banner.dart';
 import '../../widgets/chofer/datos_desactivados_card.dart';
-import '../../widgets/chofer/evidencia_captura_card.dart';
+import '../../widgets/chofer/visita/aviso_requisito_visita.dart';
+import '../../widgets/chofer/visita/foto_llegada_seccion.dart';
+import '../../widgets/chofer/visita/finalizar_sin_operar_sheet.dart';
 import '../../widgets/chofer/inicio_sin_conexion_card.dart';
 import '../../widgets/chofer/visita_checkin_card.dart';
 import '../../widgets/common/estado_conexion_badge.dart';
+import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/primary_button.dart';
 import 'canje/canje_garrafa_screen.dart';
 import 'comodato/auditoria_comodato_screen.dart';
 import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
 import 'venta_social/finalizar_venta_social_screen.dart';
+import '../../core/feedback/app_feedback.dart';
 
 const _uuid = Uuid();
 
@@ -91,15 +96,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   late final VentaRepository _ventaRepo;
   late final ComodatoRepository _comodatoRepo;
   late final CanjeRepository _canjeRepo;
-  late final StockRodanteRepository _rodanteChoferRepo;
+  late final RutaHabilitadaService _rutaService;
   late final http.Client _apiClient;
   final _photoService = PhotoCaptureService();
   final _locationService = LocationService.instance;
 
-  static const String _mensajeSinCarga =
-      'Todavía no tenés stock asignado para hoy. Pedile al administrador que cargue tu stock del camión para poder iniciar las visitas.';
   IconData _iconoError = Icons.location_off_outlined;
-  bool? _rutaHabilitada;
 
   late VisitaModel _visita;
   _FaseVisita _fase = _FaseVisita.verificandoUbicacion;
@@ -109,6 +111,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _finalizando = false;
   bool _cancelando = false;
   bool _evidenciaExistente = false;
+  bool _fotoPresenciaEnviada = false;
+  bool _subiendoPresencia = false;
   bool _checkInPendienteSync = false;
   bool _reintentandoConexion = false;
   bool _reintentandoDatos = false;
@@ -149,7 +153,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     _visita = widget.visita;
     final apiClient = context.read<AuthProvider>().apiClient;
     _visitaRepo = VisitaRepository(apiClient);
-    _rodanteChoferRepo = StockRodanteRepository(apiClient);
+    _rutaService = RutaHabilitadaService(apiClient);
     _evidenciaRepo = EvidenciaRepository(apiClient);
     _ventaRepo = VentaRepository(apiClient);
     _comodatoRepo = ComodatoRepository(apiClient);
@@ -227,6 +231,15 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   String get _motivoFaltante => _motivoFaltanteCtrl.text.trim();
 
   bool get _faltanteResuelto => !_hayFaltante || _motivoFaltante.isNotEmpty;
+
+  bool get _presenciaRegistrada => _evidenciaExistente || _fotoPresenciaEnviada;
+
+  bool get _operacionesBloqueadas => _finalizando || !_presenciaRegistrada;
+
+  bool get _comodatoActivo =>
+      (_contratoComodato?.tieneComodato ?? false) || _ficha.tieneComodatoActivo;
+
+  bool get _auditoriaComodatoPendiente => _comodatoActivo && _controlComodato == null;
 
   Future<void> _actualizarConexionInicial() async {
     final online = await ConnectivityService.instance.tieneConexion();
@@ -341,12 +354,18 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       if (!mounted) return;
       setState(() => _contratoComodato = contrato);
     } on NetworkException {
-      return;
+      _usarContratoDeAgenda();
     } on ComodatoRepositoryException {
-      return;
+      _usarContratoDeAgenda();
     } finally {
       if (mounted) setState(() => _cargandoContrato = false);
     }
+  }
+
+  void _usarContratoDeAgenda() {
+    if (!mounted || _contratoComodato != null) return;
+    final contrato = ContratoComodato.desdeAgenda(_visita.sucursalSnapshot);
+    if (contrato.tieneComodato) setState(() => _contratoComodato = contrato);
   }
 
   ControlComodatoDraft _draftDeControl(ControlComodato c) {
@@ -387,6 +406,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
     if (!mounted) return;
     if (contrato == null || !contrato.tieneComodato) {
+      final deAgenda = ContratoComodato.desdeAgenda(_visita.sucursalSnapshot);
+      if (deAgenda.tieneComodato) contrato = deAgenda;
+    }
+    if (contrato == null || !contrato.tieneComodato) {
       _mostrarError(
         'No se pudo cargar el contrato de comodato del cliente. Reintentá cuando tengas conexión.',
       );
@@ -407,6 +430,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   Future<void> _registrarControlComodato(
     int cantidadFisicaActual,
     String? observaciones,
+    File foto,
   ) async {
     final idVisita = await _asegurarIdVisita();
     final idAgendaItem = _visita.idAgendaItem;
@@ -424,9 +448,26 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       cantidadFisicaActual: cantidadFisicaActual,
     );
 
+    var fotoSubida = false;
     if (idVisita != null) {
       try {
-        final control = await _comodatoRepo.registrarControl(draft);
+        int? idEvidencia;
+        try {
+          final evidencia = await _evidenciaRepo.subirEvidencia(
+            idVisita: idVisita,
+            tipoEvidencia: EvidenciaTipo.comodato,
+            archivo: foto,
+            observaciones: observaciones,
+          );
+          idEvidencia = evidencia.idFotografia;
+          fotoSubida = true;
+        } on EvidenciaRepositoryException {
+          fotoSubida = false;
+        }
+        final control = await _comodatoRepo.registrarControl(draft, idEvidencia: idEvidencia);
+        if (!fotoSubida) {
+          await _registrarFotoComodato(idVisita: idVisita, foto: foto, observaciones: observaciones);
+        }
         if (!mounted) return;
         setState(() {
           _controlComodato = _draftDeControl(control);
@@ -443,11 +484,70 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     }
 
     await _encolarControlComodato(draft: draft, idAgendaItem: idAgendaItem);
+    if (!fotoSubida) {
+      await _encolarFotoComodato(
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        foto: foto,
+        observaciones: observaciones,
+      );
+    }
     if (!mounted) return;
     setState(() {
       _controlComodato = draft;
       _comodatoPendienteSync = true;
     });
+  }
+
+  Future<void> _registrarFotoComodato({
+    required int idVisita,
+    required File foto,
+    String? observaciones,
+  }) async {
+    try {
+      await _evidenciaRepo.subirEvidencia(
+        idVisita: idVisita,
+        tipoEvidencia: EvidenciaTipo.comodato,
+        archivo: foto,
+        observaciones: observaciones,
+      );
+    } catch (_) {
+      final idAgendaItem = _visita.idAgendaItem;
+      if (idAgendaItem == null) {
+        _mostrarAviso('El control se guardó, pero no se pudo subir la foto del comodato.');
+        return;
+      }
+      await _encolarFotoComodato(
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        foto: foto,
+        observaciones: observaciones,
+      );
+    }
+  }
+
+  Future<void> _encolarFotoComodato({
+    required int idAgendaItem,
+    int? idVisita,
+    required File foto,
+    String? observaciones,
+  }) async {
+    final ahora = DateTime.now();
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: _uuid.v4(),
+        tipoEvento: OfflineEventoTipo.evidencia,
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        timestampOrigen: ahora,
+        creadoEn: ahora,
+        archivoBytes: await foto.readAsBytes(),
+        tipoEvidencia: EvidenciaTipo.comodato,
+        mimeType: 'image/jpeg',
+        observaciones: observaciones,
+      ),
+    );
+    unawaited(SyncManager.instance.sincronizar());
   }
 
   Future<void> _encolarControlComodato({
@@ -576,7 +676,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       try {
         await _canjeRepo.registrarCanje(idVisita, draft);
         await StockRodanteCacheService.instance
-            .aplicarSalidas(_visita.idUsuario, {producto.idProducto: 1});
+            .aplicarSalidas(_visita.idUsuario, {producto.idProducto: 1}, fecha: _visita.fecha);
         if (!mounted) return;
         _canjesServidor = [..._canjesServidor, draft];
         _recomputarCanjes();
@@ -592,7 +692,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
     await _encolarCanje(draft: draft, idAgendaItem: idAgendaItem);
     await StockRodanteCacheService.instance
-        .aplicarSalidas(_visita.idUsuario, {producto.idProducto: 1});
+        .aplicarSalidas(_visita.idUsuario, {producto.idProducto: 1}, fecha: _visita.fecha);
   }
 
   Future<void> _encolarCanje({
@@ -665,17 +765,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     });
   }
 
-  Future<EstadoRutaChofer?> _verificarRutaHabilitada() async {
-    try {
-      final estado = await _rodanteChoferRepo.estadoRuta(fecha: _visita.fecha);
-      if (estado == null) return null;
-      _rutaHabilitada = estado.habilitado;
-      return estado;
-    } on NetworkException {
-      return null;
-    } catch (_) {
-      return null;
+  Future<bool> _asegurarRutaHabilitada({bool soloCache = false}) async {
+    final habilitacion = await _rutaService.verificar(
+      idUsuario: _visita.idUsuario,
+      fecha: _visita.fecha,
+      soloCache: soloCache,
+    );
+    if (!mounted) return false;
+    if (!habilitacion.permitida) {
+      _entrarEnErrorUbicacion(habilitacion.mensaje, icono: Icons.inventory_2_outlined);
+      return false;
     }
+    if (habilitacion.pendienteDeVerificar) {
+      _mostrarAviso(habilitacion.mensaje);
+    }
+    return true;
   }
 
   Future<void> _iniciarCheckIn() async {
@@ -698,17 +802,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       return;
     }
 
-    final estadoRuta = await _verificarRutaHabilitada();
-    if (!mounted) return;
-    if (estadoRuta != null && !estadoRuta.habilitado) {
-      final mensaje = estadoRuta.tieneNota &&
-              estadoRuta.mensaje != null &&
-              estadoRuta.mensaje!.isNotEmpty
-          ? estadoRuta.mensaje!
-          : _mensajeSinCarga;
-      _entrarEnErrorUbicacion(mensaje, icono: Icons.inventory_2_outlined);
-      return;
-    }
+    if (!await _asegurarRutaHabilitada()) return;
 
     LocationCheckIn? checkIn;
     try {
@@ -775,8 +869,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       final esFaltaDeCarga = e.message.contains('Nota de Control de Stock') ||
           e.message.toLowerCase().contains('iniciar ruta');
       if (esFaltaDeCarga) {
-        _rutaHabilitada = false;
-        _entrarEnErrorUbicacion(_mensajeSinCarga, icono: Icons.inventory_2_outlined);
+        _entrarEnErrorUbicacion(
+          e.message.toUpperCase().contains('ENTRADA_COMPLETA')
+              ? RutaHabilitadaService.mensajeCerrada
+              : RutaHabilitadaService.mensajeSinNota,
+          icono: Icons.inventory_2_outlined,
+        );
       } else {
         _entrarEnErrorUbicacion(e.message);
       }
@@ -824,11 +922,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       );
       return;
     }
-    if (_rutaHabilitada == false) {
-      _entrarEnErrorUbicacion(_mensajeSinCarga, icono: Icons.inventory_2_outlined);
-      return;
-    }
     if (_continuandoOffline || _reintentandoConexion) return;
+    if (!await _asegurarRutaHabilitada(soloCache: true)) return;
     setState(() => _continuandoOffline = true);
     final checkIn = await _obtenerUbicacionBestEffort();
     await _iniciarViaColaSincronizacion(
@@ -912,6 +1007,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           OfflineQueueService.instance
               .pendientesDeAgendaItem(_visita.idAgendaItem!)
               .any((e) => e.tipoEvento == OfflineEventoTipo.checkIn);
+      _fotoPresenciaEnviada = _visita.idAgendaItem != null &&
+          OfflineQueueService.instance.pendientesDeAgendaItem(_visita.idAgendaItem!).any((e) =>
+              e.tipoEvento == OfflineEventoTipo.evidencia &&
+              (e.tipoEvidencia ?? '').toUpperCase() == EvidenciaTipo.fachada);
     });
 
     unawaited(UbicacionTrackingService.instance.iniciar(_apiClient));
@@ -924,7 +1023,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     try {
       final evidencias = await _evidenciaRepo.listarPorVisita(idVisita);
       if (!mounted) return;
-      if (evidencias.isNotEmpty) {
+      if (evidencias.any((e) => e.tipoEvidencia.toUpperCase() == EvidenciaTipo.fachada)) {
         setState(() => _evidenciaExistente = true);
       }
     } on NetworkException {
@@ -974,6 +1073,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           direccionCliente: widget.direccionCliente,
           inicial: null,
           ventaSocialBloqueada: _yaTieneVentaSocial,
+          ventaNormalBloqueada: _yaTieneVentaSocial,
           ventasPrevias: [
             for (final v in _ventas)
               if (!v.esSocial)
@@ -1028,7 +1128,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       }
     }
     if (salidas.isNotEmpty) {
-      await StockRodanteCacheService.instance.aplicarSalidas(_visita.idUsuario, salidas);
+      await StockRodanteCacheService.instance
+          .aplicarSalidas(_visita.idUsuario, salidas, fecha: _visita.fecha);
     }
   }
 
@@ -1240,16 +1341,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   void _mostrarErrorSocial(String mensaje) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
-    );
+    AppFeedback.error(mensaje);
   }
 
   void _mostrarInfoSocial(String mensaje) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.steelBlue),
-    );
+    AppFeedback.info(mensaje, titulo: 'Venta Social');
   }
 
   List<VentaEnVisita> get _ventasCobrables =>
@@ -1390,19 +1487,83 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Future<void> _capturarFoto() async {
+    if (_presenciaRegistrada || _capturandoFoto || _subiendoPresencia) return;
     setState(() => _capturandoFoto = true);
+    File? archivo;
     try {
-      final archivo = await _photoService.capturarFoto();
-      if (!mounted) return;
-      if (archivo != null) {
-        setState(() => _foto = archivo);
-      }
+      archivo = await _photoService.capturarFoto();
     } on PhotoCaptureException catch (e) {
-      if (!mounted) return;
-      _mostrarError(e.message);
+      if (mounted) _mostrarError(e.message);
     } finally {
       if (mounted) setState(() => _capturandoFoto = false);
     }
+    if (archivo == null || !mounted) return;
+    setState(() => _foto = archivo);
+    await _registrarFotoPresencia(archivo);
+  }
+
+  Future<void> _registrarFotoPresencia(File archivo) async {
+    setState(() => _subiendoPresencia = true);
+    final idVisita = await _asegurarIdVisita();
+    if (!mounted) return;
+
+    if (idVisita != null) {
+      try {
+        await _evidenciaRepo.subirEvidencia(
+          idVisita: idVisita,
+          tipoEvidencia: EvidenciaTipo.fachada,
+          archivo: archivo,
+        );
+        if (!mounted) return;
+        setState(() {
+          _fotoPresenciaEnviada = true;
+          _subiendoPresencia = false;
+        });
+        return;
+      } on NetworkException {
+      } on EvidenciaRepositoryException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _subiendoPresencia = false;
+          _foto = null;
+        });
+        _mostrarError(e.message);
+        return;
+      } catch (_) {}
+    }
+
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idAgendaItem == null) {
+      if (!mounted) return;
+      setState(() {
+        _subiendoPresencia = false;
+        _foto = null;
+      });
+      _mostrarError('No se pudo guardar la foto de llegada. Intentá de nuevo con conexión.');
+      return;
+    }
+
+    final ahora = DateTime.now();
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: _uuid.v4(),
+        tipoEvento: OfflineEventoTipo.evidencia,
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        timestampOrigen: ahora,
+        creadoEn: ahora,
+        archivoBytes: await archivo.readAsBytes(),
+        tipoEvidencia: EvidenciaTipo.fachada,
+        mimeType: 'image/jpeg',
+      ),
+    );
+    unawaited(SyncManager.instance.sincronizar());
+    if (!mounted) return;
+    setState(() {
+      _fotoPresenciaEnviada = true;
+      _subiendoPresencia = false;
+    });
+    _mostrarAviso('Sin conexión: la foto de llegada se guardó y se enviará cuando haya señal.');
   }
 
   Future<int?> _resolverIdVisitaOnline() async {
@@ -1429,10 +1590,17 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Future<void> _finalizarVisita() async {
-    final foto = _foto;
     var idVisita = _visita.idVisita;
     final idAgendaItem = _visita.idAgendaItem;
-    if ((foto == null && !_evidenciaExistente) || _finalizando) {
+    if (_finalizando) return;
+    if (!_presenciaRegistrada) {
+      _mostrarError('Sacá la foto de llegada para poder finalizar la visita.');
+      return;
+    }
+    if (_auditoriaComodatoPendiente) {
+      _mostrarError(
+        'El cliente tiene comodato activo: realizá la auditoría de comodato con su foto antes de finalizar.',
+      );
       return;
     }
     if (idVisita == null && idAgendaItem == null) {
@@ -1476,28 +1644,26 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         await _finalizarOffline(
           idAgendaItem: idAgendaItem!,
           idVisita: null,
-          foto: foto,
+          foto: null,
           motivoFaltante: motivoFaltante,
         );
         return;
       }
     }
 
-    // Si la evidencia ya estaba confirmada del lado del servidor (de una
-    // sesión anterior, o porque la subimos recién en este intento), no
-    // hace falta volver a encolarla si más adelante falla el check-out.
-    bool evidenciaConfirmadaOnline = _evidenciaExistente;
+    if (idAgendaItem != null && !await _asegurarPendientesSincronizados()) {
+      if (!mounted) return;
+      await _finalizarOffline(
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        foto: null,
+        motivoFaltante: motivoFaltante,
+      );
+      return;
+    }
+    if (!mounted) return;
 
     try {
-      if (foto != null) {
-        await _evidenciaRepo.subirEvidencia(
-          idVisita: idVisita,
-          tipoEvidencia: EvidenciaTipo.fachada,
-          archivo: foto,
-        );
-        evidenciaConfirmadaOnline = true;
-      }
-
       // Intento "best effort" de tomar la ubicación al cierre; el backend
       // la acepta como opcional (latitudFin/longitudFin), así que si el
       // chofer ya no tiene buena señal no bloqueamos el check-out por eso.
@@ -1540,7 +1706,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       await _finalizarOffline(
         idAgendaItem: idAgendaItem,
         idVisita: idVisita,
-        foto: evidenciaConfirmadaOnline ? null : foto,
+        foto: null,
         motivoFaltante: motivoFaltante,
       );
     } on EvidenciaRepositoryException catch (e) {
@@ -1560,88 +1726,133 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   Future<void> _cancelarVisita() async {
     if (_cancelando || _finalizando) return;
+    if (!_presenciaRegistrada) {
+      _mostrarError('Sacá la foto de llegada antes de cancelar la visita: así queda registrado que estuviste en el lugar.');
+      return;
+    }
 
-    final idVisita = _visita.idVisita;
-    if (idVisita == null) {
+    if (_visita.estadoVisita == VisitaEstado.pausadaSocial) {
       _mostrarError(
-        'No se puede cancelar todavía: el inicio de la visita aún no se '
-        'confirmó con el servidor. Reintentá cuando tengas conexión.',
+        'La visita tiene una Venta Social en pausa. Finalizala antes de cancelar la visita.',
+      );
+      return;
+    }
+    if (_ventas.isNotEmpty || _canjes.isNotEmpty) {
+      _mostrarError(
+        'Ya registraste ventas o canjes en esta visita. Finalizala normalmente con la foto de fachada.',
       );
       return;
     }
 
-    final motivo = await _pedirMotivoCancelacion();
-    if (motivo == null) return;
+    final resultado = await mostrarFinalizarSinOperarSheet(context);
+    if (resultado == null || !mounted) return;
 
     setState(() => _cancelando = true);
-    try {
-      final cancelada = await _visitaRepo.cerrarVisitaConEstado(
-        idVisita,
-        'CANCELADA',
-        observaciones: motivo.isEmpty ? null : motivo,
-      );
-      UbicacionTrackingService.instance.setVisitaActual(null);
-      if (!mounted) return;
-      Navigator.of(context).pop(cancelada.copyWith(idAgendaItem: _visita.idAgendaItem));
-    } on NetworkException {
+    final ubicacion = await _obtenerUbicacionBestEffort();
+    final idVisita = await _asegurarIdVisita();
+    if (!mounted) return;
+    final pendientesAlDia = idVisita != null && await _asegurarPendientesSincronizados();
+    if (!mounted) return;
+
+    if (idVisita != null && pendientesAlDia) {
+      try {
+        final cerrada = await _visitaRepo.cerrarVisitaConEstado(
+          idVisita,
+          _estadoSinOperar,
+          latitudFin: ubicacion?.latitud,
+          longitudFin: ubicacion?.longitud,
+          codigoMotivo: resultado.motivo.codigo,
+          descripcionMotivo: resultado.descripcion,
+        );
+        UbicacionTrackingService.instance.setVisitaActual(null);
+        if (!mounted) return;
+        Navigator.of(context).pop(cerrada.copyWith(idAgendaItem: _visita.idAgendaItem));
+        return;
+      } on NetworkException {
+      } on VisitaRepositoryException catch (e) {
+        if (!mounted) return;
+        setState(() => _cancelando = false);
+        _mostrarError(e.message);
+        return;
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _cancelando = false);
+        _mostrarError('No se pudo cancelar la visita. Intentá de nuevo.');
+        return;
+      }
+    }
+
+    final idAgendaItem = _visita.idAgendaItem;
+    if (idAgendaItem == null) {
       if (!mounted) return;
       setState(() => _cancelando = false);
       _mostrarError(
-        'Sin conexión: no se pudo cancelar la visita. Intentá cuando tengas señal.',
+        'No se pudo cancelar la visita: no tiene un ítem de agenda para guardar la cancelación en el dispositivo.',
       );
-    } on VisitaRepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() => _cancelando = false);
-      _mostrarError(e.message);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _cancelando = false);
-      _mostrarError('No se pudo cancelar la visita. Intentá de nuevo.');
+      return;
     }
+
+    await _encolarSinOperar(
+      idAgendaItem: idAgendaItem,
+      idVisita: idVisita,
+      resultado: resultado,
+      ubicacion: ubicacion,
+    );
+    UbicacionTrackingService.instance.setVisitaActual(null);
+    if (!mounted) return;
+    _mostrarAviso(
+      'Sin conexión: la cancelación se guardó en el dispositivo y se enviará cuando haya señal.',
+    );
+    Navigator.of(context).pop(_visita.copyWith(
+      estadoVisita: VisitaEstado.noAsistio,
+      timestampFin: DateTime.now(),
+      observaciones: resultado.descripcion,
+    ));
   }
 
-  Future<String?> _pedirMotivoCancelacion() async {
-    final ctrl = TextEditingController();
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Cancelar visita'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Confirmá si no se pudo hacer la entrega (no había nadie o no '
-              'respondieron). No se va a registrar la última bajada.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                hintText: 'Motivo (opcional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Volver'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Cancelar visita'),
-          ),
-        ],
+  static const String _estadoSinOperar = 'NO_ASISTIO';
+
+  bool get _tieneEvidenciasLocales {
+    final idAgendaItem = _visita.idAgendaItem;
+    final idVisita = _visita.idVisita;
+    return OfflineQueueService.instance.listarPendientes().any((e) =>
+        e.tipoEvento == OfflineEventoTipo.evidencia &&
+        ((idAgendaItem != null && e.idAgendaItem == idAgendaItem) ||
+            (idVisita != null && e.idVisita == idVisita)));
+  }
+
+  Future<bool> _asegurarPendientesSincronizados() async {
+    if (!_tieneEvidenciasLocales && !_comodatoPendienteSync) return true;
+    await SyncManager.instance.sincronizar();
+    await ComodatoSyncManager.instance.sincronizar();
+    _actualizarComodatoPendienteSync();
+    return !_tieneEvidenciasLocales && !_comodatoPendienteSync;
+  }
+
+  Future<void> _encolarSinOperar({
+    required int idAgendaItem,
+    int? idVisita,
+    required ResultadoSinOperar resultado,
+    LocationCheckIn? ubicacion,
+  }) async {
+    final ahora = DateTime.now();
+    await OfflineQueueService.instance.encolar(
+      OfflineEvento(
+        uuidOffline: _uuid.v4(),
+        tipoEvento: OfflineEventoTipo.resultado,
+        idAgendaItem: idAgendaItem,
+        idVisita: idVisita,
+        timestampOrigen: ahora,
+        creadoEn: ahora,
+        timestampFin: ahora,
+        latitudFin: ubicacion?.latitud,
+        longitudFin: ubicacion?.longitud,
+        estadoFinal: _estadoSinOperar,
+        codigoMotivo: resultado.motivo.codigo,
+        observaciones: resultado.descripcion,
       ),
     );
-    final motivo = ctrl.text.trim();
-    ctrl.dispose();
-    if (confirmado != true) return null;
-    return motivo;
+    unawaited(SyncManager.instance.sincronizar());
   }
 
   /// Encola en la cola offline lo que falte del cierre (la foto, si no se
@@ -1704,15 +1915,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   void _mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
-    );
+    AppFeedback.error(mensaje);
   }
 
   void _mostrarAviso(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.badgeAmber),
-    );
+    AppFeedback.advertencia(mensaje);
   }
 
   @override
@@ -1731,9 +1938,17 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             children: [
               _TopBar(orden: _visita.ordenVisita),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: _buildContenido(),
+                child: ZonaCarga(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ReportarCarga(cargando: _fase == _FaseVisita.verificandoUbicacion),
+                        _buildContenido(),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1935,8 +2150,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           const SizedBox(height: 10),
           if (_ventas.isEmpty)
             Text(
-              'Cargá las garrafas entregadas (Vacío x Lleno, préstamo o envase). '
-              'Podés registrar más de una venta en la misma visita.',
+              'Cargá las garrafas entregadas (VACÍO X LLENO, PRÉSTAMO o VENTA SOCIAL). '
+              'La Venta Social no se combina con los otros tipos en la misma visita.',
               style: AppTextStyles.footer,
             )
           else
@@ -1947,9 +2162,22 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           const SizedBox(height: 4),
           if (estaPausada)
             const _AvisoVentaPausada()
-          else ...[
+          else if (_yaTieneVentaSocial) ...[
+            const AvisoRequisitoVisita(
+              icono: Icons.volunteer_activism_outlined,
+              texto: 'Esta visita tiene Venta Social: no se pueden registrar ventas VACÍO X LLENO ni PRÉSTAMO.',
+            ),
+            if (_ventasCobrables.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              PrimaryButton(
+                text: 'Cobrar ${_ventasCobrables.length > 1 ? 'todas las ventas' : 'la venta'} · ${formatMoneda(_totalCobrable)}',
+                isLoading: false,
+                onPressed: _operacionesBloqueadas ? null : _cobrarTodo,
+              ),
+            ],
+          ] else ...[
             OutlinedButton.icon(
-              onPressed: _finalizando ? null : _abrirRegistroVenta,
+              onPressed: _operacionesBloqueadas ? null : _abrirRegistroVenta,
               icon: const Icon(Icons.add, size: 20),
               label: Text(_ventas.isEmpty ? 'Registrar venta' : 'Registrar otra venta'),
               style: OutlinedButton.styleFrom(
@@ -1964,7 +2192,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               PrimaryButton(
                 text: 'Cobrar ${_ventasCobrables.length > 1 ? 'todas las ventas' : 'la venta'} · ${formatMoneda(_totalCobrable)}',
                 isLoading: false,
-                onPressed: _finalizando ? null : _cobrarTodo,
+                onPressed: _operacionesBloqueadas ? null : _cobrarTodo,
               ),
             ],
           ],
@@ -2047,21 +2275,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               ),
               comodatoTotal: _contratoComodato?.cantidadContratada,
             ),
-            if (_evidenciaExistente && _foto == null) ...[
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  Icon(Icons.check_circle, size: 16, color: AppColors.badgeGreen),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Ya hay una foto de evidencia cargada para esta visita.',
-                      style: TextStyle(fontSize: 12, color: AppColors.graphiteGray),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            const SizedBox(height: 18),
+            FotoLlegadaSeccion(
+              foto: _foto,
+              registrada: _presenciaRegistrada,
+              cargando: _capturandoFoto || _subiendoPresencia,
+              onCapturar: _capturarFoto,
+            ),
             const SizedBox(height: 18),
             _buildVentaSection(),
             _buildVentaSocialSection(),
@@ -2072,25 +2292,23 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 controlRegistrado: _controlComodato,
                 pendienteSync: _comodatoPendienteSync && !_online,
                 cargando: _cargandoContrato,
-                onAuditar: _finalizando ? null : _abrirAuditoriaComodato,
+                onAuditar: _operacionesBloqueadas ? null : _abrirAuditoriaComodato,
               ),
             ],
             const SizedBox(height: 18),
             CanjeGarrafaCard(
               canjes: _canjes,
               pendienteSync: _canjePendienteSync && !_online,
-              onCanjear: _finalizando ? null : _abrirCanje,
-            ),
-            const SizedBox(height: 18),
-            EvidenciaCapturaCard(
-              titulo: _evidenciaExistente
-                  ? 'Evidencia cargada.\nTocá para reemplazarla'
-                  : 'Captura Evidencia\nde Fachada',
-              foto: _foto,
-              cargando: _capturandoFoto,
-              onCapturar: _capturarFoto,
+              onCanjear: _operacionesBloqueadas ? null : _abrirCanje,
             ),
             const SizedBox(height: 20),
+            if (_auditoriaComodatoPendiente && _presenciaRegistrada) ...[
+              const AvisoRequisitoVisita(
+                icono: Icons.inventory_2_outlined,
+                texto: 'Cliente con comodato activo: realizá la auditoría de comodato (con foto) para poder finalizar la visita.',
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_visita.estadoVisita == VisitaEstado.pausadaSocial) ...[
               Container(
                 width: double.infinity,
@@ -2125,34 +2343,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             PrimaryButton(
               text: 'Finalizar Visita',
               isLoading: _finalizando,
-              onPressed: ((_foto != null || _evidenciaExistente) &&
+              onPressed: (_presenciaRegistrada &&
                       !_finalizando &&
                       _visita.estadoVisita != VisitaEstado.pausadaSocial &&
-                      _faltanteResuelto)
+                      _faltanteResuelto &&
+                      !_auditoriaComodatoPendiente)
                   ? _finalizarVisita
                   : null,
             ),
-            if (_foto != null) ...[
-              const SizedBox(height: 10),
-              Center(
-                child: TextButton(
-                  onPressed: _finalizando ? null : _capturarFoto,
-                  child: const Text(
-                    'REHACER FOTO',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.graphiteGray,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-              ),
-            ],
             const SizedBox(height: 8),
             Center(
               child: TextButton.icon(
-                onPressed: (_finalizando || _cancelando) ? null : _cancelarVisita,
+                onPressed: (_finalizando || _cancelando || !_presenciaRegistrada)
+                    ? null
+                    : _cancelarVisita,
                 icon: _cancelando
                     ? const SizedBox(
                         height: 16,
@@ -2464,11 +2668,7 @@ class _EstadoUbicacion extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 60),
       child: Column(
         children: [
-          const SizedBox(
-            height: 40,
-            width: 40,
-            child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.orange),
-          ),
+          const SizedBox(height: 40),
           const SizedBox(height: 20),
           Text(nombreCliente, style: AppTextStyles.title.copyWith(fontSize: 18)),
           const SizedBox(height: 6),

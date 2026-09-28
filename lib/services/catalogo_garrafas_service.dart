@@ -1,21 +1,42 @@
 import '../models/producto_catalogo.dart';
 import '../models/producto_sku.dart';
-import '../models/stock_camion.dart';
 import '../models/stock_rodante_chofer.dart';
 import '../models/visita_model.dart';
+import '../utils/garrafa_match.dart';
 
 class CatalogoGarrafasService {
   const CatalogoGarrafasService();
 
+  ProductoCatalogo? _productoDeCatalogo(
+    List<ProductoCatalogo> productos,
+    StockRodanteProducto linea,
+  ) {
+    return buscarGarrafa<ProductoCatalogo>(
+      productos,
+      idProducto: linea.idProducto,
+      sku: linea.sku,
+      kg: linea.kg,
+      idDe: (p) => p.idProducto,
+      skuDe: (p) => p.sku,
+      kgDe: (p) => p.kgEntero ?? kgDesdeTexto(p.sku),
+    );
+  }
+
+  String _descripcion(ProductoCatalogo? prod, int kg, String codigo) {
+    final desc = prod?.descripcion.trim() ?? '';
+    if (desc.isNotEmpty) return desc;
+    return kg > 0 ? 'Garrafa $kg kg' : codigo;
+  }
+
   List<ProductoSku> desdeStockRodanteParaCanje(StockRodanteChofer stock) {
     final catalogo = <ProductoSku>[];
-    for (final p in stock.productos) {
+    for (final p in stock.ordenados) {
       final kg = p.kg ?? 0;
       catalogo.add(
         ProductoSku(
           idProducto: p.idProducto,
           sku: p.sku,
-          descripcion: kg > 0 ? 'Garrafa $kg kg' : p.sku,
+          descripcion: _descripcion(null, kg, p.sku),
           kg: kg,
           precioUnitario: 0,
           tipoProducto: 'GARRAFA',
@@ -23,173 +44,64 @@ class CatalogoGarrafasService {
         ),
       );
     }
-    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
     return catalogo;
   }
 
-  List<ProductoSku> desdeStockRodante(VisitaModel visita, StockRodanteChofer stock) {
-    final precios = ProductoSku.precioPorKg(visita);
+  List<ProductoSku> paraVentaDesdeNota(
+    VisitaModel visita,
+    StockRodanteChofer nota,
+    List<ProductoCatalogo> productos,
+  ) {
+    final preciosAgenda = ProductoSku.precioPorKg(visita);
     final catalogo = <ProductoSku>[];
-    for (final p in stock.productos) {
-      final kg = p.kg ?? 0;
-      final precio = precios[kg] ?? 0;
+    for (final linea in nota.ordenados) {
+      if (linea.llenosCargados <= 0 && linea.disponiblesParaVenta <= 0) continue;
+      final prod = _productoDeCatalogo(productos, linea);
+      final kg = prod?.kgEntero ?? linea.kg ?? 0;
+      var precio = prod?.precioUnitario ?? 0;
+      if (precio <= 0) precio = preciosAgenda[kg] ?? 0;
       if (precio <= 0) continue;
+      final codigo = linea.idProducto.isNotEmpty ? linea.idProducto : linea.sku;
       catalogo.add(
         ProductoSku(
-          idProducto: p.idProducto,
-          sku: p.sku,
-          descripcion: kg > 0 ? 'Garrafa $kg kg' : p.sku,
+          idProducto: codigo,
+          sku: linea.sku.isNotEmpty ? linea.sku : codigo,
+          descripcion: _descripcion(prod, kg, codigo),
           kg: kg,
           precioUnitario: precio,
-          tipoProducto: 'GARRAFA',
-          stockDisponible: p.disponiblesParaVenta,
+          tipoProducto: (prod?.tipoProducto.isNotEmpty ?? false) ? prod!.tipoProducto : 'GARRAFA',
+          stockDisponible: linea.disponiblesParaVenta,
         ),
       );
     }
-    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
     return catalogo;
   }
 
-  List<ProductoSku> desdeCatalogoConStock(
+  List<ProductoSku> sinControlDeStock(
     VisitaModel visita,
     List<ProductoCatalogo> productos,
-    int Function(ProductoCatalogo producto) disponibleDe,
   ) {
-    final preciosSnapshot = ProductoSku.precioPorKg(visita);
+    if (productos.isEmpty) return ProductoSku.desdeVisita(visita);
+    final preciosAgenda = ProductoSku.precioPorKg(visita);
     final catalogo = <ProductoSku>[];
     for (final prod in productos) {
       final kg = prod.kgEntero;
       if (kg == null) continue;
       var precio = prod.precioUnitario;
-      if (precio <= 0) precio = preciosSnapshot[kg] ?? 0;
+      if (precio <= 0) precio = preciosAgenda[kg] ?? 0;
       if (precio <= 0) continue;
-
-      final disponible = disponibleDe(prod);
       catalogo.add(
         ProductoSku(
           idProducto: prod.idProducto,
-          sku: prod.sku,
-          descripcion:
-              prod.descripcion.isNotEmpty ? prod.descripcion : 'Garrafa $kg kg',
+          sku: prod.sku.isNotEmpty ? prod.sku : prod.idProducto,
+          descripcion: _descripcion(prod, kg, prod.idProducto),
           kg: kg,
           precioUnitario: precio,
           tipoProducto: prod.tipoProducto.isNotEmpty ? prod.tipoProducto : 'GARRAFA',
-          stockDisponible: disponible < 0 ? 0 : disponible,
         ),
       );
     }
     catalogo.sort((a, b) => a.kg.compareTo(b.kg));
-    return catalogo;
-  }
-
-  List<ProductoSku> desdeStockYCatalogo(
-    VisitaModel visita,
-    StockCamion stock,
-    List<ProductoCatalogo> productos,
-  ) {
-    final preciosSnapshot = ProductoSku.precioPorKg(visita);
-    final porId = <String, ProductoCatalogo>{
-      for (final p in productos) p.idProducto: p,
-    };
-    final porSku = <String, ProductoCatalogo>{
-      for (final p in productos)
-        if (p.sku.isNotEmpty) p.sku: p,
-    };
-
-    final catalogo = <ProductoSku>[];
-    for (final item in stock.llenasDisponibles) {
-      final prod = porId[item.productoId] ?? porSku[item.sku];
-      final kg = _kgDe(item) ?? prod?.kgEntero;
-
-      int precio = 0;
-      if (prod != null && prod.precioUnitario > 0) {
-        precio = prod.precioUnitario;
-      } else if (kg != null && (preciosSnapshot[kg] ?? 0) > 0) {
-        precio = preciosSnapshot[kg]!;
-      }
-      if (precio <= 0) continue;
-
-      catalogo.add(
-        ProductoSku(
-          idProducto: item.productoId,
-          sku: item.sku,
-          descripcion: item.descripcion.isNotEmpty
-              ? item.descripcion
-              : (prod?.etiquetaKg ?? (kg != null ? 'Garrafa $kg kg' : item.sku)),
-          kg: kg ?? 0,
-          precioUnitario: precio,
-          tipoProducto: 'GARRAFA',
-          stockDisponible: item.cantidad,
-        ),
-      );
-    }
-
-    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
-    return catalogo;
-  }
-
-  List<ProductoSku> desdeStock(VisitaModel visita, StockCamion stock) {
-    final precios = ProductoSku.precioPorKg(visita);
-    final catalogo = <ProductoSku>[];
-
-    for (final item in stock.llenasDisponibles) {
-      final kg = _kgDe(item);
-      if (kg == null) continue;
-      final precio = precios[kg];
-      if (precio == null || precio <= 0) continue;
-
-      catalogo.add(
-        ProductoSku(
-          idProducto: item.productoId,
-          sku: item.sku,
-          descripcion: item.descripcion.isNotEmpty
-              ? item.descripcion
-              : 'Garrafa $kg kg',
-          kg: kg,
-          precioUnitario: precio,
-          tipoProducto: 'GARRAFA',
-          stockDisponible: item.cantidad,
-        ),
-      );
-    }
-
-    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
-    return catalogo;
-  }
-
-  List<ProductoSku> desdeStockParaCanje(StockCamion stock) {
-    final catalogo = <ProductoSku>[];
-
-    for (final item in stock.llenasDisponibles) {
-      final kg = _kgDe(item) ?? 0;
-      catalogo.add(
-        ProductoSku(
-          idProducto: item.productoId,
-          sku: item.sku,
-          descripcion: item.descripcion.isNotEmpty
-              ? item.descripcion
-              : (kg > 0 ? 'Garrafa $kg kg' : item.sku),
-          kg: kg,
-          precioUnitario: 0,
-          tipoProducto: 'GARRAFA',
-          stockDisponible: item.cantidad,
-        ),
-      );
-    }
-
-    catalogo.sort((a, b) => a.kg.compareTo(b.kg));
-    return catalogo;
-  }
-
-  int? _kgDe(StockCamionItem item) {
-    return _primerEntero(item.productoId) ??
-        _primerEntero(item.sku) ??
-        _primerEntero(item.descripcion);
-  }
-
-  int? _primerEntero(String texto) {
-    final match = RegExp(r'\d+').firstMatch(texto);
-    if (match == null) return null;
-    return int.tryParse(match.group(0)!);
+    return catalogo.isEmpty ? ProductoSku.desdeVisita(visita) : catalogo;
   }
 }

@@ -23,6 +23,7 @@ class AgendaItemModel {
   final bool? comodato10;
   final bool? comodato11;
   final bool? comodato12;
+  final int? kg10;
   final DateTime? ultimaBajada;
   final String? horaInicio;
   final String? horaFin;
@@ -59,6 +60,7 @@ class AgendaItemModel {
     this.comodato10,
     this.comodato11,
     this.comodato12,
+    this.kg10,
     this.ultimaBajada,
     this.horaInicio,
     this.horaFin,
@@ -99,6 +101,7 @@ class AgendaItemModel {
       comodato10: json['comodato10'] as bool?,
       comodato11: json['comodato11'] as bool?,
       comodato12: json['comodato12'] as bool?,
+      kg10: parseInt(json['kg10']),
       ultimaBajada: parseDate(json['ultimaBajada'] ?? json['ultimaCompra']),
       horaInicio: json['horaInicio'] as String?,
       horaFin: json['horaFin'] as String?,
@@ -150,6 +153,7 @@ class AgendaItemModel {
       comodato10: comodato10,
       comodato11: comodato11,
       comodato12: comodato12,
+      kg10: kg10,
       ultimaBajada: ultimaBajada,
       horaInicio: horaInicio,
       horaFin: horaFin,
@@ -184,11 +188,15 @@ class AgendaItemModel {
       if (comodato10 != null) 'comodato10': comodato10,
       if (comodato11 != null) 'comodato11': comodato11,
       if (comodato12 != null) 'comodato12': comodato12,
+      if (kg10 != null) 'kg10': kg10,
       if (ultimaBajada != null) 'ultimaBajada': ultimaBajada!.toIso8601String(),
       if (precio10 != null) 'precio10': precio10,
       if (precio15 != null) 'precio15': precio15,
       if (precio30 != null) 'precio30': precio30,
       if (precio45 != null) 'precio45': precio45,
+      'montoCobrado': montoCobrado,
+      'totalVendido': totalVendido,
+      if (cobrosPorMetodo.isNotEmpty) 'cobrosPorMetodo': cobrosPorMetodo,
     };
 
     return VisitaModel(

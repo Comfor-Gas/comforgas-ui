@@ -13,19 +13,24 @@ import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/network_exception.dart';
 import '../../repositories/visita_repository.dart';
+import '../../services/ruta_habilitada_service.dart';
 import '../../services/sync_manager.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/chofer/clientes_visitados_section.dart';
 import '../../widgets/chofer/comodato_badge.dart';
+import '../../widgets/chofer/comprobante/comprobante_visita_sheet.dart';
+import '../../widgets/chofer/comprobante/ver_comprobante_boton.dart';
 import '../../widgets/chofer/sync_pendiente_banner.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/chofer/visita_cliente_card.dart';
 import '../../widgets/chofer/visita_estado_chip.dart';
 import '../../widgets/chofer/visitas_pausadas_section.dart';
 import '../../widgets/common/estado_conexion_badge.dart';
+import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/primary_button.dart';
 import 'visita_activa_screen.dart';
+import '../../core/feedback/app_feedback.dart';
 
 const List<String> _diasSemana = [
   'Lunes',
@@ -135,6 +140,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         _avisoCache = null;
       });
       unawaited(AgendaCacheService.instance.guardar(idUsuario, hoy, data));
+      unawaited(RutaHabilitadaService(auth.apiClient).verificar(idUsuario: idUsuario, fecha: hoy));
     } on NetworkException {
       _cargarDesdeCache(
         idUsuario,
@@ -236,9 +242,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   void _handleIniciarSiguiente() {
     final accionable = _visitaAccionable;
     if (accionable == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No quedan visitas pendientes por hoy.')),
-      );
+      AppFeedback.info('No quedan visitas pendientes por hoy.', titulo: 'Agenda completa');
       return;
     }
     _iniciarVisita(accionable);
@@ -274,9 +278,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     if (confirmado != true) return;
     await OfflineQueueService.instance.vaciar();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cambios pendientes descartados.')),
-    );
+    AppFeedback.exito('Cambios pendientes descartados.');
   }
 
   Future<void> _iniciarVisita(VisitaModel visita) async {
@@ -329,6 +331,15 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
     }
   }
 
+  void _verComprobante(VisitaModel visita) {
+    ComprobanteVisitaSheet.mostrar(
+      context,
+      visita: visita,
+      nombreCliente: _nombreCliente(visita),
+      direccionCliente: _direccionCliente(visita),
+    );
+  }
+
   void _mostrarDetalle(VisitaModel visita) {
     final accionable = _visitaAccionable;
     final esAccionable =
@@ -355,6 +366,12 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
             ? 'Continuar Visita'
             : 'Iniciar Visita',
         mensajeBloqueo: mensajeBloqueo,
+        onVerComprobante: yaVisitada
+            ? () {
+                Navigator.of(sheetContext).pop();
+                _verComprobante(visita);
+              }
+            : null,
         onIniciar: esAccionable
             ? () {
                 Navigator.of(sheetContext).pop();
@@ -401,143 +418,144 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         children: [
             _AgendaHeader(nombreChofer: nombreChofer, patente: patente),
             Expanded(
-              child: RefreshIndicator(
-                color: AppColors.orange,
-                onRefresh: _load,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Ruta del Día', style: AppTextStyles.title.copyWith(fontSize: 24)),
-                      const SizedBox(height: 2),
-                      Text(fechaTexto, style: AppTextStyles.link),
-                      const SizedBox(height: 16),
-                      _StatsCard(
-                        clientes: _visitas.length,
-                        pedidos: completadas,
-                        recaudacion: recaudacion,
-                      ),
-                      const SizedBox(height: 16),
-                      _SearchField(controller: _searchCtrl),
-                      const SizedBox(height: 12),
-                      if (_mostrandoCache && _avisoCache != null) ...[
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: AppColors.badgeBlue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.badgeBlue.withOpacity(0.35)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.info_outline, size: 18, color: AppColors.badgeBlue),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _avisoCache!,
-                                  style: AppTextStyles.link
-                                      .copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
-                                ),
-                              ),
-                            ],
-                          ),
+              child: ZonaCarga(
+                child: RefreshIndicator(
+                  color: AppColors.orange,
+                  onRefresh: _load,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Ruta del Día', style: AppTextStyles.title.copyWith(fontSize: 24)),
+                        const SizedBox(height: 2),
+                        Text(fechaTexto, style: AppTextStyles.link),
+                        const SizedBox(height: 16),
+                        _StatsCard(
+                          clientes: _visitas.length,
+                          pedidos: completadas,
+                          recaudacion: recaudacion,
                         ),
-                      ],
-                      ValueListenableBuilder<Box<OfflineEvento>>(
-                        valueListenable: OfflineQueueService.instance.escuchar(),
-                        builder: (context, box, _) {
-                          return SyncPendienteBanner(
-                            cantidadPendiente: box.length,
-                            sincronizando: _sincronizando,
-                            onReintentar: () => SyncManager.instance.sincronizar(),
-                            onDescartar: box.length > 0
-                                ? () => _confirmarDescartarPendientes(box.length)
-                                : null,
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 4),
-                      if (_loading)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-                        )
-                      else if (_error != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 30),
-                          child: Column(
-                            children: [
-                              Text(
-                                _error!,
-                                style: AppTextStyles.errorText,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 12),
-                              OutlinedButton(
-                                onPressed: _load,
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.steelBlue,
-                                  side: const BorderSide(color: AppColors.steelBlue),
+                        const SizedBox(height: 16),
+                        _SearchField(controller: _searchCtrl),
+                        const SizedBox(height: 12),
+                        if (_mostrandoCache && _avisoCache != null) ...[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.badgeBlue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.badgeBlue.withOpacity(0.35)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline, size: 18, color: AppColors.badgeBlue),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _avisoCache!,
+                                    style: AppTextStyles.link
+                                        .copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+                                  ),
                                 ),
-                                child: const Text('Reintentar'),
-                              ),
-                            ],
-                          ),
-                        )
-                      else if (sinResultados)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 30),
-                          child: Center(
-                            child: Text(
-                              _visitas.isEmpty
-                                  ? 'No tenés visitas asignadas para hoy.'
-                                  : 'No encontramos clientes con ese criterio.',
-                              style: AppTextStyles.link,
-                              textAlign: TextAlign.center,
+                              ],
                             ),
                           ),
-                        )
-                      else ...[
-                        ...pendientes.map(
-                          (v) => VisitaClienteCard(
-                            visita: v,
-                            nombreCliente: _nombreCliente(v),
-                            direccionCliente: _direccionCliente(v),
-                            esSiguiente: siguiente != null && siguiente.idAgendaItem == v.idAgendaItem,
-                            etiquetaDestacada:
-                                v.estadoVisita == VisitaEstado.enCurso ? 'EN CURSO' : 'NEXT',
-                            onTap: () => _handleCardTap(v),
-                          ),
+                        ],
+                        ValueListenableBuilder<Box<OfflineEvento>>(
+                          valueListenable: OfflineQueueService.instance.escuchar(),
+                          builder: (context, box, _) {
+                            return SyncPendienteBanner(
+                              cantidadPendiente: box.length,
+                              sincronizando: _sincronizando,
+                              onReintentar: () => SyncManager.instance.sincronizar(),
+                              onDescartar: box.length > 0
+                                  ? () => _confirmarDescartarPendientes(box.length)
+                                  : null,
+                            );
+                          },
                         ),
-                        if (pausadasVisibles.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          VisitasPausadasSection(
-                            pausadas: pausadasVisibles,
-                            expandido: _pausadasExpanded,
-                            onToggle: (value) => setState(() => _pausadasExpanded = value),
-                            nombreCliente: _nombreCliente,
-                            direccionCliente: _direccionCliente,
-                            onTapVisita: _iniciarVisita,
+                        const SizedBox(height: 4),
+                        ReportarCarga(cargando: _loading),
+                        if (_loading)
+                          const SizedBox(height: 116)
+                        else if (_error != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 30),
+                            child: Column(
+                              children: [
+                                Text(
+                                  _error!,
+                                  style: AppTextStyles.errorText,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton(
+                                  onPressed: _load,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.steelBlue,
+                                    side: const BorderSide(color: AppColors.steelBlue),
+                                  ),
+                                  child: const Text('Reintentar'),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (sinResultados)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 30),
+                            child: Center(
+                              child: Text(
+                                _visitas.isEmpty
+                                    ? 'No tenés visitas asignadas para hoy.'
+                                    : 'No encontramos clientes con ese criterio.',
+                                style: AppTextStyles.link,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        else ...[
+                          ...pendientes.map(
+                            (v) => VisitaClienteCard(
+                              visita: v,
+                              nombreCliente: _nombreCliente(v),
+                              direccionCliente: _direccionCliente(v),
+                              esSiguiente: siguiente != null && siguiente.idAgendaItem == v.idAgendaItem,
+                              etiquetaDestacada:
+                                  v.estadoVisita == VisitaEstado.enCurso ? 'EN CURSO' : 'NEXT',
+                              onTap: () => _handleCardTap(v),
+                            ),
                           ),
-                          const SizedBox(height: 8),
+                          if (pausadasVisibles.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            VisitasPausadasSection(
+                              pausadas: pausadasVisibles,
+                              expandido: _pausadasExpanded,
+                              onToggle: (value) => setState(() => _pausadasExpanded = value),
+                              nombreCliente: _nombreCliente,
+                              direccionCliente: _direccionCliente,
+                              onTapVisita: _iniciarVisita,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (completadasVisibles.isNotEmpty || (!huboFiltro && completadas > 0)) ...[
+                            const SizedBox(height: 4),
+                            ClientesVisitadosSection(
+                              visitados: completadasVisibles,
+                              expandido: _visitadosExpanded,
+                              onToggle: (value) => setState(() => _visitadosExpanded = value),
+                              nombreCliente: _nombreCliente,
+                              direccionCliente: _direccionCliente,
+                              onTapVisita: _mostrarDetalle,
+                              onVerComprobante: _verComprobante,
+                            ),
+                          ],
                         ],
-                        if (completadasVisibles.isNotEmpty || (!huboFiltro && completadas > 0)) ...[
-                          const SizedBox(height: 4),
-                          ClientesVisitadosSection(
-                            visitados: completadasVisibles,
-                            expandido: _visitadosExpanded,
-                            onToggle: (value) => setState(() => _visitadosExpanded = value),
-                            nombreCliente: _nombreCliente,
-                            direccionCliente: _direccionCliente,
-                            onTapVisita: _mostrarDetalle,
-                          ),
-                        ],
+                        const SizedBox(height: 8),
                       ],
-                      const SizedBox(height: 8),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -746,6 +764,7 @@ class _DetalleVisitaSheet extends StatelessWidget {
   final String textoAccion;
   final String? mensajeBloqueo;
   final VoidCallback? onIniciar;
+  final VoidCallback? onVerComprobante;
 
   const _DetalleVisitaSheet({
     required this.visita,
@@ -754,6 +773,7 @@ class _DetalleVisitaSheet extends StatelessWidget {
     required this.textoAccion,
     this.mensajeBloqueo,
     this.onIniciar,
+    this.onVerComprobante,
   });
 
   @override
@@ -850,6 +870,10 @@ class _DetalleVisitaSheet extends StatelessWidget {
           const SizedBox(height: 20),
           if (onIniciar != null) ...[
             PrimaryButton(text: textoAccion, onPressed: onIniciar),
+            const SizedBox(height: 10),
+          ],
+          if (onVerComprobante != null) ...[
+            VerComprobanteBoton(onTap: onVerComprobante!, expandido: true),
             const SizedBox(height: 10),
           ],
           SizedBox(

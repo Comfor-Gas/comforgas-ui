@@ -100,6 +100,9 @@ class CuadreProducto {
         (llenosEntrada + vaciosEntrada + averiadosEntrada);
     final difEnvases = parseInt(json['diferenciaEnvases']) ?? 0;
     final faltante = parseInt(json['faltanteNoExplicado']) ?? 0;
+    final custodia = parseInt(json['envasesCustodiaSocial']) ?? 0;
+    final prestados = parseInt(json['envasesPrestamo']) ?? (-difEnvases - faltante - custodia);
+    final cuadraBackend = json['cuadra'];
 
     return CuadreProducto(
       idProducto: (json['idProducto'] ?? '').toString(),
@@ -109,6 +112,7 @@ class CuadreProducto {
       recargasLlenos: recargas,
       llenosCargados: cargados,
       ventas: vendidos,
+      prestamos: entradaRegistrada && prestados > 0 ? prestados : 0,
       llenosEntrada: entradaRegistrada ? llenosEntrada : null,
       vaciosEntrada: entradaRegistrada ? vaciosEntrada : null,
       averiadosEntrada: entradaRegistrada ? averiadosEntrada : null,
@@ -116,7 +120,7 @@ class CuadreProducto {
       envasesEntrada: entradaRegistrada ? envasesEntrada : null,
       diferenciaEnvases: entradaRegistrada ? difEnvases : null,
       faltanteNoExplicado: entradaRegistrada ? faltante : null,
-      cuadra: difEnvases == 0 && faltante == 0,
+      cuadra: cuadraBackend is bool ? cuadraBackend : (faltante == 0 && difEnvases <= 0),
     );
   }
 }
@@ -169,7 +173,8 @@ class CuadreRodante {
     if (totales is Map<String, dynamic>) {
       final dif = parseInt(totales['diferenciaTotalEnvases']) ?? 0;
       final faltante = parseInt(totales['totalFaltanteNoExplicado']) ?? 0;
-      cuadra = dif == 0 && faltante == 0;
+      final cuadraBackend = totales['cuadra'];
+      cuadra = cuadraBackend is bool ? cuadraBackend : (faltante == 0 && dif <= 0);
     }
     final raw = json['items'] ?? json['productos'];
     return CuadreRodante(

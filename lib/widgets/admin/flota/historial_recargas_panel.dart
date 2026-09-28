@@ -5,6 +5,7 @@ import '../../../models/movimiento_stock.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../utils/date_format_utils.dart';
+import '../../common/carga/zona_carga.dart';
 
 typedef CargarHistorial = Future<List<MovimientoStock>> Function();
 
@@ -95,27 +96,14 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
 
   DateTime get _diaReferencia => widget.fecha ?? DateTime.now();
 
-  bool _esDelDia(DateTime? fecha) {
-    if (fecha == null) return false;
-    final f = fecha.toLocal();
-    final d = _diaReferencia;
-    return f.year == d.year && f.month == d.month && f.day == d.day;
-  }
-
-  List<MovimientoStock> get _movimientosDelDia =>
-      _movimientos.where((m) => _esDelDia(m.fecha)).toList();
+  List<MovimientoStock> get _movimientosDelDia => _movimientos;
 
   int get _totalDia =>
       _movimientosDelDia.fold(0, (a, m) => a + m.cantidad);
 
   int get _operacionesDia => _movimientosDelDia.length;
 
-  String get _skuDia {
-    for (final m in _movimientosDelDia) {
-      if (m.productoSku.isNotEmpty) return m.productoSku;
-    }
-    return 'Garrafas';
-  }
+  String get _skuDia => _totalDia == 1 ? 'garrafa' : 'garrafas';
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +123,7 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
                 patente: widget.camion.patenteVisible,
                 onCerrar: () => Navigator.of(context).pop(),
               ),
+              ReportarCarga(cargando: _loading),
               Expanded(child: _cuerpo()),
             ],
           ),
@@ -145,7 +134,7 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
 
   Widget _cuerpo() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.orange));
+      return const SizedBox.shrink();
     }
     final delDia = _movimientosDelDia;
     return ListView(
@@ -165,7 +154,7 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: Center(
               child: Text(
-                'No hay recargas registradas para este camión el ${formatFechaCorta(_diaReferencia)}.',
+                'No hay cargas registradas en la nota de este camión el ${formatFechaCorta(_diaReferencia)}.',
                 style: AppTextStyles.link,
                 textAlign: TextAlign.center,
               ),
@@ -211,7 +200,7 @@ class _Encabezado extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'Historial de Recargas · $patente',
+              'Cargas del día · $patente',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -259,7 +248,7 @@ class _ResumenAcumulado extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total recargado · $fechaTexto',
+            'Total cargado · $fechaTexto',
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
@@ -302,7 +291,7 @@ class _ResumenAcumulado extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              'Número de operaciones de recarga: $operaciones',
+              'Movimientos en la nota de control: $operaciones',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
@@ -386,7 +375,7 @@ class _FilaHistorial extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '+${movimiento.cantidad} ${movimiento.productoSku}',
+                        '+${movimiento.cantidad} ${movimiento.productoDescripcion.isNotEmpty ? movimiento.productoDescripcion : movimiento.productoSku}',
                         style: const TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w800,
@@ -405,7 +394,9 @@ class _FilaHistorial extends StatelessWidget {
                     icono: Icons.warehouse_outlined,
                     texto: movimiento.operador.isNotEmpty
                         ? 'Bodega: ${movimiento.operador}'
-                        : 'Operador de bodega no registrado',
+                        : (movimiento.folio != null && movimiento.folio!.isNotEmpty
+                            ? 'Nota ${movimiento.folio}'
+                            : 'Operador de bodega no registrado'),
                   ),
                   if (movimiento.observaciones != null &&
                       movimiento.observaciones!.isNotEmpty) ...[

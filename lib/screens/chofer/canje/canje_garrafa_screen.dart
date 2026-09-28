@@ -12,7 +12,9 @@ import '../../../services/catalogo_garrafas_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../widgets/chofer/canje/selector_sku_canje.dart';
+import '../../../widgets/common/carga/zona_carga.dart';
 import '../../../widgets/primary_button.dart';
+import '../../../core/feedback/app_feedback.dart';
 
 typedef GuardarCanjeGarrafa = Future<void> Function(
   ProductoSku producto,
@@ -79,23 +81,26 @@ class _CanjeGarrafaScreenState extends State<CanjeGarrafaScreen> {
       }
     } on NetworkException {
       sinSenal = true;
-      diario = StockRodanteCacheService.instance.obtener(idUsuario);
+      diario = StockRodanteCacheService.instance.obtener(idUsuario, fecha: fecha);
     } catch (_) {
-      diario = StockRodanteCacheService.instance.obtener(idUsuario);
+      diario = StockRodanteCacheService.instance.obtener(idUsuario, fecha: fecha);
     }
 
     List<ProductoSku> catalogo;
     String? aviso;
-    if (diario != null) {
+    if (diario != null && diario.jornadaCerrada) {
+      catalogo = const <ProductoSku>[];
+      aviso = 'La jornada está cerrada (rendición completa): no se pueden registrar más canjes para esta fecha.';
+    } else if (diario != null) {
       catalogo = _catalogoService.desdeStockRodanteParaCanje(diario);
       if (sinSenal) {
         aviso = 'Sin conexión: se muestra el último stock del día guardado.';
       }
     } else {
-      catalogo = const <ProductoSku>[];
+      catalogo = ProductoSku.desdeVisita(widget.visita);
       aviso = sinSenal
-          ? 'Sin conexión: no se pudo obtener el stock del día. Conectate para ver las garrafas que podés canjear.'
-          : 'No se pudo obtener el stock del día del camión.';
+          ? 'Sin conexión: no se pudo obtener el stock del día. El canje se valida contra el stock del camión al sincronizar.'
+          : 'No se pudo obtener el stock del día del camión. El canje se valida contra el stock al registrarlo.';
     }
 
     if (!mounted) return;
@@ -132,9 +137,7 @@ class _CanjeGarrafaScreenState extends State<CanjeGarrafaScreen> {
   }
 
   void _mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
-    );
+    AppFeedback.error(mensaje);
   }
 
   @override
@@ -147,27 +150,30 @@ class _CanjeGarrafaScreenState extends State<CanjeGarrafaScreen> {
           children: [
             _TopBar(nombreCliente: widget.nombreCliente),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_avisoStock != null) ...[
-                      _buildAviso(_avisoStock!),
+              child: ZonaCarga(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ReportarCarga(cargando: _cargandoCatalogo),
+                      if (_avisoStock != null) ...[
+                        _buildAviso(_avisoStock!),
+                        const SizedBox(height: 16),
+                      ],
+                      _Seccion(
+                        titulo: 'Garrafa a entregar (stock del camión)',
+                        child: _buildSelector(),
+                      ),
+                      const SizedBox(height: 20),
+                      _Seccion(
+                        titulo: 'Descripción del daño (obligatorio)',
+                        child: _buildDanio(),
+                      ),
                       const SizedBox(height: 16),
+                      _buildNotaOffline(),
                     ],
-                    _Seccion(
-                      titulo: 'Garrafa a entregar (stock del camión)',
-                      child: _buildSelector(),
-                    ),
-                    const SizedBox(height: 20),
-                    _Seccion(
-                      titulo: 'Descripción del daño (obligatorio)',
-                      child: _buildDanio(),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildNotaOffline(),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -187,16 +193,7 @@ class _CanjeGarrafaScreenState extends State<CanjeGarrafaScreen> {
 
   Widget _buildSelector() {
     if (_cargandoCatalogo) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: SizedBox(
-            height: 26,
-            width: 26,
-            child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.orange),
-          ),
-        ),
-      );
+      return const SizedBox(height: 74);
     }
     return SelectorSkuCanje(
       productos: _catalogo,

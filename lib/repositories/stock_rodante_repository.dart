@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/stock_rodante_chofer.dart';
+import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
 class StockRodanteRepositoryException implements Exception {
@@ -15,19 +16,24 @@ class StockRodanteRepositoryException implements Exception {
 class EstadoRutaChofer {
   final bool habilitado;
   final String? mensaje;
-  final bool tieneNota;
+  final StockRodanteChofer? nota;
 
   const EstadoRutaChofer({
     required this.habilitado,
     this.mensaje,
-    this.tieneNota = false,
+    this.nota,
   });
 
+  bool get tieneNota => nota != null;
+
+  bool get jornadaCerrada => nota?.jornadaCerrada ?? false;
+
   factory EstadoRutaChofer.fromJson(Map<String, dynamic> json) {
+    final nota = json['nota'];
     return EstadoRutaChofer(
       habilitado: json['habilitado'] == true,
       mensaje: json['mensaje']?.toString(),
-      tieneNota: json['nota'] != null,
+      nota: nota is Map<String, dynamic> ? StockRodanteChofer.fromJson(nota) : null,
     );
   }
 }
@@ -37,24 +43,21 @@ class StockRodanteRepository {
 
   StockRodanteRepository([http.Client? client]) : _client = client ?? http.Client();
 
-  Future<EstadoRutaChofer?> estadoRuta({DateTime? fecha}) async {
-    final dia = fecha ?? DateTime.now();
-    final fechaIso = '${dia.year.toString().padLeft(4, '0')}-'
-        '${dia.month.toString().padLeft(2, '0')}-'
-        '${dia.day.toString().padLeft(2, '0')}';
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/repartidor/ruta/estado',
-    ).replace(queryParameters: {'fecha': fechaIso});
+  static const _headers = {'Content-Type': 'application/json'};
 
-    http.Response response;
+  Uri _uri(String path, DateTime? fecha) => Uri.parse('${ApiConfig.baseUrl}$path')
+      .replace(queryParameters: {'fecha': formatDateOnly(fecha ?? DateTime.now())});
+
+  Future<http.Response> _get(Uri uri) async {
     try {
-      response = await _client
-          .get(uri, headers: const {'Content-Type': 'application/json'})
-          .timeout(const Duration(seconds: 20));
+      return await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 20));
     } catch (_) {
       throw NetworkException();
     }
+  }
 
+  Future<EstadoRutaChofer?> estadoRuta({DateTime? fecha}) async {
+    final response = await _get(_uri(ApiConfig.repartidorRutaEstadoPath, fecha));
     if (response.statusCode == 200 && response.body.isNotEmpty) {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -68,22 +71,7 @@ class StockRodanteRepository {
     required String idUsuario,
     DateTime? fecha,
   }) async {
-    final dia = fecha ?? DateTime.now();
-    final fechaIso = '${dia.year.toString().padLeft(4, '0')}-'
-        '${dia.month.toString().padLeft(2, '0')}-'
-        '${dia.day.toString().padLeft(2, '0')}';
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/repartidor/stock-rodante/mi-carga',
-    ).replace(queryParameters: {'fecha': fechaIso});
-
-    http.Response response;
-    try {
-      response = await _client
-          .get(uri, headers: const {'Content-Type': 'application/json'})
-          .timeout(const Duration(seconds: 20));
-    } catch (_) {
-      throw NetworkException();
-    }
+    final response = await _get(_uri(ApiConfig.repartidorMiCargaPath, fecha));
 
     if (response.statusCode == 200) {
       if (response.body.isEmpty) return null;

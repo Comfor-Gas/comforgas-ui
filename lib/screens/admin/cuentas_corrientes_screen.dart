@@ -13,6 +13,10 @@ import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/cuentas_corrientes_tabla.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
 import '../../widgets/admin/flota/flota_stat_card.dart';
+import '../../widgets/common/aviso_regla_cuenta_corriente.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
+import '../../core/feedback/app_feedback.dart';
 
 class CuentasCorrientesScreen extends StatefulWidget {
   const CuentasCorrientesScreen({super.key});
@@ -148,21 +152,15 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   }
 
   void _snack(String mensaje, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
-      ),
-    );
+    if (error) {
+      AppFeedback.error(mensaje);
+    } else {
+      AppFeedback.exito(mensaje);
+    }
   }
 
   void _generarPdf() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Exportación a PDF: pendiente de habilitar en el backend.'),
-        backgroundColor: AppColors.badgeAmber,
-      ),
-    );
+    AppFeedback.advertencia('Exportación a PDF: pendiente de habilitar en el backend.');
   }
 
   @override
@@ -176,9 +174,12 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              ReportarCarga(cargando: _loading),
               _Cabecera(onPdf: _generarPdf),
               const SizedBox(height: 20),
               _Stats(reporte: _reporte),
+              const SizedBox(height: 12),
+              const AvisoReglaCuentaCorriente(),
               const SizedBox(height: 16),
               _Filtros(
                 searchCtrl: _searchCtrl,
@@ -187,6 +188,15 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
                   setState(() => _soloMorosos = v);
                   _cargar();
                 },
+                onLimpiar: () {
+                  _searchCtrl.clear();
+                  if (_soloMorosos) {
+                    setState(() => _soloMorosos = false);
+                    _cargar();
+                  }
+                },
+                onRefrescar: _cargar,
+                cargando: _loading,
               ),
               if (_aviso != null) ...[
                 const SizedBox(height: 16),
@@ -196,10 +206,7 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
               _TarjetaTabla(
                 cantidad: _clientesFiltrados.length,
                 child: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 60),
-                        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-                      )
+                    ? const SizedBox(height: 160)
                     : CuentasCorrientesTabla(
                         clientes: _clientesFiltrados,
                         onVerDetalle: _verDetalle,
@@ -298,85 +305,42 @@ class _Filtros extends StatelessWidget {
   final TextEditingController searchCtrl;
   final bool soloMorosos;
   final ValueChanged<bool> onToggleMorosos;
+  final VoidCallback onLimpiar;
+  final VoidCallback onRefrescar;
+  final bool cargando;
 
   const _Filtros({
     required this.searchCtrl,
     required this.soloMorosos,
     required this.onToggleMorosos,
+    required this.onLimpiar,
+    required this.onRefrescar,
+    required this.cargando,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SizedBox(
-          width: 280,
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.inputBorder),
-            ),
-            child: TextField(
-              controller: searchCtrl,
-              style: AppTextStyles.input,
-              decoration: InputDecoration(
-                hintText: 'Buscar cliente',
-                hintStyle: AppTextStyles.hint,
-                prefixIcon: const Icon(Icons.search, color: AppColors.inputHint, size: 20),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
-        ),
-        _ToggleMorosos(activo: soloMorosos, onTap: () => onToggleMorosos(!soloMorosos)),
-      ],
-    );
-  }
-}
-
-class _ToggleMorosos extends StatelessWidget {
-  final bool activo;
-  final VoidCallback onTap;
-
-  const _ToggleMorosos({required this.activo, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = activo ? AppColors.error : AppColors.inputBorder;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: activo ? AppColors.error.withOpacity(0.08) : AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color, width: activo ? 1.5 : 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    final hayFiltros = searchCtrl.text.trim().isNotEmpty || soloMorosos;
+    return FiltrosPanel(
+      filas: [
+        FilaFiltros(
           children: [
-            Icon(
-              activo ? Icons.check_box_outlined : Icons.check_box_outline_blank,
-              size: 18,
-              color: activo ? AppColors.error : AppColors.graphiteGray,
+            CampoBusquedaFiltro(
+              controller: searchCtrl,
+              etiqueta: 'Cliente',
+              hint: 'Buscar cliente',
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Solo morosos',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: activo ? AppColors.error : AppColors.graphiteGray,
-              ),
+            ChipFiltro(
+              etiqueta: 'Solo morosos',
+              icono: soloMorosos ? Icons.check_box_outlined : Icons.check_box_outline_blank,
+              activo: soloMorosos,
+              onTap: () => onToggleMorosos(!soloMorosos),
             ),
+            if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
+            BotonActualizar(onPressed: onRefrescar, cargando: cargando),
           ],
         ),
-      ),
+      ],
     );
   }
 }

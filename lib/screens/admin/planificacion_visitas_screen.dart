@@ -12,9 +12,10 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/json_parsing.dart';
 import '../../widgets/admin/estado_visita_badge.dart';
-import '../../widgets/app_alert.dart';
-import '../../widgets/labeled_text_field.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
 import '../../widgets/primary_button.dart';
+import '../../core/feedback/app_feedback.dart';
 
 class _AgendaRow {
   final VisitaModel visita;
@@ -180,21 +181,6 @@ class _PlanificacionVisitasScreenState
     return 'Ruta #${v.idRuta}';
   }
 
-  bool _esCancelable(VisitaEstado estado) {
-    return estado == VisitaEstado.pendiente ||
-        estado == VisitaEstado.enCurso ||
-        estado == VisitaEstado.visitado ||
-        estado == VisitaEstado.noAsistio;
-  }
-
-  bool _esEditable(VisitaEstado estado) {
-    return estado != VisitaEstado.visitado &&
-        estado != VisitaEstado.completada &&
-        estado != VisitaEstado.cancelada &&
-        estado != VisitaEstado.noAsistio &&
-        estado != VisitaEstado.inactivo;
-  }
-
   String _formatDisplayDate(DateTime d) {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
@@ -331,29 +317,18 @@ class _PlanificacionVisitasScreenState
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.steelBlue,
-            content: Text(
-              'Visita agregada a la lista como borrador. '
-              'Publicá la agenda del día para confirmarla.',
-              style: AppTextStyles.input.copyWith(color: Colors.white),
-            ),
-          ),
-        );
+      AppFeedback.info(
+        'Publicá la agenda del día para confirmarla.',
+        titulo: 'Visita agregada como borrador',
+      );
     }
   }
 
   Future<void> _handlePublicar() async {
     if (_draftVisitas.isEmpty) {
-      await showAppAlert(
-        context: context,
-        title: 'Nada para publicar',
-        message:
-            'No hay visitas nuevas para publicar. Agregá al menos una desde el formulario.',
+      AppFeedback.advertencia(
+        'No hay visitas nuevas para publicar. Agregá al menos una desde el formulario.',
+        titulo: 'Nada para publicar',
       );
       return;
     }
@@ -369,27 +344,23 @@ class _PlanificacionVisitasScreenState
       });
       await _loadVisitas();
       if (!mounted) return;
-      final errores = result.errores.isEmpty
-          ? ''
-          : '\n\n${result.errores.join('\n')}';
-      await showAppAlert(
-        context: context,
-        title: 'Visitas publicadas',
-        message:
-            'Insertadas: ${result.insertadas} · Omitidas: ${result.omitidas}$errores',
-      );
+      final resumen = 'Insertadas: ${result.insertadas} · Omitidas: ${result.omitidas}';
+      if (result.errores.isEmpty) {
+        AppFeedback.exito(resumen, titulo: 'Visitas publicadas');
+      } else {
+        AppFeedback.advertencia(
+          '$resumen\n${result.errores.join('\n')}',
+          titulo: 'Visitas publicadas con observaciones',
+        );
+      }
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
       setState(() => _publishing = false);
-      await showAppAlert(context: context, title: 'Error', message: e.message);
+      AppFeedback.error(e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _publishing = false);
-      await showAppAlert(
-        context: context,
-        title: 'Error',
-        message: 'No se pudieron publicar las visitas.',
-      );
+      AppFeedback.error('No se pudieron publicar las visitas.');
     }
   }
 
@@ -419,42 +390,36 @@ class _PlanificacionVisitasScreenState
       if (!mounted) return;
 
       if (result.insertadas > 0 && result.omitidas == 0) {
-        await showAppAlert(
-          context: context,
-          title: 'Agenda sincronizada',
-          message: 'Se cargaron ${result.insertadas} visita(s) para $quien el $fechaTexto.',
+        AppFeedback.exito(
+          'Se cargaron ${result.insertadas} visita(s) para $quien el $fechaTexto.',
+          titulo: 'Agenda sincronizada',
         );
       } else if (result.insertadas == 0) {
-        await showAppAlert(
-          context: context,
-          title: 'Sin novedades',
-          message: 'No hay visitas nuevas para $quien el $fechaTexto. '
-              'Lo que había ya estaba cargado en el sistema.',
+        AppFeedback.info(
+          'No hay visitas nuevas para $quien el $fechaTexto. '
+          'Lo que había ya estaba cargado en el sistema.',
+          titulo: 'Sin novedades',
         );
       } else {
-        await showAppAlert(
-          context: context,
-          title: 'Agenda sincronizada parcialmente',
-          message: 'Se cargaron ${result.insertadas} visita(s) nuevas para $quien el $fechaTexto. '
-              'Las otras ${result.omitidas} ya se encontraban cargadas.',
+        AppFeedback.info(
+          'Se cargaron ${result.insertadas} visita(s) nuevas para $quien el $fechaTexto. '
+          'Las otras ${result.omitidas} ya se encontraban cargadas.',
+          titulo: 'Agenda sincronizada parcialmente',
         );
       }
     } on VisitaRepositoryException catch (e) {
       if (!mounted) return;
       setState(() => _publishing = false);
-      await showAppAlert(context: context, title: 'Error', message: e.message);
+      AppFeedback.error(e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _publishing = false);
-      await showAppAlert(
-        context: context,
-        title: 'Error',
-        message: 'No se pudo sincronizar la agenda.',
-      );
+      AppFeedback.error('No se pudo sincronizar la agenda.');
     }
   }
 
   Future<void> _handleEditar(_AgendaRow row) async {
+    if (!row.esBorrador) return;
     final hoy = _hoyFechaSola();
     final fechaInicial = row.visita.fecha ?? DateTime.now();
     final nuevaFecha = await showDatePicker(
@@ -465,36 +430,23 @@ class _PlanificacionVisitasScreenState
     );
     if (nuevaFecha == null) return;
 
-    if (row.esBorrador) {
-      setState(() {
-        final index = _draftVisitas.indexOf(row.visita);
-        if (index != -1) {
-          _draftVisitas[index] = row.visita.copyWith(fecha: nuevaFecha);
-        }
-      });
-      return;
-    }
-
-    final idVisita = row.visita.idVisita;
-    if (idVisita == null) return;
-
-    try {
-      await _repo.actualizarParcial(idVisita, fecha: nuevaFecha);
-      await _loadVisitas();
-    } on VisitaRepositoryException catch (e) {
-      if (!mounted) return;
-      await showAppAlert(context: context, title: 'Error', message: e.message);
-    }
+    setState(() {
+      final index = _draftVisitas.indexOf(row.visita);
+      if (index != -1) {
+        _draftVisitas[index] = row.visita.copyWith(fecha: nuevaFecha);
+      }
+    });
   }
 
   Future<void> _handleEliminar(_AgendaRow row) async {
+    if (!row.esBorrador) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cancelar visita', style: AppTextStyles.title),
+        title: const Text('Quitar del borrador', style: AppTextStyles.title),
         content: Text(
-          '¿Confirmás cancelar la visita de "${_clienteNombre(row.visita)}"?',
+          '¿Querés quitar la visita de "${_clienteNombre(row.visita)}" del borrador?',
           style: AppTextStyles.input,
         ),
         actions: [
@@ -505,7 +457,7 @@ class _PlanificacionVisitasScreenState
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              'Cancelar visita',
+              'Quitar',
               style: AppTextStyles.button.copyWith(color: AppColors.error),
             ),
           ),
@@ -514,22 +466,7 @@ class _PlanificacionVisitasScreenState
     );
 
     if (confirm != true) return;
-
-    if (row.esBorrador) {
-      setState(() => _draftVisitas.remove(row.visita));
-      return;
-    }
-
-    final idVisita = row.visita.idVisita;
-    if (idVisita == null) return;
-
-    try {
-      await _repo.cancelar(idVisita);
-      await _loadVisitas();
-    } on VisitaRepositoryException catch (e) {
-      if (!mounted) return;
-      await showAppAlert(context: context, title: 'Error', message: e.message);
-    }
+    setState(() => _draftVisitas.remove(row.visita));
   }
 
   Widget _buildPublicarSection() {
@@ -598,6 +535,7 @@ class _PlanificacionVisitasScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ReportarCarga(cargando: _loading || _loadingCatalogos),
           Text('Planificación Diaria de Visitas', style: AppTextStyles.desktopTitle),
           const SizedBox(height: 4),
           Text(
@@ -615,6 +553,12 @@ class _PlanificacionVisitasScreenState
             },
             porCreacion: _fechaPorCreacion,
             onModoChanged: (v) => setState(() => _fechaPorCreacion = v),
+            onLimpiar: () {
+              _choferFilterCtrl.clear();
+              _clienteFilterCtrl.clear();
+            },
+            onActualizar: _loadVisitas,
+            cargando: _loading,
           ),
           const SizedBox(height: 20),
           LayoutBuilder(
@@ -633,8 +577,6 @@ class _PlanificacionVisitasScreenState
                 onRetry: _loadVisitas,
                 clienteNombreOf: _clienteNombre,
                 rutaNombreOf: _rutaNombre,
-                esCancelable: _esCancelable,
-                esEditable: _esEditable,
                 formatFecha: _formatDisplayDate,
                 initialsOf: _initials,
                 onEditar: _handleEditar,
@@ -732,6 +674,9 @@ class _FiltrosCard extends StatelessWidget {
   final ValueChanged<DateTime?> onFechaChanged;
   final bool porCreacion;
   final ValueChanged<bool> onModoChanged;
+  final VoidCallback onLimpiar;
+  final VoidCallback onActualizar;
+  final bool cargando;
 
   const _FiltrosCard({
     required this.choferCtrl,
@@ -740,124 +685,72 @@ class _FiltrosCard extends StatelessWidget {
     required this.onFechaChanged,
     required this.porCreacion,
     required this.onModoChanged,
+    required this.onLimpiar,
+    required this.onActualizar,
+    required this.cargando,
   });
 
   @override
   Widget build(BuildContext context) {
-    return _CardContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Filtros de Búsqueda', style: AppTextStyles.title.copyWith(fontSize: 17)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                'Filtrar fecha por:',
-                style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
-              ),
-              const SizedBox(width: 10),
-              _ModoFechaChip(
-                texto: 'Planificada',
-                activo: !porCreacion,
-                onTap: () => onModoChanged(false),
-              ),
-              const SizedBox(width: 8),
-              _ModoFechaChip(
-                texto: 'Creación',
-                activo: porCreacion,
-                onTap: () => onModoChanged(true),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 760;
-              final fields = [
-                LabeledTextField(
-                  label: 'Buscador por Chofer',
-                  hint: 'Nombre del chofer',
-                  icon: Icons.search,
-                  controller: choferCtrl,
-                ),
-                _DatePickerField(
-                  label: porCreacion ? 'Fecha de creación' : 'Fecha planificada',
-                  value: fecha,
-                  hint: 'Todas las fechas',
-                  onChanged: onFechaChanged,
-                  clearable: true,
-                  permitirPasado: true,
-                ),
-                LabeledTextField(
-                  label: 'Buscador de Cliente',
-                  hint: 'Nombre del cliente o sucursal',
-                  icon: Icons.search,
-                  controller: clienteCtrl,
-                ),
-              ];
-
-              if (wide) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: fields[0]),
-                    const SizedBox(width: 16),
-                    Expanded(child: fields[1]),
-                    const SizedBox(width: 16),
-                    Expanded(child: fields[2]),
-                  ],
-                );
-              }
-
-              return Column(
-                children: [
-                  fields[0],
-                  const SizedBox(height: 14),
-                  fields[1],
-                  const SizedBox(height: 14),
-                  fields[2],
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModoFechaChip extends StatelessWidget {
-  final String texto;
-  final bool activo;
-  final VoidCallback onTap;
-
-  const _ModoFechaChip({required this.texto, required this.activo, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: activo ? AppColors.orange.withOpacity(0.10) : AppColors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: activo ? AppColors.orange : AppColors.inputBorder,
-            width: activo ? 1.4 : 1,
-          ),
+    final now = DateTime.now();
+    final hayBusqueda =
+        choferCtrl.text.trim().isNotEmpty || clienteCtrl.text.trim().isNotEmpty;
+    return FiltrosPanel(
+      filas: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SelectorFechaUnica(
+              fecha: fecha,
+              onCambio: onFechaChanged,
+              etiqueta: porCreacion ? 'Fecha de creación' : 'Fecha planificada',
+              incluirManiana: true,
+              ultima: now.add(const Duration(days: 365)),
+              onSinFecha: () => onFechaChanged(null),
+              etiquetaSinFecha: 'Todas las fechas',
+            ),
+          ],
         ),
-        child: Text(
-          texto,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: activo ? AppColors.orange : AppColors.graphiteGray,
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const EtiquetaFiltro('Filtrar fecha por'),
+            ChipFiltro(
+              etiqueta: 'Planificada',
+              activo: !porCreacion,
+              onTap: () => onModoChanged(false),
+            ),
+            ChipFiltro(
+              etiqueta: 'Creación',
+              activo: porCreacion,
+              onTap: () => onModoChanged(true),
+            ),
+          ],
         ),
-      ),
+        FilaFiltros(
+          children: [
+            CampoBusquedaFiltro(
+              controller: choferCtrl,
+              etiqueta: 'Chofer',
+              hint: 'Nombre del chofer',
+              icono: Icons.person_search_outlined,
+            ),
+            CampoBusquedaFiltro(
+              controller: clienteCtrl,
+              etiqueta: 'Cliente',
+              hint: 'Nombre del cliente o sucursal',
+              icono: Icons.storefront_outlined,
+              ancho: 300,
+            ),
+            if (hayBusqueda) BotonLimpiarFiltros(onPressed: onLimpiar),
+            BotonActualizar(onPressed: onActualizar, cargando: cargando),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -872,8 +765,6 @@ class _ListadoCard extends StatelessWidget {
   final VoidCallback onRetry;
   final String Function(VisitaModel) clienteNombreOf;
   final String Function(VisitaModel) rutaNombreOf;
-  final bool Function(VisitaEstado) esCancelable;
-  final bool Function(VisitaEstado) esEditable;
   final String Function(DateTime) formatFecha;
   final String Function(String) initialsOf;
   final void Function(_AgendaRow) onEditar;
@@ -889,8 +780,6 @@ class _ListadoCard extends StatelessWidget {
     required this.onRetry,
     required this.clienteNombreOf,
     required this.rutaNombreOf,
-    required this.esCancelable,
-    required this.esEditable,
     required this.formatFecha,
     required this.initialsOf,
     required this.onEditar,
@@ -912,10 +801,7 @@ class _ListadoCard extends StatelessWidget {
               style: AppTextStyles.title.copyWith(fontSize: 17)),
           const SizedBox(height: 16),
           if (loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-            )
+            const SizedBox(height: 120)
           else if (error != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 30),
@@ -1071,15 +957,13 @@ Widget _buildTable(BuildContext context) {
                         DataCell(Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (row.esBorrador ||
-                                esEditable(row.visita.estadoVisita))
+                            if (row.esBorrador)
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined, size: 19),
                                 color: AppColors.steelBlue,
                                 onPressed: () => onEditar(row),
                               ),
-                            if (row.esBorrador ||
-                                esCancelable(row.visita.estadoVisita))
+                            if (row.esBorrador)
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, size: 19),
                                 color: AppColors.error,
@@ -1164,24 +1048,20 @@ Widget _buildTable(BuildContext context) {
                   _CardInfoLine(label: 'Cliente', value: clienteNombreOf(row.visita)),
                   const SizedBox(height: 6),
                   _CardInfoLine(label: 'Ruta', value: rutaNombreOf(row.visita)),
-                  if (row.esBorrador ||
-                      esEditable(row.visita.estadoVisita) ||
-                      esCancelable(row.visita.estadoVisita)) ...[
+                  if (row.esBorrador) ...[
                     const SizedBox(height: 8),
                     const Divider(height: 1),
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        if (row.esBorrador ||
-                            esEditable(row.visita.estadoVisita))
+                        if (row.esBorrador)
                           IconButton(
                             icon: const Icon(Icons.edit_outlined, size: 19),
                             color: AppColors.steelBlue,
                             onPressed: () => onEditar(row),
                           ),
-                        if (row.esBorrador ||
-                            esCancelable(row.visita.estadoVisita))
+                        if (row.esBorrador)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 19),
                             color: AppColors.error,
@@ -1324,12 +1204,7 @@ class _FormularioCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
           if (camposHabilitados && loadingCatalogos) ...[
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
-              ),
-            ),
+            const SizedBox(height: 84),
           ] else if (camposHabilitados && catalogoError != null) ...[
             Text(catalogoError!, style: AppTextStyles.errorText),
             const SizedBox(height: 10),

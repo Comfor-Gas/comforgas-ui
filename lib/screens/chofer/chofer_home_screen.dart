@@ -5,9 +5,12 @@ import '../../providers/auth_provider.dart';
 import '../../services/app_lock_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/chofer/chofer_nav_bar.dart';
 import 'agenda_chofer_screen.dart';
+import 'inicio/inicio_chofer_screen.dart';
 import 'rendicion/rendicion_ruta_screen.dart';
 import 'stock/stock_chofer_screen.dart';
+import '../../core/feedback/app_feedback.dart';
 
 class ChoferHomeScreen extends StatefulWidget {
   const ChoferHomeScreen({super.key});
@@ -17,50 +20,36 @@ class ChoferHomeScreen extends StatefulWidget {
 }
 
 class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
-  int _index = 0;
+  static const int _tabInicio = 0;
+  static const int _tabAgenda = 1;
 
-  // Un widget por pestaña, creado UNA sola vez. Usamos IndexedStack en vez
-  // de reconstruir el widget según el índice: así, al volver a "Agenda"
-  // después de pasar por otra pestaña, no se destruye su estado ni se
-  // vuelve a pedir la ruta al servidor — sigue mostrando lo que ya tenía
-  // cargado, aunque en el medio se haya quedado sin señal.
-  final List<Widget> _tabs = const [
-    AgendaChoferScreen(),
-    StockChoferScreen(),
-    RendicionRutaScreen(),
-    _ChoferPerfilTab(),
-  ];
+  int _index = _tabInicio;
+
+  void _irA(int i) {
+    if (i == _index) return;
+    setState(() => _index = i);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: IndexedStack(index: _index, children: _tabs),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.orange,
-        unselectedItemColor: AppColors.graphiteGray,
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event_note_outlined),
-            label: 'Agenda',
+      body: IndexedStack(
+        index: _index,
+        children: [
+          InicioChoferScreen(
+            visible: _index == _tabInicio,
+            onIrAgenda: () => _irA(_tabAgenda),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.propane_tank_outlined),
-            label: 'Stock',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_turned_in_outlined),
-            label: 'Rendición',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Perfil',
-          ),
+          const AgendaChoferScreen(),
+          const StockChoferScreen(),
+          const RendicionRutaScreen(),
+          const _ChoferPerfilTab(),
         ],
+      ),
+      bottomNavigationBar: ChoferNavBar(
+        indice: _index,
+        onCambio: _irA,
       ),
     );
   }
@@ -107,11 +96,7 @@ class _ChoferPerfilTabState extends State<_ChoferPerfilTab> {
         await auth.enableBiometrics();
         if (mounted) setState(() => _biometricEnabled = true);
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo confirmar la huella/PIN. Intentá de nuevo.'),
-          ),
-        );
+        AppFeedback.error('No se pudo confirmar la huella/PIN. Intentá de nuevo.');
       }
     } else {
       await auth.disableBiometrics();

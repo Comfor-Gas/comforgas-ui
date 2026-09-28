@@ -654,6 +654,8 @@ class VisitaRepository {
     String? observaciones,
     double? latitudFin,
     double? longitudFin,
+    String? codigoMotivo,
+    String? descripcionMotivo,
   }) async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}${ApiConfig.repartidorVisitasPath}/$idVisita${ApiConfig.visitaResultadoSuffix}',
@@ -672,6 +674,8 @@ class VisitaRepository {
               'timestampFin': DateTime.now().toUtc().toIso8601String(),
               if (latitudFin != null) 'latitudFin': latitudFin,
               if (longitudFin != null) 'longitudFin': longitudFin,
+              if (codigoMotivo != null) 'codigoMotivoNoAsistencia': codigoMotivo,
+              if (descripcionMotivo != null) 'descripcionMotivoNoAsistencia': descripcionMotivo,
             }),
           )
           .timeout(const Duration(seconds: 20));

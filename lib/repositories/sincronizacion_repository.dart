@@ -140,6 +140,10 @@ class SincronizacionRepository {
       if (e.tipoEvento == OfflineEventoTipo.checkIn && e.checkInForzado)
         'checkInForzado': true,
       if (e.observaciones != null) 'observaciones': e.observaciones,
+      if (e.estadoFinal != null) 'estadoFinal': e.estadoFinal,
+      if (e.codigoMotivo != null) 'codigoMotivo': e.codigoMotivo,
+      if (e.tipoEvento == OfflineEventoTipo.resultado && e.observaciones != null)
+        'descripcion': e.observaciones,
       if (e.timestampFin != null) 'timestampFin': e.timestampFin!.toUtc().toIso8601String(),
       if (e.latitudFin != null) 'latitudFin': e.latitudFin,
       if (e.longitudFin != null) 'longitudFin': e.longitudFin,

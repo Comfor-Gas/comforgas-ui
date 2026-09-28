@@ -3,10 +3,12 @@ import '../../core/responsive.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/admin/admin_topbar.dart';
+import '../../widgets/common/carga/zona_carga.dart';
 import 'arqueo_caja_screen.dart';
 import 'auditoria_comodato_screen.dart';
 import 'consola_ventas_screen.dart';
 import 'cuentas_corrientes_screen.dart';
+import 'dashboard_reportes_screen.dart';
 import 'gestion_flota_screen.dart';
 import 'placeholder_admin_section.dart';
 import 'planificacion_visitas_screen.dart';
@@ -28,10 +30,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget get _body {
     switch (_selectedIndex) {
       case 0:
-        return const PlaceholderAdminSection(
-          title: 'Dashboard',
-          icon: Icons.dashboard_outlined,
-        );
+        return const DashboardReportesScreen();
       case 1:
         return const PlanificacionVisitasScreen();
       case 2:
@@ -82,7 +81,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const AdminTopbar(),
-                      Expanded(child: _body),
+                      Expanded(child: ZonaCarga(child: _body)),
                     ],
                   ),
                 ),
@@ -118,7 +117,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ),
           body: SafeArea(
             top: false,
-            child: _body,
+            child: ZonaCarga(child: _body),
           ),
         );
       },

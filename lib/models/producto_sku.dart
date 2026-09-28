@@ -22,6 +22,20 @@ class ProductoSku {
 
   bool get controlaStock => stockDisponible != null;
 
+  bool get sinStock => stockDisponible != null && stockDisponible! <= 0;
+
+  ProductoSku conStock(int? stock) {
+    return ProductoSku(
+      idProducto: idProducto,
+      sku: sku,
+      descripcion: descripcion,
+      kg: kg,
+      precioUnitario: precioUnitario,
+      tipoProducto: tipoProducto,
+      stockDisponible: stock == null ? null : (stock < 0 ? 0 : stock),
+    );
+  }
+
   Map<String, dynamic> toSnapshot() {
     return {
       'sku': sku,

@@ -17,13 +17,16 @@ class StockRodanteCacheService {
 
   Box<String>? get _safeBox => _box;
 
+  bool _mismoDia(DateTime? a, DateTime b) =>
+      a != null && a.year == b.year && a.month == b.month && a.day == b.day;
+
   Future<void> guardar(String idUsuario, StockRodanteChofer stock) async {
     final box = _safeBox;
     if (box == null) return;
     await box.put(idUsuario, jsonEncode(stock.toStorageJson()));
   }
 
-  StockRodanteChofer? obtener(String idUsuario) {
+  StockRodanteChofer? obtener(String idUsuario, {DateTime? fecha}) {
     final box = _safeBox;
     if (box == null) return null;
     final raw = box.get(idUsuario);
@@ -31,7 +34,9 @@ class StockRodanteCacheService {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) return null;
-      return StockRodanteChofer.fromJson(decoded);
+      final stock = StockRodanteChofer.fromJson(decoded);
+      if (!_mismoDia(stock.fechaRuta, fecha ?? DateTime.now())) return null;
+      return stock;
     } catch (_) {
       return null;
     }
@@ -39,10 +44,11 @@ class StockRodanteCacheService {
 
   Future<void> aplicarSalidas(
     String idUsuario,
-    Map<String, int> llenosPorProducto,
-  ) async {
+    Map<String, int> llenosPorProducto, {
+    DateTime? fecha,
+  }) async {
     if (llenosPorProducto.isEmpty) return;
-    final actual = obtener(idUsuario);
+    final actual = obtener(idUsuario, fecha: fecha);
     if (actual == null) return;
     await guardar(idUsuario, actual.aplicarSalidas(llenosPorProducto));
   }

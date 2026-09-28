@@ -9,7 +9,8 @@ import '../../repositories/visita_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/estado_visita_badge.dart';
-import '../../widgets/labeled_text_field.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
 
 class _HojaRuta {
   final String choferNombre;
@@ -208,13 +209,13 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
     return hojas;
   }
 
-  static const List<(String, String)> _estados = [
-    ('PENDIENTE', 'Pendiente'),
-    ('EN_CURSO', 'En curso'),
-    ('VISITADO', 'Visitado'),
-    ('COMPLETADA', 'Completada'),
-    ('CANCELADA', 'Cancelada'),
-    ('NO_ASISTIO', 'No asistió'),
+  static const List<OpcionFiltro> _estados = [
+    OpcionFiltro('PENDIENTE', 'Pendiente'),
+    OpcionFiltro('EN_CURSO', 'En curso'),
+    OpcionFiltro('VISITADO', 'Visitado'),
+    OpcionFiltro('COMPLETADA', 'Completada'),
+    OpcionFiltro('CANCELADA', 'Cancelada'),
+    OpcionFiltro('NO_ASISTIO', 'No asistió'),
   ];
 
   @override
@@ -222,7 +223,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange));
+      return ReportarCarga(cargando: _loading);
     }
 
     if (_error != null) {
@@ -253,6 +254,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ReportarCarga(cargando: _loading),
           Text('Visitas por Hoja de Ruta', style: AppTextStyles.desktopTitle),
           const SizedBox(height: 4),
           Text(
@@ -265,7 +267,12 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
             estadoFilter: _estadoFilter,
             estados: _estados,
             onEstadoChanged: (v) => setState(() => _estadoFilter = v),
+            onLimpiar: () {
+              _filtroCtrl.clear();
+              setState(() => _estadoFilter = null);
+            },
             onRefrescar: _cargar,
+            cargando: _loading,
           ),
           const SizedBox(height: 20),
           if (hojas.isEmpty)
@@ -299,117 +306,49 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
 class _FiltroBar extends StatelessWidget {
   final TextEditingController controller;
   final String? estadoFilter;
-  final List<(String, String)> estados;
+  final List<OpcionFiltro> estados;
   final ValueChanged<String?> onEstadoChanged;
+  final VoidCallback onLimpiar;
   final VoidCallback onRefrescar;
+  final bool cargando;
 
   const _FiltroBar({
     required this.controller,
     required this.estadoFilter,
     required this.estados,
     required this.onEstadoChanged,
+    required this.onLimpiar,
     required this.onRefrescar,
+    required this.cargando,
   });
-
-  Widget _buscador() {
-    return LabeledTextField(
-      label: 'Buscar hoja de ruta',
-      hint: 'Chofer, vendedor, zona o cliente',
-      icon: Icons.search,
-      controller: controller,
-    );
-  }
-
-  Widget _estadoDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Estado', style: AppTextStyles.label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.inputBorder, width: 1.2),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              isExpanded: true,
-              value: estadoFilter,
-              hint: Text('Todos', style: AppTextStyles.hint),
-              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.inputHint),
-              style: AppTextStyles.input,
-              items: [
-                const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
-                for (final (value, label) in estados)
-                  DropdownMenuItem<String?>(value: value, child: Text(label)),
-              ],
-              onChanged: onEstadoChanged,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _botonActualizar({bool expandido = false}) {
-    final boton = OutlinedButton.icon(
-      onPressed: onRefrescar,
-      icon: const Icon(Icons.refresh, size: 18),
-      label: const Text('Actualizar'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.steelBlue,
-        side: const BorderSide(color: AppColors.steelBlue),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-    return expandido ? SizedBox(width: double.infinity, child: boton) : boton;
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 640;
-
-          if (narrow) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buscador(),
-                const SizedBox(height: 12),
-                _estadoDropdown(),
-                const SizedBox(height: 12),
-                _botonActualizar(expandido: true),
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(child: _buscador()),
-              const SizedBox(width: 12),
-              SizedBox(width: 180, child: _estadoDropdown()),
-              const SizedBox(width: 12),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: _botonActualizar(),
-              ),
-            ],
-          );
-        },
-      ),
+    final hayFiltros = controller.text.trim().isNotEmpty || estadoFilter != null;
+    return FiltrosPanel(
+      filas: [
+        FilaFiltros(
+          children: [
+            CampoBusquedaFiltro(
+              controller: controller,
+              etiqueta: 'Buscar hoja de ruta',
+              hint: 'Chofer, vendedor, zona o cliente',
+              icono: Icons.search,
+              ancho: 320,
+            ),
+            FiltroBuscable(
+              etiqueta: 'Estado',
+              icono: Icons.flag_outlined,
+              opciones: estados,
+              seleccion: estadoFilter,
+              onCambio: onEstadoChanged,
+              ancho: 200,
+            ),
+            if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
+            BotonActualizar(onPressed: onRefrescar, cargando: cargando),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -10,6 +10,7 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../widgets/chofer/stock/desglose_tipo_card.dart';
 import '../../../widgets/chofer/stock/stock_disponible_card.dart';
+import '../../../widgets/common/carga/zona_carga.dart';
 
 class StockChoferScreen extends StatefulWidget {
   const StockChoferScreen({super.key});
@@ -91,10 +92,15 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
         children: [
           const _Encabezado(),
           Expanded(
-            child: RefreshIndicator(
-              color: AppColors.orange,
-              onRefresh: _cargar,
-              child: _cuerpo(),
+            child: ZonaCarga(
+              child: ReportarCarga(
+                cargando: _loading,
+                child: RefreshIndicator(
+                  color: AppColors.orange,
+                  onRefresh: _cargar,
+                  child: _cuerpo(),
+                ),
+              ),
             ),
           ),
         ],
@@ -104,7 +110,7 @@ class _StockChoferScreenState extends State<StockChoferScreen> {
 
   Widget _cuerpo() {
     if (_loading && _stock == null) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.orange));
+      return const SizedBox.shrink();
     }
 
     final stock = _stock;

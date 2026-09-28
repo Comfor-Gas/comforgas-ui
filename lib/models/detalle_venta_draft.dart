@@ -28,13 +28,13 @@ class DetalleVentaDraft {
   bool get concordanciaValida =>
       tipoOperacion.concordanciaValida(cantidadEntregada, cantidadRecibida);
 
-  bool get tieneMovimiento => cantidadEntregada > 0 || cantidadRecibida > 0;
+  bool get tieneMovimiento => cantidadEntregada > 0;
 
   bool get esValido => concordanciaValida && tieneMovimiento;
 
   String? get mensajeError {
     if (!tieneMovimiento) {
-      return 'Ingresá al menos una unidad para registrar el movimiento.';
+      return 'Ingresá al menos una garrafa llena entregada.';
     }
     return tipoOperacion.mensajeInconsistencia(
       cantidadEntregada,

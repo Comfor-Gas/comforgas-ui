@@ -2,11 +2,13 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../local/comodato_offline_service.dart';
 import '../local/comodato_pendiente.dart';
+import '../local/offline_queue_service.dart';
 import '../models/control_comodato.dart';
 import '../repositories/comodato_repository.dart';
 import '../repositories/network_exception.dart';
 import '../repositories/visita_repository.dart';
 import 'connectivity_service.dart';
+import 'sync_manager.dart';
 
 class ComodatoSyncManager {
   ComodatoSyncManager._();
@@ -62,10 +64,12 @@ class ComodatoSyncManager {
 
     _sincronizando = true;
     _estadoController.add(true);
+    var sincronizoAlguno = false;
     try {
       for (final pendiente in pendientes) {
         final continuar = await _procesar(repo, visitaRepo, pendiente);
         if (!continuar) break;
+        if (_queue.cantidadPendiente < pendientes.length) sincronizoAlguno = true;
       }
     } finally {
       _sincronizando = false;
@@ -73,6 +77,9 @@ class ComodatoSyncManager {
       if (_pendienteReintento) {
         _pendienteReintento = false;
         unawaited(sincronizar());
+      }
+      if (sincronizoAlguno && OfflineQueueService.instance.cantidadPendiente > 0) {
+        unawaited(SyncManager.instance.sincronizar());
       }
     }
   }

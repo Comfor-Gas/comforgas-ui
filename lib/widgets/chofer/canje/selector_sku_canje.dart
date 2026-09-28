@@ -91,7 +91,9 @@ class _TileProducto extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Disponible en camión: ${producto.stockDisponible ?? 0}',
+                    producto.stockDisponible != null
+                        ? 'Disponible en camión: ${producto.stockDisponible}'
+                        : 'Stock a validar al sincronizar',
                     style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
                   ),
                 ],

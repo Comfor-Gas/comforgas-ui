@@ -102,7 +102,7 @@ class ComodatoRepository {
     );
   }
 
-  Future<ControlComodato> registrarControl(ControlComodatoDraft draft) async {
+  Future<ControlComodato> registrarControl(ControlComodatoDraft draft, {int? idEvidencia}) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.comodatoControlPath}');
 
     http.Response response;
@@ -111,7 +111,10 @@ class ComodatoRepository {
           .post(
             uri,
             headers: _jsonHeaders,
-            body: jsonEncode(draft.toRequestJson()),
+            body: jsonEncode({
+              ...draft.toRequestJson(),
+              if (idEvidencia != null) 'id_evidencia': idEvidencia,
+            }),
           )
           .timeout(const Duration(seconds: 20));
     } catch (_) {

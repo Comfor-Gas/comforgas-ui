@@ -72,15 +72,13 @@ class DetalleVentaMonitoreo {
   String get tipoLabel {
     switch (tipoVenta.toUpperCase()) {
       case 'VACIO_X_LLENO':
-        return 'Vacío x Lleno';
+        return 'VACÍO X LLENO';
       case 'PRESTAMO':
-        return 'Préstamo';
-      case 'ENVASE':
-        return 'Envase';
+        return 'PRÉSTAMO';
       case 'SOCIAL':
-        return 'Social';
+        return 'VENTA SOCIAL';
       default:
-        return tipoVenta;
+        return tipoVenta.toUpperCase().replaceAll('_', ' ');
     }
   }
 

@@ -8,6 +8,8 @@ import '../../../repositories/rendicion_admin_repository.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../utils/formato.dart';
+import '../../common/carga/zona_carga.dart';
+import '../../../core/feedback/app_feedback.dart';
 
 Future<void> mostrarCuadreRendicion(
   BuildContext context, {
@@ -219,13 +221,11 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
   }
 
   void _snack(String mensaje, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
-      ),
-    );
+    if (error) {
+      AppFeedback.error(mensaje);
+    } else {
+      AppFeedback.exito(mensaje);
+    }
   }
 
   @override
@@ -242,12 +242,10 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
           children: [
             _Encabezado(nombreChofer: widget.nombreChofer, bloqueada: _bloqueada, onCerrar: () => Navigator.of(context).pop()),
             const Divider(height: 1, color: AppColors.inputBorder),
+            BarraCarga(visible: _loading),
             Flexible(
               child: _loading
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 60),
-                      child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-                    )
+                  ? const SizedBox(height: 160)
                   : SingleChildScrollView(
                       padding: const EdgeInsets.all(20),
                       child: _contenido(),

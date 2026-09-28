@@ -18,6 +18,7 @@ class SkuCatalogoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sinStock = producto.sinStock;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -75,16 +76,18 @@ class SkuCatalogoCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(
-                            Icons.inventory_2_outlined,
+                          Icon(
+                            sinStock ? Icons.block : Icons.inventory_2_outlined,
                             size: 13,
-                            color: AppColors.steelBlue,
+                            color: sinStock ? AppColors.graphiteGray : AppColors.steelBlue,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Disponibles hoy: ${producto.stockDisponible}',
+                            sinStock
+                                ? 'Sin stock en el camión'
+                                : 'Disponibles en el camión: ${producto.stockDisponible}',
                             style: AppTextStyles.footer.copyWith(
-                              color: AppColors.steelBlue,
+                              color: sinStock ? AppColors.graphiteGray : AppColors.steelBlue,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -121,15 +124,15 @@ class SkuCatalogoCard extends StatelessWidget {
               ),
               child: Container(
                 width: 52,
-                decoration: const BoxDecoration(
-                  color: AppColors.orange,
-                  borderRadius: BorderRadius.horizontal(
+                decoration: BoxDecoration(
+                  color: sinStock ? AppColors.inputBorder : AppColors.orange,
+                  borderRadius: const BorderRadius.horizontal(
                     right: Radius.circular(16),
                   ),
                 ),
-                child: const Icon(
-                  Icons.add,
-                  color: Colors.white,
+                child: Icon(
+                  sinStock ? Icons.remove_shopping_cart_outlined : Icons.add,
+                  color: sinStock ? AppColors.graphiteGray : Colors.white,
                   size: 24,
                 ),
               ),

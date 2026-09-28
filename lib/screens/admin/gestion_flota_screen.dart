@@ -9,11 +9,14 @@ import '../../models/deposito_camion.dart';
 import '../../models/movimiento_stock.dart';
 import '../../models/nota_control_stock.dart';
 import '../../models/producto_catalogo.dart';
+import '../../models/stock_rodante_chofer.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/flota_repository.dart';
 import '../../repositories/network_exception.dart';
+import '../../repositories/producto_repository.dart';
 import '../../repositories/stock_rodante_admin_repository.dart';
 import '../../repositories/visita_repository.dart';
+import '../../services/nota_rodante_mapper.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/flota/entrada_movil_modal.dart';
@@ -23,6 +26,9 @@ import '../../widgets/admin/flota/historial_recargas_panel.dart';
 import '../../widgets/admin/flota/nota_control_stock_modal.dart';
 import '../../widgets/admin/flota/recarga_faltante_modal.dart';
 import '../../widgets/admin/flota/reporte_cuadre_modal.dart';
+import '../../widgets/common/carga/zona_carga.dart';
+import '../../widgets/common/filtros/filtros.dart';
+import '../../core/feedback/app_feedback.dart';
 
 class GestionFlotaScreen extends StatefulWidget {
   const GestionFlotaScreen({super.key});
@@ -32,8 +38,11 @@ class GestionFlotaScreen extends StatefulWidget {
 }
 
 class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
+  static const _mapper = NotaRodanteMapper();
+
   late final FlotaRepository _flotaRepo;
   late final StockRodanteAdminRepository _rodanteRepo;
+  late final ProductoRepository _productoRepo;
   late final VisitaRepository _visitaRepo;
 
   final _patenteCtrl = TextEditingController();
@@ -46,8 +55,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   List<DepositoCamion> _camiones = [];
   List<ProductoCatalogo> _productos = [];
   int _vaciasRetornadasHoy = 0;
-  Map<String, int> _asignadoPorChofer = {};
-  Map<String, NotaRodanteResumen> _notaPorChofer = {};
+  Map<String, StockRodanteChofer> _notaPorChofer = {};
   DateTime _fecha = DateTime.now();
 
   @override
@@ -56,6 +64,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     final apiClient = context.read<AuthProvider>().apiClient;
     _flotaRepo = FlotaRepository(apiClient);
     _rodanteRepo = StockRodanteAdminRepository(apiClient);
+    _productoRepo = ProductoRepository(apiClient);
     _visitaRepo = VisitaRepository(apiClient);
     _patenteCtrl.addListener(() => setState(() {}));
     _choferCtrl.addListener(() => setState(() {}));
@@ -75,44 +84,63 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       _aviso = null;
     });
 
+    await _cargarCatalogos();
+    List<StockRodanteChofer> notas;
     try {
-      final resumen = await _flotaRepo.getResumenFlota(fecha: _fecha);
-      await _cargarCatalogos();
-      Map<String, int> asignado = {};
-      Map<String, NotaRodanteResumen> notas = {};
-      try {
-        asignado = await _rodanteRepo.asignadoLlenosPorChofer(_fecha);
-        for (final n in await _rodanteRepo.notasDelDia(_fecha)) {
-          final id = n.idUsuario;
-          if (id != null && id.isNotEmpty) notas[id] = n;
-        }
-      } catch (_) {
-        asignado = {};
-        notas = {};
-      }
-      if (!mounted) return;
-      setState(() {
-        _camiones = resumen.camiones;
-        _vaciasRetornadasHoy = resumen.vaciasRetornadasHoy;
-        _asignadoPorChofer = asignado;
-        _notaPorChofer = notas;
-        _modoEjemplo = false;
-        _loading = false;
-      });
-      unawaited(_enriquecerConAgenda(_fecha));
+      notas = await _rodanteRepo.notasDelDia(_fecha);
     } on NetworkException {
       _usarEjemplo('No se pudo conectar con el servidor: mostrando datos de ejemplo.');
-    } on FlotaRepositoryException catch (e) {
-      if (e.endpointNoDisponible) {
-        _usarEjemplo(
-          'El módulo de flota todavía no está disponible en el backend: mostrando datos de ejemplo.',
-        );
-      } else {
-        _usarEjemplo(e.message);
-      }
+      return;
     } catch (_) {
-      _usarEjemplo('Ocurrió un problema al cargar la flota: mostrando datos de ejemplo.');
+      notas = const [];
     }
+
+    List<DepositoCamion> camiones;
+    String? aviso;
+    try {
+      camiones = await _flotaRepo.getResumenFlota(fecha: _fecha);
+    } on NetworkException {
+      _usarEjemplo('No se pudo conectar con el servidor: mostrando datos de ejemplo.');
+      return;
+    } on FlotaRepositoryException catch (e) {
+      camiones = _camionesDesdeNotas(notas);
+      aviso = e.endpointNoDisponible
+          ? 'El listado de camiones no está disponible en el backend: se muestran los camiones con nota de stock del día.'
+          : e.message;
+    } catch (_) {
+      camiones = _camionesDesdeNotas(notas);
+      aviso = 'No se pudo cargar el listado de camiones: se muestran los camiones con nota de stock del día.';
+    }
+
+    final porChofer = _indexarPorChofer(notas);
+    if (!mounted) return;
+    setState(() {
+      _camiones = camiones;
+      _vaciasRetornadasHoy = porChofer.values
+          .where((n) => n.cerrada)
+          .fold(0, (a, n) => a + n.totalVaciosEntrada);
+      _notaPorChofer = porChofer;
+      _modoEjemplo = false;
+      _aviso = aviso;
+      _loading = false;
+    });
+    unawaited(_enriquecerConAgenda(_fecha));
+  }
+
+  List<DepositoCamion> _camionesDesdeNotas(List<StockRodanteChofer> notas) {
+    final camiones = <DepositoCamion>[];
+    for (final n in notas) {
+      final idChofer = n.idUsuario;
+      camiones.add(DepositoCamion(
+        id: n.idNota ?? camiones.length,
+        nombre: n.dominioVehiculo ?? 'Camión',
+        patente: n.dominioVehiculo,
+        repartidor: idChofer == null || idChofer.isEmpty
+            ? null
+            : RepartidorInfo(id: idChofer, nombre: n.nombreChofer ?? '', email: ''),
+      ));
+    }
+    return camiones;
   }
 
   Future<void> _enriquecerConAgenda(DateTime fecha) async {
@@ -157,9 +185,44 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     setState(() => _camiones = resultados);
   }
 
+  Map<String, StockRodanteChofer> _indexarPorChofer(List<StockRodanteChofer> notas) {
+    final mapa = <String, StockRodanteChofer>{};
+    for (final n in notas) {
+      final id = n.idUsuario;
+      if (id == null || id.isEmpty) continue;
+      final previa = mapa[id];
+      if (previa == null || (previa.cerrada && !n.cerrada)) mapa[id] = n;
+    }
+    return mapa;
+  }
+
+  Future<StockRodanteChofer?> _notaVigente(DepositoCamion camion, {bool refrescar = false}) async {
+    final idChofer = camion.repartidor?.id;
+    var nota = (idChofer != null && idChofer.isNotEmpty) ? _notaPorChofer[idChofer] : null;
+    if (nota == null) {
+      final notas = await _rodanteRepo.notasDelDia(_fecha);
+      final dominio = camion.patente?.trim().toUpperCase();
+      for (final n in notas) {
+        final mismoChofer = idChofer != null && idChofer.isNotEmpty && n.idUsuario == idChofer;
+        final mismoDominio = dominio != null &&
+            dominio.isNotEmpty &&
+            (n.dominioVehiculo ?? '').toUpperCase() == dominio;
+        if (mismoChofer || mismoDominio) {
+          nota = n;
+          if (!n.cerrada) break;
+        }
+      }
+      return nota;
+    }
+    if (refrescar && nota.idNota != null) {
+      return _rodanteRepo.nota(nota.idNota!);
+    }
+    return nota;
+  }
+
   Future<void> _cargarCatalogos() async {
     try {
-      _productos = (await _flotaRepo.listarProductos()).where((p) => p.activo).toList();
+      _productos = await _productoRepo.listar();
     } catch (_) {
       if (_productos.isEmpty) _productos = productosFlotaDeEjemplo();
     }
@@ -172,10 +235,6 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       _camiones = camionesFlotaDeEjemplo();
       _productos = productosFlotaDeEjemplo();
       _vaciasRetornadasHoy = _camiones.fold(0, (a, c) => a + c.vacios);
-      _asignadoPorChofer = {
-        for (final c in _camiones)
-          if (c.repartidor != null) c.repartidor!.id: c.llenos,
-      };
       _notaPorChofer = {};
       _modoEjemplo = true;
       _aviso = mensaje;
@@ -183,26 +242,7 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     });
   }
 
-  Future<void> _elegirFecha() async {
-    final elegida = await showDatePicker(
-      context: context,
-      initialDate: _fecha,
-      firstDate: DateTime(DateTime.now().year - 1),
-      lastDate: DateTime.now().add(const Duration(days: 7)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.orange,
-              onPrimary: AppColors.white,
-              onSurface: AppColors.steelBlue,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (elegida == null) return;
+  void _cambiarFecha(DateTime elegida) {
     final distinta = elegida.year != _fecha.year ||
         elegida.month != _fecha.month ||
         elegida.day != _fecha.day;
@@ -222,7 +262,9 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       );
       return;
     }
-    ReporteCuadreModal.mostrar(context, cargar: () => _rodanteRepo.getCuadre(nota.idNota));
+    final idNota = nota.idNota;
+    if (idNota == null) return;
+    ReporteCuadreModal.mostrar(context, cargar: () => _rodanteRepo.getCuadre(idNota));
   }
 
   List<DepositoCamion> get _camionesFiltrados {
@@ -240,15 +282,14 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   }
 
   int get _llenosCargadosHoy =>
-      _asignadoPorChofer.values.fold(0, (a, v) => a + v);
+      _notaPorChofer.values.fold(0, (a, n) => a + n.totalLlenosCargados);
 
   void _mostrarSnack(String mensaje, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: error ? AppColors.error : AppColors.badgeGreen,
-      ),
-    );
+    if (error) {
+      AppFeedback.error(mensaje);
+    } else {
+      AppFeedback.exito(mensaje);
+    }
   }
 
   void _abrirNotaControl(DepositoCamion camion) {
@@ -341,14 +382,8 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   Future<ResumenCierreCamion> _cargarResumenCierre(DepositoCamion camion) async {
     if (_modoEjemplo) return const ResumenCierreCamion();
     try {
-      final resultados = await Future.wait([
-        _flotaRepo.ventasDelDia(camion.id),
-        _flotaRepo.stockLlenoPorProducto(camion.id),
-      ]);
-      return ResumenCierreCamion(
-        vendidasHoy: resultados[0],
-        stockLlenoActual: resultados[1],
-      );
+      final nota = await _notaVigente(camion, refrescar: true);
+      return _mapper.resumenCierre(nota, _productos);
     } catch (_) {
       return const ResumenCierreCamion();
     }
@@ -368,29 +403,20 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
     }
 
     try {
-      final idNota = await _rodanteRepo.resolverIdNota(
-        fecha: _fecha,
-        idUsuario: camion.repartidor?.id,
-        dominioVehiculo: camion.patente,
-      );
-      if (idNota == null) {
+      final nota = await _notaVigente(camion);
+      final idNota = nota?.idNota;
+      if (nota == null || idNota == null) {
         _mostrarSnack(
           'No hay una carga asignada hoy para este camión. Asigná primero la carga inicial.',
           error: true,
         );
         return false;
       }
-      final items = [
-        for (final l in draft.lineas)
-          if (l.llenos > 0 || l.vacios > 0 || l.averiados > 0)
-            {
-              'idProducto': l.producto.idProducto,
-              'sku': l.producto.sku,
-              'llenosEntrada': l.llenos,
-              'vaciosEntrada': l.vacios,
-              'averiadosEntrada': l.averiados,
-            },
-      ];
+      if (nota.cerrada) {
+        _mostrarSnack('La nota de este camión ya está cerrada.', error: true);
+        return false;
+      }
+      final items = _mapper.itemsCierre(nota, draft.lineas);
       if (items.isEmpty) {
         _mostrarSnack('No hay unidades para registrar en la entrada.', error: true);
         return false;
@@ -441,27 +467,26 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
       return true;
     }
     try {
-      final idNota = await _rodanteRepo.resolverIdNota(
-        fecha: _fecha,
-        idUsuario: camion.repartidor?.id,
-        dominioVehiculo: camion.patente,
-      );
-      if (idNota == null) {
+      final nota = await _notaVigente(camion);
+      final idNota = nota?.idNota;
+      if (nota == null || idNota == null) {
         _mostrarSnack(
           'No hay una carga asignada hoy para este camión. Asigná primero la carga inicial.',
           error: true,
         );
         return false;
       }
-      final rodanteItems = [
-        for (final i in items)
-          if (((i['cantidad'] as int?) ?? 0) > 0)
-            {
-              'idProducto': (i['idProducto'] ?? i['productoId'] ?? '').toString(),
-              'sku': (i['sku'] ?? i['productoCodigo'] ?? '').toString(),
-              'cantidad': (i['cantidad'] as int?) ?? 0,
-            },
-      ];
+      if (nota.cerrada) {
+        _mostrarSnack('La nota de este camión ya está cerrada: no admite recargas.', error: true);
+        return false;
+      }
+      final cantidades = <String, int>{};
+      for (final i in items) {
+        final id = (i['idProducto'] ?? i['productoId'] ?? '').toString();
+        final cantidad = (i['cantidad'] as int?) ?? 0;
+        if (id.isNotEmpty && cantidad > 0) cantidades[id] = (cantidades[id] ?? 0) + cantidad;
+      }
+      final rodanteItems = _mapper.itemsRecarga(nota, _productos, cantidades);
       if (rodanteItems.isEmpty) {
         _mostrarSnack('Ingresá una cantidad para recargar.', error: true);
         return false;
@@ -493,7 +518,17 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
 
   Future<List<MovimientoStock>> _cargarHistorial(DepositoCamion camion) async {
     if (_modoEjemplo) return historialRecargasDeEjemplo();
-    return _flotaRepo.historialRecargas(camion.id, dia: _fecha);
+    final nota = await _notaVigente(camion, refrescar: true);
+    final idNota = nota?.idNota;
+    if (nota == null || idNota == null) return [];
+    try {
+      final eventos = await _rodanteRepo.movimientos(idNota);
+      final historial = _mapper.historialDesdeEventos(nota, eventos);
+      if (historial.isNotEmpty) return historial;
+    } on StockRodanteAdminException {
+      return _mapper.historialCargas(nota);
+    }
+    return _mapper.historialCargas(nota);
   }
 
   @override
@@ -507,11 +542,17 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Cabecera(onRefrescar: _cargar),
+              ReportarCarga(cargando: _loading),
+              const _Cabecera(),
               const SizedBox(height: 20),
-              _FiltrosFlota(patenteCtrl: _patenteCtrl, choferCtrl: _choferCtrl),
-              const SizedBox(height: 12),
-              _SelectorFecha(fecha: _fecha, onTap: _elegirFecha),
+              _FiltrosFlota(
+                patenteCtrl: _patenteCtrl,
+                choferCtrl: _choferCtrl,
+                fecha: _fecha,
+                cargando: _loading,
+                onCambioFecha: _cambiarFecha,
+                onRefrescar: _cargar,
+              ),
               const SizedBox(height: 16),
               _StatsFlota(
                 camiones: _camiones.length,
@@ -526,21 +567,15 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
               _TarjetaTabla(
                 cantidad: _camionesFiltrados.length,
                 child: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 60),
-                        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-                      )
+                    ? const SizedBox(height: 160)
                     : FlotaTabla(
                         camiones: _camionesFiltrados,
-                        asignadoPorChofer: _asignadoPorChofer,
                         notaPorChofer: _notaPorChofer,
                         onNota: _abrirNotaControl,
                         onRecargaRuta: _abrirRecarga,
                         onEntradaMovil: _abrirEntradaMovil,
                         onVerHistorial: _abrirHistorial,
                         onVerReporte: _abrirReporte,
-                        cargarDetalle: (idUsuario) =>
-                            _rodanteRepo.detalleDiarioPorChofer(idUsuario: idUsuario, fecha: _fecha),
                         mensajeVacio: _camiones.isEmpty
                             ? 'No hay camiones registrados.'
                             : 'No hay camiones que coincidan con los filtros.',
@@ -554,86 +589,19 @@ class _GestionFlotaScreenState extends State<GestionFlotaScreen> {
   }
 }
 
-class _SelectorFecha extends StatelessWidget {
-  final DateTime fecha;
-  final VoidCallback onTap;
-
-  const _SelectorFecha({required this.fecha, required this.onTap});
-
-  bool get _esHoy {
-    final hoy = DateTime.now();
-    return fecha.year == hoy.year && fecha.month == hoy.month && fecha.day == hoy.day;
-  }
-
-  String get _texto {
-    final d = fecha.day.toString().padLeft(2, '0');
-    final m = fecha.month.toString().padLeft(2, '0');
-    return '$d/$m/${fecha.year}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.inputBorder),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.calendar_today_outlined, size: 16, color: AppColors.orange),
-              const SizedBox(width: 8),
-              Text('Día:', style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
-              const SizedBox(width: 6),
-              Text(
-                _esHoy ? 'Hoy · $_texto' : _texto,
-                style: AppTextStyles.label.copyWith(fontSize: 13.5),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.expand_more, size: 18, color: AppColors.inputHint),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Cabecera extends StatelessWidget {
-  final VoidCallback onRefrescar;
-
-  const _Cabecera({required this.onRefrescar});
+  const _Cabecera();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Gestión de Flota', style: AppTextStyles.desktopTitle),
-              const SizedBox(height: 4),
-              Text(
-                'El chofer y su vehículo vienen de la API. Acá asignás y controlás el stock de garrafas de cada camión.',
-                style: AppTextStyles.desktopSubtitle,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        IconButton(
-          onPressed: onRefrescar,
-          tooltip: 'Actualizar',
-          icon: const Icon(Icons.refresh, color: AppColors.steelBlue),
+        Text('Gestión de Flota', style: AppTextStyles.desktopTitle),
+        const SizedBox(height: 4),
+        Text(
+          'El chofer y su vehículo vienen de la API. Acá asignás y controlás el stock de garrafas de cada camión.',
+          style: AppTextStyles.desktopSubtitle,
         ),
       ],
     );
@@ -643,72 +611,62 @@ class _Cabecera extends StatelessWidget {
 class _FiltrosFlota extends StatelessWidget {
   final TextEditingController patenteCtrl;
   final TextEditingController choferCtrl;
+  final DateTime fecha;
+  final bool cargando;
+  final ValueChanged<DateTime> onCambioFecha;
+  final VoidCallback onRefrescar;
 
-  const _FiltrosFlota({required this.patenteCtrl, required this.choferCtrl});
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        SizedBox(
-          width: 260,
-          child: _CampoBusqueda(
-            controller: patenteCtrl,
-            hint: 'Buscar por patente',
-            icono: Icons.local_shipping_outlined,
-          ),
-        ),
-        SizedBox(
-          width: 260,
-          child: _CampoBusqueda(
-            controller: choferCtrl,
-            hint: 'Buscar por chofer',
-            icono: Icons.person_outline,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CampoBusqueda extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icono;
-
-  const _CampoBusqueda({
-    required this.controller,
-    required this.hint,
-    required this.icono,
+  const _FiltrosFlota({
+    required this.patenteCtrl,
+    required this.choferCtrl,
+    required this.fecha,
+    required this.cargando,
+    required this.onCambioFecha,
+    required this.onRefrescar,
   });
 
+  bool get _hayBusqueda =>
+      patenteCtrl.text.trim().isNotEmpty || choferCtrl.text.trim().isNotEmpty;
+
+  void _limpiar() {
+    patenteCtrl.clear();
+    choferCtrl.clear();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: TextField(
-        controller: controller,
-        style: AppTextStyles.input,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: AppTextStyles.hint,
-          prefixIcon: Icon(icono, color: AppColors.inputHint, size: 20),
-          suffixIcon: controller.text.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.inputHint, size: 18),
-                  onPressed: controller.clear,
-                ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+    final hoy = DateTime.now();
+    return FiltrosPanel(
+      filas: [
+        SelectorFechaUnica(
+          fecha: fecha,
+          etiqueta: 'Día',
+          incluirManiana: true,
+          primera: DateTime(hoy.year - 1),
+          ultima: hoy.add(const Duration(days: 7)),
+          onCambio: onCambioFecha,
         ),
-      ),
+        FilaFiltros(
+          children: [
+            CampoBusquedaFiltro(
+              controller: patenteCtrl,
+              etiqueta: 'Patente',
+              hint: 'Buscar por patente',
+              icono: Icons.local_shipping_outlined,
+              ancho: 260,
+            ),
+            CampoBusquedaFiltro(
+              controller: choferCtrl,
+              etiqueta: 'Chofer',
+              hint: 'Buscar por chofer',
+              icono: Icons.person_outline,
+              ancho: 260,
+            ),
+            if (_hayBusqueda) BotonLimpiarFiltros(onPressed: _limpiar),
+            BotonActualizar(onPressed: onRefrescar, cargando: cargando),
+          ],
+        ),
+      ],
     );
   }
 }

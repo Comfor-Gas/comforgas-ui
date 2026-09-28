@@ -2,10 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/deposito_camion.dart';
-import '../models/estado_garrafa.dart';
-import '../models/movimiento_stock.dart';
-import '../models/producto_catalogo.dart';
-import '../models/stock_camion.dart';
+import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
 class FlotaRepositoryException implements Exception {
@@ -20,13 +17,6 @@ class FlotaRepositoryException implements Exception {
   String toString() => message;
 }
 
-class ResumenFlota {
-  final List<DepositoCamion> camiones;
-  final int vaciasRetornadasHoy;
-
-  const ResumenFlota({required this.camiones, this.vaciasRetornadasHoy = 0});
-}
-
 class FlotaRepository {
   final http.Client _client;
 
@@ -36,166 +26,17 @@ class FlotaRepository {
     'Content-Type': 'application/json',
   };
 
-  Future<ResumenFlota> getResumenFlota({DateTime? fecha}) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/flota/resumen').replace(
-      queryParameters: fecha != null ? {'fecha': _fechaIso(fecha)} : null,
+  Future<List<DepositoCamion>> getResumenFlota({DateTime? fecha}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.adminFlotaCamionesPath}').replace(
+      queryParameters: fecha != null ? {'fecha': formatDateOnly(fecha)} : null,
     );
     final response = await _get(uri);
-    final decoded = jsonDecode(response.body);
-    if (decoded is! List) return const ResumenFlota(camiones: []);
-    final filas = decoded.whereType<Map<String, dynamic>>().toList();
-    final camiones = filas.map(DepositoCamion.fromResumenJson).toList();
-    final vacias = filas.isNotEmpty
-        ? (int.tryParse('${filas.first['vaciasRetornadasHoy'] ?? 0}') ?? 0)
-        : 0;
-    return ResumenFlota(camiones: camiones, vaciasRetornadasHoy: vacias);
-  }
-
-  Future<List<DepositoCamion>> listarCamiones() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/depositos').replace(
-      queryParameters: {'tipo': 'CAMION', 'activo': 'true'},
-    );
-    final response = await _get(uri);
-    return _parseList(response.body, DepositoCamion.fromJson);
-  }
-
-  String _fechaIso(DateTime fecha) {
-    final y = fecha.year.toString().padLeft(4, '0');
-    final m = fecha.month.toString().padLeft(2, '0');
-    final d = fecha.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
-  Future<List<DepositoCamion>> listarDepositosCentrales() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/depositos').replace(
-      queryParameters: {'tipo': 'DEPOSITO_CENTRAL', 'activo': 'true'},
-    );
-    final response = await _get(uri);
-    return _parseList(response.body, DepositoCamion.fromJson);
-  }
-
-  Future<StockCamion> getStockCamion(int idCamion) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/camion/$idCamion');
-    final response = await _get(uri);
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw FlotaRepositoryException('Respuesta inesperada del servidor.');
-    }
-    return StockCamion.fromJson(decoded);
-  }
-
-  Future<List<ProductoCatalogo>> listarProductos() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/productos');
-    final response = await _get(uri);
-    return _parseList(response.body, ProductoCatalogo.fromJson);
-  }
-
-  Future<List<EstadoGarrafa>> listarEstadosGarrafa() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/estados-garrafa');
-    final response = await _get(uri);
-    return _parseList(response.body, EstadoGarrafa.fromJson);
-  }
-
-  Future<List<MovimientoStock>> historialRecargas(int idCamion, {DateTime? dia}) async {
-    final params = <String, String>{
-      'depositoId': '$idCamion',
-      'tipoMovimiento': 'CARGA_CAMION',
-      'size': '100',
-    };
-    if (dia != null) {
-      final desde = DateTime(dia.year, dia.month, dia.day).toUtc();
-      final hasta = DateTime(dia.year, dia.month, dia.day, 23, 59, 59).toUtc();
-      params['desde'] = desde.toIso8601String();
-      params['hasta'] = hasta.toIso8601String();
-    }
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/movimientos').replace(
-      queryParameters: params,
-    );
-    final response = await _get(uri);
-    final decoded = jsonDecode(response.body);
-    final contenido = decoded is Map<String, dynamic> ? decoded['content'] : decoded;
-    if (contenido is! List) return const [];
-    return contenido
-        .whereType<Map<String, dynamic>>()
-        .map(MovimientoStock.fromJson)
-        .toList();
-  }
-
-  Future<Map<String, int>> ventasDelDia(int idCamion, {DateTime? dia}) async {
-    final base = dia ?? DateTime.now();
-    final desde = DateTime(base.year, base.month, base.day).toUtc();
-    final hasta = DateTime(base.year, base.month, base.day, 23, 59, 59).toUtc();
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/movimientos').replace(
-      queryParameters: {
-        'depositoId': '$idCamion',
-        'tipoMovimiento': 'VENTA',
-        'desde': desde.toIso8601String(),
-        'hasta': hasta.toIso8601String(),
-        'size': '500',
-      },
-    );
-    final response = await _get(uri);
-    final decoded = jsonDecode(response.body);
-    final contenido = decoded is Map<String, dynamic> ? decoded['content'] : decoded;
-    final mapa = <String, int>{};
-    if (contenido is List) {
-      for (final e in contenido.whereType<Map<String, dynamic>>()) {
-        final mov = MovimientoStock.fromJson(e);
-        if (mov.productoId.isEmpty) continue;
-        mapa[mov.productoId] = (mapa[mov.productoId] ?? 0) + mov.cantidad;
-      }
-    }
-    return mapa;
-  }
-
-  Future<Map<String, int>> stockLlenoPorProducto(int idCamion) async {
-    final stock = await getStockCamion(idCamion);
-    final mapa = <String, int>{};
-    for (final item in stock.llenasDisponibles) {
-      mapa[item.productoId] = (mapa[item.productoId] ?? 0) + item.cantidad;
-    }
-    return mapa;
-  }
-
-  Future<List<MovimientoStock>> recargarCamion(
-    int idCamion, {
-    int? depositoCentralId,
-    required List<Map<String, dynamic>> items,
-    String? observaciones,
-  }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/camiones/$idCamion/carga');
-    final body = jsonEncode({
-      'depositoCentralId': depositoCentralId,
-      'items': items,
-      'observaciones': observaciones,
-    });
-    final response = await _send('POST', uri, body);
+    if (response.body.isEmpty) return const [];
     final decoded = jsonDecode(response.body);
     if (decoded is! List) return const [];
     return decoded
         .whereType<Map<String, dynamic>>()
-        .map(MovimientoStock.fromJson)
-        .toList();
-  }
-
-  Future<List<MovimientoStock>> descargarCamion(
-    int idCamion, {
-    required int depositoCentralId,
-    required List<Map<String, dynamic>> items,
-    String? observaciones,
-  }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/stock/camiones/$idCamion/descarga');
-    final body = jsonEncode({
-      'depositoCentralId': depositoCentralId,
-      'items': items,
-      'observaciones': observaciones,
-    });
-    final response = await _send('POST', uri, body);
-    final decoded = jsonDecode(response.body);
-    if (decoded is! List) return const [];
-    return decoded
-        .whereType<Map<String, dynamic>>()
-        .map(MovimientoStock.fromJson)
+        .map(DepositoCamion.fromFlotaJson)
         .toList();
   }
 
@@ -205,23 +46,6 @@ class FlotaRepository {
       response = await _client
           .get(uri, headers: _jsonHeaders)
           .timeout(const Duration(seconds: 20));
-    } catch (_) {
-      throw NetworkException();
-    }
-    _validar(response);
-    return response;
-  }
-
-  Future<http.Response> _send(String metodo, Uri uri, String body) async {
-    http.Response response;
-    try {
-      final request = http.Request(metodo, uri)
-        ..headers.addAll(_jsonHeaders)
-        ..body = body;
-      final streamed = await _client.send(request).timeout(
-            const Duration(seconds: 20),
-          );
-      response = await http.Response.fromStream(streamed);
     } catch (_) {
       throw NetworkException();
     }
@@ -246,13 +70,6 @@ class FlotaRepository {
           'Error del servidor ($code). Intentá más tarde.',
       statusCode: code,
     );
-  }
-
-  List<T> _parseList<T>(String body, T Function(Map<String, dynamic>) fromJson) {
-    if (body.isEmpty) return const [];
-    final decoded = jsonDecode(body);
-    if (decoded is! List) return const [];
-    return decoded.whereType<Map<String, dynamic>>().map(fromJson).toList();
   }
 
   String? _extractErrorMessage(String body) {

@@ -15,6 +15,18 @@ class TipoOperacionVentaInfo {
   });
 }
 
+TipoOperacionVenta? tipoOperacionDesdeBackend(String? valor) {
+  switch ((valor ?? '').toUpperCase()) {
+    case 'VACIO_X_LLENO':
+      return TipoOperacionVenta.vacioXLleno;
+    case 'PRESTAMO':
+      return TipoOperacionVenta.prestamo;
+    case 'SOCIAL':
+      return TipoOperacionVenta.ventaSocial;
+  }
+  return null;
+}
+
 extension TipoOperacionVentaX on TipoOperacionVenta {
   String get backendValue {
     switch (this) {
@@ -31,19 +43,19 @@ extension TipoOperacionVentaX on TipoOperacionVenta {
     switch (this) {
       case TipoOperacionVenta.vacioXLleno:
         return const TipoOperacionVentaInfo(
-          label: 'Vacío x Lleno',
+          label: 'VACÍO X LLENO',
           descripcion: 'El cliente entrega envases vacíos y recibe la misma cantidad de llenos.',
           icono: Icons.swap_horiz,
         );
       case TipoOperacionVenta.prestamo:
         return const TipoOperacionVentaInfo(
-          label: 'Préstamo',
+          label: 'PRÉSTAMO',
           descripcion: 'El cliente recibe garrafas sin entregar envases vacíos.',
           icono: Icons.outbox_outlined,
         );
       case TipoOperacionVenta.ventaSocial:
         return const TipoOperacionVentaInfo(
-          label: 'Venta Social',
+          label: 'VENTA SOCIAL',
           descripcion: 'Dejás garrafas llenas en el punto. La visita queda en pausa y se liquida al volver.',
           icono: Icons.volunteer_activism_outlined,
         );

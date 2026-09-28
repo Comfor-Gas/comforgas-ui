@@ -11,7 +11,7 @@ import 'local/cobro_offline_service.dart';
 import 'local/comodato_offline_service.dart';
 import 'local/offline_queue_service.dart';
 import 'local/rendicion_local_service.dart';
-import 'local/stock_camion_cache_service.dart';
+import 'local/metas_chofer_cache_service.dart';
 import 'local/stock_rodante_cache_service.dart';
 import 'local/recaudacion_diaria_service.dart';
 import 'local/venta_social_local_service.dart';
@@ -25,6 +25,8 @@ import 'services/ubicacion_tracking_service.dart';
 import 'screens/auth_gate.dart';
 import 'screens/login_screen.dart';
 import 'widgets/app_lock_screen.dart';
+import 'core/feedback/app_feedback.dart';
+import 'core/feedback/app_feedback_host.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -40,8 +42,8 @@ void main() async {
   await VentaSocialLocalService.instance.init();
   await RendicionLocalService.instance.init();
   await AgendaCacheService.instance.init();
-  await StockCamionCacheService.instance.init();
   await StockRodanteCacheService.instance.init();
+  await MetasChoferCacheService.instance.init();
   await RecaudacionDiariaService.instance.init();
   runApp(const ComforGasApp());
 }
@@ -65,7 +67,7 @@ class ComforGasApp extends StatelessWidget {
           scaffoldBackgroundColor: AppColors.background,
           useMaterial3: true,
         ),
-        builder: (context, child) => _AppShell(child: child!),
+        builder: (context, child) => AppFeedbackHost(child: _AppShell(child: child!)),
         home: const AuthGate(),
       ),
     );
@@ -146,12 +148,9 @@ class _AppShellState extends State<_AppShell> {
     if (lock.attemptsExhausted) {
       lock.resetAttempts();
       auth.logout();
-      rootScaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Superaste el máximo de intentos con huella/PIN. Ingresá con tu correo y contraseña.',
-          ),
-        ),
+      AppFeedback.advertencia(
+        'Superaste el máximo de intentos con huella/PIN. Ingresá con tu correo y contraseña.',
+        titulo: 'Sesión bloqueada',
       );
     }
   }

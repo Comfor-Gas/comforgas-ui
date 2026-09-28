@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/cuadre_rodante.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
+import '../../common/carga/zona_carga.dart';
 
 typedef CargarCuadre = Future<CuadreRodante> Function();
 
@@ -57,11 +58,21 @@ class _ReporteCuadreModalState extends State<ReporteCuadreModal> {
       backgroundColor: AppColors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640, maxHeight: 640),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
-          child: _contenido(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            BarraCarga(visible: _loading),
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
+                child: _contenido(),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -69,10 +80,7 @@ class _ReporteCuadreModalState extends State<ReporteCuadreModal> {
 
   Widget _contenido() {
     if (_loading) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
-      );
+      return const SizedBox(height: 200);
     }
     final cuadre = _cuadre;
     if (_error != null || cuadre == null) {

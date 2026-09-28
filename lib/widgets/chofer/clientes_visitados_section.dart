@@ -15,6 +15,7 @@ class ClientesVisitadosSection extends StatelessWidget {
   final String Function(VisitaModel) nombreCliente;
   final String Function(VisitaModel) direccionCliente;
   final void Function(VisitaModel) onTapVisita;
+  final void Function(VisitaModel)? onVerComprobante;
 
   const ClientesVisitadosSection({
     super.key,
@@ -24,6 +25,7 @@ class ClientesVisitadosSection extends StatelessWidget {
     required this.nombreCliente,
     required this.direccionCliente,
     required this.onTapVisita,
+    this.onVerComprobante,
   });
 
   @override
@@ -73,6 +75,8 @@ class ClientesVisitadosSection extends StatelessWidget {
                         direccionCliente: direccionCliente(v),
                         esSiguiente: false,
                         onTap: () => onTapVisita(v),
+                        onVerComprobante:
+                            onVerComprobante == null ? null : () => onVerComprobante!(v),
                       ),
                     )
                     .toList(),

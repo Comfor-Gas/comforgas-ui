@@ -5,6 +5,7 @@ import '../../models/visita_model.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import 'comodato_badge.dart';
+import 'comprobante/ver_comprobante_boton.dart';
 import 'visita_estado_chip.dart';
 
 class VisitaClienteCard extends StatelessWidget {
@@ -14,6 +15,7 @@ class VisitaClienteCard extends StatelessWidget {
   final bool esSiguiente;
   final String etiquetaDestacada;
   final VoidCallback onTap;
+  final VoidCallback? onVerComprobante;
 
   const VisitaClienteCard({
     super.key,
@@ -23,6 +25,7 @@ class VisitaClienteCard extends StatelessWidget {
     required this.esSiguiente,
     required this.onTap,
     this.etiquetaDestacada = 'NEXT',
+    this.onVerComprobante,
   });
 
   @override
@@ -97,6 +100,10 @@ class VisitaClienteCard extends StatelessWidget {
                                   const ComodatoBadge(compacto: true),
                               ],
                             ),
+                            if (onVerComprobante != null) ...[
+                              const SizedBox(height: 10),
+                              VerComprobanteBoton(onTap: onVerComprobante!),
+                            ],
                           ],
                         ),
                       ),

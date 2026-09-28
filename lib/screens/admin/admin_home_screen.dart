@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:sidebarx/sidebarx.dart';
 import '../../core/responsive.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/admin/admin_sidebar.dart';
-import '../../widgets/admin/admin_topbar.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import 'arqueo_caja_screen.dart';
 import 'auditoria_comodato_screen.dart';
@@ -24,8 +24,37 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  int _selectedIndex = 1;
-  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _sidebar = SidebarXController(selectedIndex: 1, extended: true);
+  bool? _eraEscritorio;
+
+  int get _selectedIndex => _sidebar.selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _sidebar.addListener(_alCambiarSidebar);
+  }
+
+  @override
+  void dispose() {
+    _sidebar.removeListener(_alCambiarSidebar);
+    _sidebar.dispose();
+    super.dispose();
+  }
+
+  void _alCambiarSidebar() {
+    if (mounted) setState(() {});
+  }
+
+  void _ajustarAncho(bool esEscritorio) {
+    if (_eraEscritorio == esEscritorio) return;
+    _eraEscritorio = esEscritorio;
+    if (_sidebar.extended != esEscritorio) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _sidebar.setExtended(esEscritorio);
+      });
+    }
+  }
 
   Widget get _body {
     switch (_selectedIndex) {
@@ -61,63 +90,28 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = Responsive.isDesktop(constraints);
-
-        if (isDesktop) {
-          return Scaffold(
-            backgroundColor: AppColors.background,
-            body: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 240,
-                  child: AdminSidebar(
-                    selectedIndex: _selectedIndex,
-                    onSelect: (i) => setState(() => _selectedIndex = i),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const AdminTopbar(),
-                      Expanded(child: ZonaCarga(child: _body)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
+        _ajustarAncho(Responsive.isDesktop(constraints));
         return Scaffold(
-          key: _scaffoldKey,
           backgroundColor: AppColors.background,
-          drawer: Drawer(
-            child: SafeArea(
-              child: AdminSidebar(
-                selectedIndex: _selectedIndex,
-                onSelect: (i) {
-                  setState(() => _selectedIndex = i);
-                  Navigator.of(context).pop();
-                },
+          body: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SafeArea(
+                right: false,
+                child: AdminSidebar(controller: _sidebar),
               ),
-            ),
-          ),
-          appBar: PreferredSize(
-            preferredSize: Size.fromHeight(
-              64 + MediaQuery.of(context).padding.top,
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: AdminTopbar(
-                onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+              Expanded(
+                child: SafeArea(
+                  left: false,
+                  child: ZonaCarga(
+                    child: KeyedSubtree(
+                      key: ValueKey(_selectedIndex),
+                      child: _body,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          body: SafeArea(
-            top: false,
-            child: ZonaCarga(child: _body),
+            ],
           ),
         );
       },

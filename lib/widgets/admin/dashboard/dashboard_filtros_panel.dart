@@ -58,8 +58,8 @@ class DashboardFiltrosPanel extends StatelessWidget {
               onCambio: (id) => onCambio(filtros.conRuta(id == null ? null : int.tryParse(id))),
             ),
             FiltroBuscable(
-              etiqueta: 'Sucursal',
-              icono: Icons.storefront_outlined,
+              etiqueta: 'Cliente',
+              icono: Icons.person_pin_circle_outlined,
               opciones: sucursales,
               seleccion: filtros.idSucursal?.toString(),
               habilitado: !catalogosCargando,

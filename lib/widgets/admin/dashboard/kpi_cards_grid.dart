@@ -35,13 +35,13 @@ class KpiCardsGrid extends StatelessWidget {
       KpiCard(
         icono: Icons.storefront_outlined,
         acento: AppColors.steelBlue,
-        titulo: 'Ventas totales por sucursal',
+        titulo: 'Ventas totales por cliente',
         valor: formatMoneda(ventas.montoTotal),
         detalle: top == null
             ? 'Sin ventas en el período'
             : 'Mayor venta: ${top.nombre} (${formatMoneda(top.montoTotal)})',
         secundarios: [
-          KpiDatoSecundario(etiqueta: 'sucursales', valor: formatEntero(kpis.sucursalesConVenta)),
+          KpiDatoSecundario(etiqueta: 'clientes', valor: formatEntero(kpis.sucursalesConVenta)),
           KpiDatoSecundario(etiqueta: 'ventas', valor: formatEntero(ventas.transacciones)),
           KpiDatoSecundario(etiqueta: 'ticket prom.', valor: formatMoneda(ventas.ticketPromedio)),
         ],

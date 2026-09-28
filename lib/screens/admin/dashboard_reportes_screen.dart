@@ -95,7 +95,7 @@ class _DashboardReportesScreenState extends State<DashboardReportesScreen> {
       setState(() {
         _cargandoCatalogos = false;
         _errorCatalogos =
-            'No se pudieron cargar las listas de choferes, rutas y sucursales. Los indicadores se muestran sin esos filtros.';
+            'No se pudieron cargar las listas de choferes, rutas y clientes. Los indicadores se muestran sin esos filtros.';
       });
     }
   }

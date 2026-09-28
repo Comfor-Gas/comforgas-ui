@@ -366,7 +366,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
             ? 'Continuar Visita'
             : 'Iniciar Visita',
         mensajeBloqueo: mensajeBloqueo,
-        onVerComprobante: yaVisitada
+        onVerComprobante: yaVisitada && VisitaEstadoMapper.tieneComprobante(visita.estadoVisita)
             ? () {
                 Navigator.of(sheetContext).pop();
                 _verComprobante(visita);
@@ -433,8 +433,8 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                         Text(fechaTexto, style: AppTextStyles.link),
                         const SizedBox(height: 16),
                         _StatsCard(
-                          clientes: _visitas.length,
-                          pedidos: completadas,
+                          visitados: completadas,
+                          agenda: _visitas.length,
                           recaudacion: recaudacion,
                         ),
                         const SizedBox(height: 16),
@@ -648,13 +648,13 @@ class _AgendaHeader extends StatelessWidget {
 }
 
 class _StatsCard extends StatelessWidget {
-  final int clientes;
-  final int pedidos;
+  final int visitados;
+  final int agenda;
   final double recaudacion;
 
   const _StatsCard({
-    required this.clientes,
-    required this.pedidos,
+    required this.visitados,
+    required this.agenda,
     required this.recaudacion,
   });
 
@@ -670,11 +670,14 @@ class _StatsCard extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: _StatItem(label: 'Clientes a\nVisitar', value: '$clientes'),
+            child: _StatItem(label: 'Visitados /\nAgenda', value: '$visitados/$agenda'),
           ),
           const _StatDivider(),
           Expanded(
-            child: _StatItem(label: 'Pedidos\nRealizados', value: '$pedidos'),
+            child: _StatItem(
+              label: 'Pendientes\nde visitar',
+              value: '${agenda - visitados < 0 ? 0 : agenda - visitados}',
+            ),
           ),
           const _StatDivider(),
           Expanded(

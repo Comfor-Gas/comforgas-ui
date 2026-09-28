@@ -50,7 +50,8 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
   void initState() {
     super.initState();
     _contratada = widget.contrato.cantidadContratada;
-    _fisica = widget.controlPrevio?.cantidadFisicaActual ?? _contratada;
+    final previo = widget.controlPrevio?.cantidadFisicaActual ?? _contratada;
+    _fisica = previo > _contratada ? _contratada : (previo < 0 ? 0 : previo);
     _obsController = TextEditingController(
       text: widget.controlPrevio?.observaciones ?? '',
     );
@@ -211,6 +212,7 @@ class _AuditoriaComodatoScreenState extends State<AuditoriaComodatoScreen> {
           const SizedBox(height: 12),
           ContadorEnvases(
             value: _fisica,
+            max: _contratada,
             enabled: !_guardando,
             onChanged: (v) => setState(() => _fisica = v),
           ),

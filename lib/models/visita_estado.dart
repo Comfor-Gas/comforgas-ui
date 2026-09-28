@@ -74,4 +74,14 @@ class VisitaEstadoMapper {
         return false;
     }
   }
+
+  static bool tieneComprobante(VisitaEstado estado) {
+    switch (estado) {
+      case VisitaEstado.visitado:
+      case VisitaEstado.completada:
+        return true;
+      default:
+        return false;
+    }
+  }
 }

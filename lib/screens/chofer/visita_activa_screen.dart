@@ -113,6 +113,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _evidenciaExistente = false;
   bool _fotoPresenciaEnviada = false;
   bool _subiendoPresencia = false;
+  bool _verificandoPresencia = false;
   bool _checkInPendienteSync = false;
   bool _reintentandoConexion = false;
   bool _reintentandoDatos = false;
@@ -232,7 +233,16 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   bool get _faltanteResuelto => !_hayFaltante || _motivoFaltante.isNotEmpty;
 
-  bool get _presenciaRegistrada => _evidenciaExistente || _fotoPresenciaEnviada;
+  bool get _presenciaRegistrada =>
+      _evidenciaExistente ||
+      _fotoPresenciaEnviada ||
+      _yaTieneVentaSocial ||
+      _ventas.isNotEmpty ||
+      _canjes.isNotEmpty ||
+      _controlComodato != null;
+
+  bool get _tieneOperaciones =>
+      _ventas.isNotEmpty || _canjes.isNotEmpty || _controlComodato != null || _yaTieneVentaSocial;
 
   bool get _operacionesBloqueadas => _finalizando || !_presenciaRegistrada;
 
@@ -1019,7 +1029,8 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     unawaited(_hidratarVentas());
 
     final idVisita = _visita.idVisita;
-    if (idVisita == null) return;
+    if (idVisita == null || _presenciaRegistrada) return;
+    setState(() => _verificandoPresencia = true);
     try {
       final evidencias = await _evidenciaRepo.listarPorVisita(idVisita);
       if (!mounted) return;
@@ -1027,11 +1038,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         setState(() => _evidenciaExistente = true);
       }
     } on NetworkException {
-      // Sin conexión no podemos saber si ya había evidencia cargada; no
-      // bloqueamos la pantalla, el chofer puede sacar una foto nueva.
     } on EvidenciaRepositoryException {
-      // Si falla la consulta no bloqueamos la pantalla: el chofer puede
-      // igual sacar una foto nueva para poder finalizar.
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _verificandoPresencia = false);
     }
   }
 
@@ -1487,7 +1497,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   }
 
   Future<void> _capturarFoto() async {
-    if (_presenciaRegistrada || _capturandoFoto || _subiendoPresencia) return;
+    if (_presenciaRegistrada || _verificandoPresencia || _capturandoFoto || _subiendoPresencia) return;
     setState(() => _capturandoFoto = true);
     File? archivo;
     try {
@@ -1600,6 +1610,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     if (_auditoriaComodatoPendiente) {
       _mostrarError(
         'El cliente tiene comodato activo: realizá la auditoría de comodato con su foto antes de finalizar.',
+      );
+      return;
+    }
+    if (!_tieneOperaciones) {
+      _mostrarError(
+        'Registrá al menos una operación (venta, canje o control de comodato) para finalizar. Si no pudiste operar, usá "Cancelar visita".',
       );
       return;
     }
@@ -1726,6 +1742,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
   Future<void> _cancelarVisita() async {
     if (_cancelando || _finalizando) return;
+    if (_yaTieneVentaSocial) {
+      _mostrarError('La visita tiene una Venta Social iniciada: no se puede cancelar.');
+      return;
+    }
     if (!_presenciaRegistrada) {
       _mostrarError('Sacá la foto de llegada antes de cancelar la visita: así queda registrado que estuviste en el lugar.');
       return;
@@ -2279,6 +2299,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             FotoLlegadaSeccion(
               foto: _foto,
               registrada: _presenciaRegistrada,
+              verificando: _verificandoPresencia && !_presenciaRegistrada,
               cargando: _capturandoFoto || _subiendoPresencia,
               onCapturar: _capturarFoto,
             ),
@@ -2333,6 +2354,13 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               ),
               const SizedBox(height: 12),
             ],
+            if (_presenciaRegistrada && !_tieneOperaciones && !_auditoriaComodatoPendiente) ...[
+              const AvisoRequisitoVisita(
+                icono: Icons.playlist_add_check,
+                texto: 'Para finalizar la visita registrá al menos una operación: venta, canje o control de comodato. Si no pudiste operar, usá "Cancelar visita".',
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_hayFaltante) ...[
               _MotivoFaltanteCampo(
                 controller: _motivoFaltanteCtrl,
@@ -2344,6 +2372,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               text: 'Finalizar Visita',
               isLoading: _finalizando,
               onPressed: (_presenciaRegistrada &&
+                      _tieneOperaciones &&
                       !_finalizando &&
                       _visita.estadoVisita != VisitaEstado.pausadaSocial &&
                       _faltanteResuelto &&
@@ -2351,6 +2380,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                   ? _finalizarVisita
                   : null,
             ),
+            if (!_yaTieneVentaSocial) ...[
             const SizedBox(height: 8),
             Center(
               child: TextButton.icon(
@@ -2378,6 +2408,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 ),
               ),
             ),
+            ],
           ],
         );
     }

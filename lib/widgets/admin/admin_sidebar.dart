@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:sidebarx/sidebarx.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 
 class AdminNavItem {
@@ -22,134 +25,335 @@ const List<AdminNavItem> adminNavItems = [
   AdminNavItem(icon: Icons.settings_outlined, label: 'Configuración'),
 ];
 
-class AdminSidebar extends StatelessWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onSelect;
+class SidebarPaleta {
+  SidebarPaleta._();
 
-  const AdminSidebar({
-    super.key,
-    required this.selectedIndex,
-    required this.onSelect,
-  });
+  static const Color lienzo = AppColors.sidebarBackground;
+  static const Color lienzoAcento = Color(0xFF3D5470);
+  static const Color hover = Color(0xFF3A4E66);
+  static final Color texto = Colors.white.withOpacity(0.72);
+  static final Divider divisor = Divider(color: Colors.white.withOpacity(0.14), height: 1);
+}
+
+class AdminSidebar extends StatelessWidget {
+  final SidebarXController controller;
+
+  const AdminSidebar({super.key, required this.controller});
+
+  static const double anchoColapsado = 70;
+  static const double anchoExpandido = 240;
+
+  @override
+  Widget build(BuildContext context) {
+    return SidebarX(
+      controller: controller,
+      animationDuration: const Duration(milliseconds: 220),
+      showToggleButton: false,
+      theme: SidebarXTheme(
+        width: anchoColapsado,
+        margin: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: SidebarPaleta.lienzo,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.steelBlue.withOpacity(0.18),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        hoverColor: SidebarPaleta.hover,
+        textStyle: TextStyle(color: SidebarPaleta.texto, fontSize: 13.5, fontWeight: FontWeight.w500),
+        selectedTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w700),
+        hoverTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
+        itemTextPadding: const EdgeInsets.only(left: 26),
+        selectedItemTextPadding: const EdgeInsets.only(left: 26),
+        itemMargin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        selectedItemMargin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        itemPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        selectedItemPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        itemDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: SidebarPaleta.lienzo),
+        ),
+        selectedItemDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.orange.withOpacity(0.45)),
+          gradient: const LinearGradient(
+            colors: [SidebarPaleta.lienzoAcento, SidebarPaleta.lienzo],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.28),
+              blurRadius: 30,
+            ),
+          ],
+        ),
+        iconTheme: IconThemeData(color: SidebarPaleta.texto, size: 20),
+        hoverIconTheme: const IconThemeData(color: Colors.white, size: 20),
+        selectedIconTheme: const IconThemeData(color: AppColors.orange, size: 20),
+      ),
+      extendedTheme: const SidebarXTheme(
+        width: anchoExpandido,
+        margin: EdgeInsets.zero,
+        decoration: BoxDecoration(color: SidebarPaleta.lienzo),
+      ),
+      footerDivider: SidebarPaleta.divisor,
+      headerBuilder: (context, extendido) => _Encabezado(extendido: extendido),
+      footerBuilder: (context, extendido) => _Pie(extendido: extendido, controller: controller),
+      items: [
+        for (final item in adminNavItems) SidebarXItem(icon: item.icon, label: item.label),
+      ],
+    );
+  }
+}
+
+class _Encabezado extends StatelessWidget {
+  final bool extendido;
+
+  const _Encabezado({required this.extendido});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!extendido) {
+      return const SizedBox(
+        height: 100,
+        child: Center(child: _LogoCircular(tamanio: 42)),
+      );
+    }
+    return const _AnchoExpandido(
+      child: SizedBox(
+        height: 132,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _LogoCircular(tamanio: 58),
+            SizedBox(height: 10),
+            Text(
+              'COMFOR GAS',
+              maxLines: 1,
+              overflow: TextOverflow.clip,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LogoCircular extends StatelessWidget {
+  final double tamanio;
+
+  const _LogoCircular({required this.tamanio});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.sidebarBackground,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _SidebarLogo(),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: adminNavItems.length,
-              itemBuilder: (context, index) {
-                final item = adminNavItems[index];
-                final selected = index == selectedIndex;
-                return _SidebarTile(
-                  item: item,
-                  selected: selected,
-                  onTap: () => onSelect(index),
-                );
-              },
-            ),
+      width: tamanio,
+      height: tamanio,
+      padding: EdgeInsets.all(tamanio * 0.16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.orange, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.orange.withOpacity(0.35),
+            blurRadius: 12,
           ),
         ],
       ),
+      child: Image.asset('assets/images/logomolecula.png', fit: BoxFit.contain),
     );
   }
 }
 
-class _SidebarLogo extends StatelessWidget {
-  const _SidebarLogo();
+class _AnchoExpandido extends StatelessWidget {
+  final Widget child;
+
+  const _AnchoExpandido({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-      child: Row(
-        children: [
-          Image.asset(
-            'assets/images/logomolecula.png',
-            width: 34,
-            height: 34,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'COMFOR\nGAS',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                height: 1.05,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return UnconstrainedBox(
+      alignment: Alignment.topLeft,
+      constrainedAxis: Axis.vertical,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(width: AdminSidebar.anchoExpandido, child: child),
     );
   }
 }
 
-class _SidebarTile extends StatefulWidget {
-  final AdminNavItem item;
-  final bool selected;
-  final VoidCallback onTap;
+class _CerrarSesion extends StatefulWidget {
+  final bool extendido;
 
-  const _SidebarTile({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
+  const _CerrarSesion({required this.extendido});
 
   @override
-  State<_SidebarTile> createState() => _SidebarTileState();
+  State<_CerrarSesion> createState() => _CerrarSesionState();
 }
 
-class _SidebarTileState extends State<_SidebarTile> {
+class _CerrarSesionState extends State<_CerrarSesion> {
   bool _hover = false;
+  bool _saliendo = false;
+
+  Future<void> _confirmar() async {
+    if (_saliendo) return;
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          '¿Cerrar sesión?',
+          style: TextStyle(color: AppColors.steelBlue, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Vas a salir del panel de administración.',
+          style: TextStyle(color: AppColors.graphiteGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.graphiteGray)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Cerrar sesión',
+              style: TextStyle(color: AppColors.orange, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true || !mounted) return;
+    setState(() => _saliendo = true);
+    await context.read<AuthProvider>().logout();
+    if (mounted) setState(() => _saliendo = false);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final selected = widget.selected;
-    return MouseRegion(
+    final color = _hover ? AppColors.orange : SidebarPaleta.texto;
+    final icono = _saliendo
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
+          )
+        : Icon(Icons.logout_rounded, size: 20, color: color);
+
+    final contenido = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        onTap: _confirmar,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          margin: const EdgeInsets.fromLTRB(6, 8, 6, 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
-            color: selected
-                ? AppColors.sidebarActive
-                : (_hover ? Colors.white.withOpacity(0.06) : Colors.transparent),
+            color: _hover ? SidebarPaleta.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
+            mainAxisAlignment: widget.extendido ? MainAxisAlignment.start : MainAxisAlignment.center,
             children: [
-              Icon(
-                widget.item.icon,
-                size: 20,
-                color: selected ? Colors.white : Colors.white.withOpacity(0.75),
-              ),
-              const SizedBox(width: 14),
-              Text(
-                widget.item.label.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.4,
-                  color: selected ? Colors.white : Colors.white.withOpacity(0.75),
+              icono,
+              if (widget.extendido) ...[
+                const SizedBox(width: 26),
+                Flexible(
+                  child: Text(
+                    'Cerrar sesión',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+
+    if (widget.extendido) return contenido;
+    return Tooltip(message: 'Cerrar sesión', child: contenido);
+  }
+}
+
+class _Pie extends StatelessWidget {
+  final bool extendido;
+  final SidebarXController controller;
+
+  const _Pie({required this.extendido, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final plegar = _BotonPlegar(extendido: extendido, onTap: controller.toggleExtended);
+    if (!extendido) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _CerrarSesion(extendido: false),
+            plegar,
+          ],
+        ),
+      );
+    }
+    return _AnchoExpandido(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8, bottom: 6),
+        child: Row(
+          children: [
+            const Expanded(child: _CerrarSesion(extendido: true)),
+            plegar,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonPlegar extends StatelessWidget {
+  final bool extendido;
+  final VoidCallback onTap;
+
+  const _BotonPlegar({required this.extendido, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: extendido ? 'Contraer menú' : 'Expandir menú',
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          hoverColor: SidebarPaleta.hover,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              extendido ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+              color: SidebarPaleta.texto,
+              size: 22,
+            ),
           ),
         ),
       ),

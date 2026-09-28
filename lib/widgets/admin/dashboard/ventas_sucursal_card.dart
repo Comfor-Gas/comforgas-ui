@@ -48,14 +48,14 @@ class _VentasSucursalCardState extends State<VentasSucursalCard> {
     final onSeleccionar = widget.onSeleccionar;
 
     return DashboardCard(
-      titulo: 'Ventas por sucursal',
+      titulo: 'Ventas por cliente',
       subtitulo: onSeleccionar != null
-          ? 'Ranking por monto vendido · tocá una sucursal para filtrar'
+          ? 'Ranking por monto vendido · tocá un cliente para filtrar'
           : 'Ranking por monto vendido',
       child: visibles.isEmpty
           ? const DashboardVacio(
               mensaje: 'No hay ventas registradas para los filtros elegidos.',
-              icono: Icons.storefront_outlined,
+              icono: Icons.person_pin_circle_outlined,
             )
           : AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
@@ -78,7 +78,7 @@ class _VentasSucursalCardState extends State<VentasSucursalCard> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Total ${formatMoneda(total)} en ${formatEntero(cantidad)} sucursales',
+                          'Total ${formatMoneda(total)} en ${formatEntero(cantidad)} clientes',
                           style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
                         ),
                       ),

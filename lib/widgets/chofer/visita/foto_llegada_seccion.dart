@@ -9,6 +9,7 @@ import 'aviso_requisito_visita.dart';
 class FotoLlegadaSeccion extends StatelessWidget {
   final File? foto;
   final bool registrada;
+  final bool verificando;
   final bool cargando;
   final VoidCallback onCapturar;
 
@@ -16,6 +17,7 @@ class FotoLlegadaSeccion extends StatelessWidget {
     super.key,
     required this.foto,
     required this.registrada,
+    this.verificando = false,
     required this.cargando,
     required this.onCapturar,
   });
@@ -24,6 +26,20 @@ class FotoLlegadaSeccion extends StatelessWidget {
   Widget build(BuildContext context) {
     if (registrada && foto == null) {
       return const _FotoRegistrada();
+    }
+    if (verificando) {
+      return Row(
+        children: [
+          const Icon(Icons.hourglass_top_rounded, size: 18, color: AppColors.steelBlue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Verificando la foto de llegada…',
+              style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/visita_estado.dart';
 import '../../models/visita_model.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
@@ -75,8 +76,10 @@ class ClientesVisitadosSection extends StatelessWidget {
                         direccionCliente: direccionCliente(v),
                         esSiguiente: false,
                         onTap: () => onTapVisita(v),
-                        onVerComprobante:
-                            onVerComprobante == null ? null : () => onVerComprobante!(v),
+                        onVerComprobante: onVerComprobante == null ||
+                                !VisitaEstadoMapper.tieneComprobante(v.estadoVisita)
+                            ? null
+                            : () => onVerComprobante!(v),
                       ),
                     )
                     .toList(),

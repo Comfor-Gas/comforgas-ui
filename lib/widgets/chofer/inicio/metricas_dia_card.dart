@@ -83,67 +83,82 @@ class MetricasDiaCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _Tarjeta(
-                child: Column(
-                  children: [
-                    const _TituloMetrica(icono: Icons.trending_up, texto: 'Efectividad de venta'),
-                    const SizedBox(height: 14),
-                    AnilloProgreso(
-                      progreso: m.efectividadVenta / 100,
-                      color: _azul,
-                      diametro: 104,
-                      grosor: 10,
-                      centro: Text(
-                        _pct(m.efectividadVenta),
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.steelBlue),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _Tarjeta(
+                  child: Column(
+                    children: [
+                      const _TituloMetrica(icono: Icons.trending_up, texto: 'Efectividad de venta'),
+                      const SizedBox(height: 14),
+                      AnilloProgreso(
+                        progreso: m.efectividadVenta / 100,
+                        color: _azul,
+                        diametro: 104,
+                        grosor: 10,
+                        centro: Text(
+                          _pct(m.efectividadVenta),
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.steelBlue),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _EstadoMeta(
-                      cumplida: ventaCumplida,
-                      texto: 'Meta ${_pct(m.metaEfectividadVenta)}',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _Tarjeta(
-                child: Column(
-                  children: [
-                    const _TituloMetrica(icono: Icons.payments_outlined, texto: 'Vendido hoy'),
-                    const SizedBox(height: 18),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        formatMoneda(m.montoTotalVentas),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.orange),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${m.envasesEntregados} garrafas entregadas',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-                    ),
-                    if (m.envasesPrestamo > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '${m.envasesPrestamo} en préstamo',
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                      const SizedBox(height: 12),
+                      _EstadoMeta(
+                        cumplida: ventaCumplida,
+                        texto: 'Meta ${_pct(m.metaEfectividadVenta)}',
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: _Tarjeta(
+                  child: Column(
+                    children: [
+                      const _TituloMetrica(icono: Icons.payments_outlined, texto: 'Vendido hoy'),
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(height: 12),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  formatMoneda(m.montoTotalVentas),
+                                  style: const TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.orange,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${m.envasesEntregados} garrafas entregadas',
+                                textAlign: TextAlign.center,
+                                style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                              ),
+                              if (m.envasesPrestamo > 0) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${m.envasesPrestamo} en préstamo',
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         _Tarjeta(

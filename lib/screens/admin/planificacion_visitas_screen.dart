@@ -16,6 +16,7 @@ import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
 import '../../widgets/primary_button.dart';
 import '../../core/feedback/app_feedback.dart';
+import '../../core/responsive.dart';
 
 class _AgendaRow {
   final VisitaModel visita;
@@ -530,13 +531,20 @@ class _PlanificacionVisitasScreenState
   @override
   Widget build(BuildContext context) {
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
+    final mobile = Responsive.isMobileContext(context);
+    final pad = mobile ? 16.0 : 24.0;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafePadding),
+      padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + bottomSafePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ReportarCarga(cargando: _loading || _loadingCatalogos),
-          Text('Planificación Diaria de Visitas', style: AppTextStyles.desktopTitle),
+          Text(
+            'Planificación Diaria de Visitas',
+            style: mobile
+                ? AppTextStyles.desktopTitle.copyWith(fontSize: 22)
+                : AppTextStyles.desktopTitle,
+          ),
           const SizedBox(height: 4),
           Text(
             'Armá y publicá la agenda de visitas de cada chofer para el día.',
@@ -631,11 +639,12 @@ class _PlanificacionVisitasScreenState
               }
 
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   listado,
-                  const SizedBox(height: 20),
+                  SizedBox(height: mobile ? 16 : 20),
                   formulario,
-                  const SizedBox(height: 24),
+                  SizedBox(height: mobile ? 16 : 24),
                   _buildPublicarSection(),
                 ],
               );
@@ -656,7 +665,7 @@ class _CardContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(Responsive.isMobileContext(context) ? 16 : 20),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
@@ -693,6 +702,7 @@ class _FiltrosCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
+    final mobile = Responsive.isMobileContext(context);
     final hayBusqueda =
         choferCtrl.text.trim().isNotEmpty || clienteCtrl.text.trim().isNotEmpty;
     return FiltrosPanel(
@@ -738,13 +748,14 @@ class _FiltrosCard extends StatelessWidget {
               etiqueta: 'Chofer',
               hint: 'Nombre del chofer',
               icono: Icons.person_search_outlined,
+              ancho: mobile ? double.infinity : 280,
             ),
             CampoBusquedaFiltro(
               controller: clienteCtrl,
               etiqueta: 'Cliente',
               hint: 'Nombre del cliente o sucursal',
               icono: Icons.storefront_outlined,
-              ancho: 300,
+              ancho: mobile ? double.infinity : 300,
             ),
             if (hayBusqueda) BotonLimpiarFiltros(onPressed: onLimpiar),
             BotonActualizar(onPressed: onActualizar, cargando: cargando),
@@ -986,6 +997,17 @@ Widget _buildTable(BuildContext context) {
 
 
   Widget _buildCardsList(BuildContext context) {
+    if (Responsive.isMobileContext(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < rows.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _buildCardItem(rows[i], compactPadding: true),
+          ],
+        ],
+      );
+    }
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 480),
       child: Scrollbar(
@@ -993,88 +1015,89 @@ Widget _buildTable(BuildContext context) {
           shrinkWrap: true,
           itemCount: rows.length,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final row = rows[index];
-            final nombreChofer = row.visita.nombreChoferMostrado ?? 'Sin asignar';
-            final fecha = row.visita.fecha;
-
-            return Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.inputBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: AppColors.steelBlue.withOpacity(0.12),
-                        child: Text(
-                          initialsOf(nombreChofer),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.steelBlue,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          nombreChofer,
-                          style: AppTextStyles.input.copyWith(fontWeight: FontWeight.w700),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      EstadoVisitaBadge(
-                        estado: row.visita.estadoVisita,
-                        esBorrador: row.esBorrador,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _CardInfoLine(
-                    label: 'Fecha',
-                    value: fecha == null ? '—' : formatFecha(fecha),
-                  ),
-                  const SizedBox(height: 6),
-                  _CardInfoLine(label: 'Cliente', value: clienteNombreOf(row.visita)),
-                  const SizedBox(height: 6),
-                  _CardInfoLine(label: 'Ruta', value: rutaNombreOf(row.visita)),
-                  if (row.esBorrador) ...[
-                    const SizedBox(height: 8),
-                    const Divider(height: 1),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (row.esBorrador)
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 19),
-                            color: AppColors.steelBlue,
-                            onPressed: () => onEditar(row),
-                          ),
-                        if (row.esBorrador)
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 19),
-                            color: AppColors.error,
-                            onPressed: () => onEliminar(row),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
+          itemBuilder: (context, index) => _buildCardItem(rows[index]),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCardItem(_AgendaRow row, {bool compactPadding = false}) {
+    final nombreChofer = row.visita.nombreChoferMostrado ?? 'Sin asignar';
+    final fecha = row.visita.fecha;
+
+    return Container(
+      padding: EdgeInsets.all(compactPadding ? 12 : 14),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: AppColors.steelBlue.withOpacity(0.12),
+                child: Text(
+                  initialsOf(nombreChofer),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.steelBlue,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  nombreChofer,
+                  style: AppTextStyles.input.copyWith(fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              EstadoVisitaBadge(
+                estado: row.visita.estadoVisita,
+                esBorrador: row.esBorrador,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _CardInfoLine(
+            label: 'Fecha',
+            value: fecha == null ? '—' : formatFecha(fecha),
+          ),
+          const SizedBox(height: 6),
+          _CardInfoLine(label: 'Cliente', value: clienteNombreOf(row.visita)),
+          const SizedBox(height: 6),
+          _CardInfoLine(label: 'Ruta', value: rutaNombreOf(row.visita)),
+          if (row.esBorrador) ...[
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (row.esBorrador)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 19),
+                    color: AppColors.steelBlue,
+                    onPressed: () => onEditar(row),
+                  ),
+                if (row.esBorrador)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 19),
+                    color: AppColors.error,
+                    onPressed: () => onEliminar(row),
+                  ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1156,6 +1179,37 @@ class _FormularioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = Responsive.isMobileContext(context);
+    final botonSincronizar = OutlinedButton.icon(
+      onPressed: sincronizando ? null : onSincronizar,
+      icon: sincronizando
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
+            )
+          : const Icon(Icons.sync, size: 18),
+      label: const Text('Sincronizar agenda'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.steelBlue,
+        side: BorderSide(color: AppColors.steelBlue),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+    final botonAgregar = ElevatedButton.icon(
+      onPressed: camposHabilitados ? onGuardar : null,
+      icon: const Icon(Icons.playlist_add, size: 18),
+      label: const Text('Agregar a la lista'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.steelBlue,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: AppColors.inputBorder,
+        disabledForegroundColor: AppColors.inputHint,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
     return _CardContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1288,43 +1342,28 @@ class _FormularioCard extends StatelessWidget {
             Text(error!, style: AppTextStyles.errorText),
           ],
           const SizedBox(height: 18),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              OutlinedButton.icon(
-                onPressed: sincronizando ? null : onSincronizar,
-                icon: sincronizando
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
-                      )
-                    : const Icon(Icons.sync, size: 18),
-                label: const Text('Sincronizar agenda'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.steelBlue,
-                  side: BorderSide(color: AppColors.steelBlue),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
+          if (mobile)
+            SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  botonSincronizar,
+                  const SizedBox(height: 10),
+                  botonAgregar,
+                ],
               ),
-              ElevatedButton.icon(
-                onPressed: camposHabilitados ? onGuardar : null,
-                icon: const Icon(Icons.playlist_add, size: 18),
-                label: const Text('Agregar a la lista'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.steelBlue,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: AppColors.inputBorder,
-                  disabledForegroundColor: AppColors.inputHint,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ],
-          ),
+            )
+          else
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                botonSincronizar,
+                botonAgregar,
+              ],
+            ),
         ],
       ),
     );

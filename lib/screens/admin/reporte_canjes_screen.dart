@@ -8,6 +8,7 @@ import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/canje/reporte_canje_fila.dart';
+import '../../widgets/admin/canje/reporte_canje_tarjeta.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
 
@@ -153,7 +154,10 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
                 onRefrescar: _cargar,
               ),
               const SizedBox(height: 18),
-              _buildTabla(constraints.maxWidth - padding.horizontal),
+              if (Responsive.isMobile(constraints))
+                _buildTarjetas()
+              else
+                _buildTabla(constraints.maxWidth - padding.horizontal),
             ],
           ),
         );
@@ -161,12 +165,10 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
     );
   }
 
-  Widget _buildTabla(double anchoDisponible) {
-    Widget contenido;
-    if (_loading) {
-      contenido = const SizedBox(height: 160);
-    } else if (_error != null) {
-      contenido = Padding(
+  Widget? _estadoEspecial() {
+    if (_loading) return const SizedBox(height: 160);
+    if (_error != null) {
+      return Padding(
         padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
         child: Column(
           children: [
@@ -185,8 +187,9 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
           ],
         ),
       );
-    } else if (_grupos.isEmpty) {
-      contenido = Padding(
+    }
+    if (_grupos.isEmpty) {
+      return Padding(
         padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
         child: Center(
           child: Text(
@@ -196,6 +199,36 @@ class _ReporteCanjesScreenState extends State<ReporteCanjesScreen> {
           ),
         ),
       );
+    }
+    return null;
+  }
+
+  Widget _buildTarjetas() {
+    final especial = _estadoEspecial();
+    if (especial != null) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: especial,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final g in _grupos) ReporteCanjeTarjeta(grupo: g),
+      ],
+    );
+  }
+
+  Widget _buildTabla(double anchoDisponible) {
+    Widget contenido;
+    final especial = _estadoEspecial();
+    if (especial != null) {
+      contenido = especial;
     } else {
       final grupos = _grupos;
       contenido = Column(
@@ -241,7 +274,12 @@ class _Cabecera extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Devoluciones por garantía / daño', style: AppTextStyles.desktopTitle),
+        Text(
+          'Devoluciones por garantía / daño',
+          style: Responsive.isMobileContext(context)
+              ? AppTextStyles.desktopTitle.copyWith(fontSize: 22)
+              : AppTextStyles.desktopTitle,
+        ),
         const SizedBox(height: 4),
         Text(
           'Envases dañados canjeados por los choferes, agrupados por chofer y vehículo para el cierre de turno.',
@@ -285,6 +323,17 @@ class _Stats extends StatelessWidget {
         icon: Icons.local_shipping_outlined,
       ),
     ];
+    if (Responsive.isMobileContext(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < cards.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            cards[i],
+          ],
+        ],
+      );
+    }
     return Row(
       children: [
         for (var i = 0; i < cards.length; i++) ...[

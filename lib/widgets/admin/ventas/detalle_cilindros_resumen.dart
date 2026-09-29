@@ -74,12 +74,14 @@ class _Chip extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(
-          texto,
-          style: TextStyle(
-            fontSize: compacto ? 12.5 : 13.5,
-            fontWeight: FontWeight.w600,
-            color: AppColors.graphiteGray,
+        Flexible(
+          child: Text(
+            texto,
+            style: TextStyle(
+              fontSize: compacto ? 12.5 : 13.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.graphiteGray,
+            ),
           ),
         ),
       ],

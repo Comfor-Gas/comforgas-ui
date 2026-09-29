@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/cuadre_rendicion.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -226,6 +227,28 @@ class _FilaJustificacion extends StatelessWidget {
         ? AppColors.badgeAmber
         : (d.falta ? AppColors.error : AppColors.badgeGreen);
     final vacio = controller.text.trim().isEmpty;
+    final movil = Responsive.isMobileContext(context);
+    final textos = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(d.etiqueta, style: AppTextStyles.label.copyWith(fontSize: 13)),
+        const SizedBox(height: 2),
+        Text(d.detalle, style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+      ],
+    );
+    final badge = d.diferencia == 0
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              d.valorTexto,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
+            ),
+          );
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -237,33 +260,20 @@ class _FilaJustificacion extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(d.etiqueta, style: AppTextStyles.label.copyWith(fontSize: 13)),
-                    const SizedBox(height: 2),
-                    Text(d.detalle, style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
-                  ],
-                ),
-              ),
-              if (d.diferencia != 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    d.valorTexto,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
-                  ),
-                ),
+          if (movil) ...[
+            textos,
+            if (badge != null) ...[
+              const SizedBox(height: 8),
+              Align(alignment: Alignment.centerLeft, child: badge),
             ],
-          ),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: textos),
+                if (badge != null) badge,
+              ],
+            ),
           const SizedBox(height: 10),
           TextField(
             controller: controller,

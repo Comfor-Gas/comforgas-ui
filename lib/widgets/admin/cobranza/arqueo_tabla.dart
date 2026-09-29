@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/arqueo_caja.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -53,8 +54,13 @@ class ArqueoTabla extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 820) {
-          return Column(
+          final lista = Column(
             children: [for (final m in movimientos) _MovimientoCard(mov: m)],
+          );
+          if (!Responsive.isMobileContext(context)) return lista;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: lista,
           );
         }
         return Column(
@@ -228,6 +234,7 @@ class _MovimientoCard extends StatelessWidget {
                   style: AppTextStyles.label.copyWith(fontSize: 14.5),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 formatMoneda(mov.monto),
                 style: AppTextStyles.title.copyWith(fontSize: 16, color: AppColors.orange),
@@ -244,6 +251,7 @@ class _MovimientoCard extends StatelessWidget {
             children: [
               Expanded(child: _MiniDato(etiqueta: 'Físico', valor: horaHms(mov.horaFisica))),
               Expanded(child: _MiniDato(etiqueta: 'Sincro', valor: horaHms(mov.horaSincro))),
+              const SizedBox(width: 8),
               SyncEstadoBadge(diferido: mov.esDiferido),
             ],
           ),

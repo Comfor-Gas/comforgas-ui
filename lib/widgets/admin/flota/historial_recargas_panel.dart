@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/deposito_camion.dart';
 import '../../../models/movimiento_stock.dart';
 import '../../../theme/app_colors.dart';
@@ -137,8 +138,9 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
       return const SizedBox.shrink();
     }
     final delDia = _movimientosDelDia;
+    final lateral = Responsive.isMobileContext(context) ? 14.0 : 18.0;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      padding: EdgeInsets.fromLTRB(lateral, 18, lateral, 24),
       children: [
         _ResumenAcumulado(
           total: _totalDia,
@@ -165,9 +167,11 @@ class _HistorialRecargasPanelState extends State<HistorialRecargasPanel> {
             children: [
               const Icon(Icons.local_shipping_outlined, size: 18, color: AppColors.steelBlue),
               const SizedBox(width: 8),
-              Text(
-                'Camión ${widget.camion.patenteVisible}',
-                style: AppTextStyles.label.copyWith(fontSize: 14),
+              Flexible(
+                child: Text(
+                  'Camión ${widget.camion.patenteVisible}',
+                  style: AppTextStyles.label.copyWith(fontSize: 14),
+                ),
               ),
             ],
           ),
@@ -324,6 +328,15 @@ class _FilaHistorial extends StatelessWidget {
     final fechaTexto = fecha != null
         ? '${formatFechaCorta(fecha)} · ${formatHora12(fecha)}'
         : 'Sin fecha';
+    final cantidadTexto = Text(
+      '+${movimiento.cantidad} ${movimiento.productoDescripcion.isNotEmpty ? movimiento.productoDescripcion : movimiento.productoSku}',
+      textAlign: TextAlign.right,
+      style: const TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w800,
+        color: AppColors.orange,
+      ),
+    );
 
     return IntrinsicHeight(
       child: Row(
@@ -374,14 +387,11 @@ class _FilaHistorial extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Text(
-                        '+${movimiento.cantidad} ${movimiento.productoDescripcion.isNotEmpty ? movimiento.productoDescripcion : movimiento.productoSku}',
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.orange,
-                        ),
-                      ),
+                      const SizedBox(width: 8),
+                      if (Responsive.isMobileContext(context))
+                        Flexible(child: cantidadTexto)
+                      else
+                        cantidadTexto,
                     ],
                   ),
                   const SizedBox(height: 8),

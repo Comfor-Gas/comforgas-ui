@@ -1,10 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/dashboard/dashboard_kpis.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../utils/formato.dart';
 import '../../../utils/formato_dashboard.dart';
+import 'chofer_resumen_tile.dart';
 import 'dashboard_card.dart';
 import 'paginador_compacto.dart';
 
@@ -74,9 +76,13 @@ class _DesgloseChoferesTablaState extends State<DesgloseChoferesTabla> {
     final pagina = PaginadorCompacto.acotar(_pagina, _porPagina, todas.length);
     final inicio = pagina * _porPagina;
     final filas = todas.sublist(inicio, math.min(inicio + _porPagina, todas.length));
+    final movil = Responsive.isMobileContext(context);
     return DashboardCard(
       titulo: 'Rendimiento por chofer',
-      subtitulo: 'Tocá un encabezado para ordenar',
+      subtitulo: movil ? 'Elegí el criterio para ordenar' : 'Tocá un encabezado para ordenar',
+      accion: movil && filas.isNotEmpty
+          ? _SelectorOrdenMovil(orden: _orden, descendente: _descendente, onOrdenar: _ordenar)
+          : null,
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
       child: filas.isEmpty
           ? const DashboardVacio(
@@ -90,23 +96,37 @@ class _DesgloseChoferesTablaState extends State<DesgloseChoferesTabla> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final ancho = constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width: ancho,
-                          child: Column(
-                            children: [
-                              _encabezado(),
-                              for (var i = 0; i < filas.length; i++) _fila(filas[i], i.isOdd),
-                            ],
+                  if (movil)
+                    DecoratedBox(
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: AppColors.inputBorder, width: 0.6)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < filas.length; i++)
+                            ChoferResumenTile(chofer: filas[i], alterna: i.isOdd),
+                        ],
+                      ),
+                    )
+                  else
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final ancho = constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: ancho,
+                            child: Column(
+                              children: [
+                                _encabezado(),
+                                for (var i = 0; i < filas.length; i++) _fila(filas[i], i.isOdd),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
                   if (todas.length > _porPagina)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -213,6 +233,93 @@ class _DesgloseChoferesTablaState extends State<DesgloseChoferesTabla> {
           celda(formatPorcentaje(c.tasaRecupero), 2),
           celda(formatMoneda(c.montoTotal), 3, fuerte: true),
         ],
+      ),
+    );
+  }
+}
+
+String _etiquetaColumna(_ColumnaChofer columna) {
+  switch (columna) {
+    case _ColumnaChofer.nombre:
+      return 'Chofer';
+    case _ColumnaChofer.visitas:
+      return 'Visitas';
+    case _ColumnaChofer.cumplimiento:
+      return 'Cumplimiento';
+    case _ColumnaChofer.efectividad:
+      return 'Efect. venta';
+    case _ColumnaChofer.recupero:
+      return 'Recupero';
+    case _ColumnaChofer.monto:
+      return 'Monto';
+  }
+}
+
+class _SelectorOrdenMovil extends StatelessWidget {
+  final _ColumnaChofer orden;
+  final bool descendente;
+  final ValueChanged<_ColumnaChofer> onOrdenar;
+
+  const _SelectorOrdenMovil({required this.orden, required this.descendente, required this.onOrdenar});
+
+  @override
+  Widget build(BuildContext context) {
+    final flecha = descendente ? Icons.arrow_downward : Icons.arrow_upward;
+    return PopupMenuButton<_ColumnaChofer>(
+      tooltip: 'Ordenar',
+      position: PopupMenuPosition.under,
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: onOrdenar,
+      itemBuilder: (context) => [
+        for (final columna in _ColumnaChofer.values)
+          PopupMenuItem<_ColumnaChofer>(
+            value: columna,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _etiquetaColumna(columna),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: columna == orden ? FontWeight.w700 : FontWeight.w500,
+                      color: columna == orden ? AppColors.orange : AppColors.steelBlue,
+                    ),
+                  ),
+                ),
+                if (columna == orden) Icon(flecha, size: 14, color: AppColors.orange),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sort, size: 16, color: AppColors.graphiteGray),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                'Ordenar: ${_etiquetaColumna(orden)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.steelBlue,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(flecha, size: 14, color: AppColors.orange),
+          ],
+        ),
       ),
     );
   }

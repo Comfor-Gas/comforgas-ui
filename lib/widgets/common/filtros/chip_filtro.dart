@@ -39,9 +39,13 @@ class ChipFiltro extends StatelessWidget {
               Icon(icono, size: 15, color: color),
               const SizedBox(width: 6),
             ],
-            Text(
-              etiqueta,
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color),
+            Flexible(
+              child: Text(
+                etiqueta,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color),
+              ),
             ),
           ],
         ),

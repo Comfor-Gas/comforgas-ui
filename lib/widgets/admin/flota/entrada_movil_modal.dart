@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/deposito_camion.dart';
 import '../../../models/nota_control_stock.dart';
 import '../../../models/producto_catalogo.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
+import 'flota_dialogo_layout.dart';
 import 'flota_form_controls.dart';
 import 'planilla_stock_tabla.dart';
 
@@ -199,19 +201,19 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      insetPadding: FlotaDialogoLayout.inset(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+          padding: FlotaDialogoLayout.contenido(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Entrada del Móvil (cierre de jornada)',
-                style: AppTextStyles.desktopTitle.copyWith(fontSize: 20),
+                style: FlotaDialogoLayout.titulo(context, AppTextStyles.desktopTitle),
               ),
               const SizedBox(height: 4),
               Text(
@@ -228,17 +230,30 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
                 ),
                 const SizedBox(height: 16),
               ],
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
+              if (Responsive.isMobileContext(context))
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
                       'Conteo de retorno por tipo de garrafa',
                       style: AppTextStyles.label.copyWith(fontSize: 13),
                     ),
-                  ),
-                  _buildAccionAuto(),
-                ],
-              ),
+                    const SizedBox(height: 4),
+                    _buildAccionAuto(),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Conteo de retorno por tipo de garrafa',
+                        style: AppTextStyles.label.copyWith(fontSize: 13),
+                      ),
+                    ),
+                    _buildAccionAuto(),
+                  ],
+                ),
               const SizedBox(height: 10),
               if (widget.productos.isEmpty)
                 Text('No hay productos en el catálogo para contar.', style: AppTextStyles.footer)
@@ -277,25 +292,17 @@ class _EntradaMovilModalState extends State<EntradaMovilModal> {
                 ),
               ),
               const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: FlotaBotonSecundario(
-                      texto: 'Cancelar',
-                      onTap: _guardando ? null : () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: FlotaBotonPrimario(
-                      texto: 'Registrar Entrada del Móvil',
-                      icono: Icons.local_shipping_outlined,
-                      cargando: _guardando,
-                      onTap: _valido ? _confirmar : null,
-                    ),
-                  ),
-                ],
+              FlotaAccionesDialogo(
+                secundaria: FlotaBotonSecundario(
+                  texto: 'Cancelar',
+                  onTap: _guardando ? null : () => Navigator.of(context).pop(),
+                ),
+                primaria: FlotaBotonPrimario(
+                  texto: 'Registrar Entrada del Móvil',
+                  icono: Icons.local_shipping_outlined,
+                  cargando: _guardando,
+                  onTap: _valido ? _confirmar : null,
+                ),
               ),
             ],
           ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -18,6 +19,7 @@ import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/arqueo_prestamos_card.dart';
 import '../../widgets/admin/cobranza/arqueo_resumen_card.dart';
 import '../../widgets/admin/cobranza/cuadre_rendicion_modal.dart';
+import '../../widgets/admin/cobranza/fila_comparativa_movil.dart';
 import '../../widgets/admin/cobranza/paso_rendicion_card.dart';
 import '../../widgets/admin/cobranza/arqueo_tabla.dart';
 import '../../widgets/common/carga/zona_carga.dart';
@@ -373,7 +375,9 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            padding: Responsive.isMobileContext(context)
+                ? const EdgeInsets.fromLTRB(16, 16, 16, 12)
+                : const EdgeInsets.fromLTRB(20, 18, 20, 14),
             child: Text(
               'Liquidación Diaria: $_nombreChofer',
               style: AppTextStyles.label.copyWith(fontSize: 15),
@@ -440,7 +444,12 @@ class _Cabecera extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Arqueo de Caja', style: AppTextStyles.desktopTitle),
+        Text(
+          'Arqueo de Caja',
+          style: Responsive.isMobileContext(context)
+              ? AppTextStyles.desktopTitle.copyWith(fontSize: 22)
+              : AppTextStyles.desktopTitle,
+        ),
         const SizedBox(height: 4),
         Text(
           'Conciliación diaria de fondos por chofer, auditando hora física del cobro vs. hora de sincronización.',
@@ -560,8 +569,6 @@ class _AvisoBanner extends StatelessWidget {
   }
 }
 
-/// Resultado del diálogo de cierre: los montos que el admin declara haber
-/// contado físicamente, más una observación opcional.
 class _MontosDeclarados {
   final int efectivo;
   final int cheque;
@@ -625,11 +632,21 @@ class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
+    final ancho = movil ? math.min(440.0, MediaQuery.sizeOf(context).width - 64) : 440.0;
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text('Cerrar arqueo auditado', style: AppTextStyles.title),
+      insetPadding: movil
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      titlePadding: movil ? const EdgeInsets.fromLTRB(16, 20, 16, 0) : null,
+      contentPadding: movil ? const EdgeInsets.fromLTRB(16, 16, 16, 12) : null,
+      title: Text(
+        'Cerrar arqueo auditado',
+        style: movil ? AppTextStyles.title.copyWith(fontSize: 19) : AppTextStyles.title,
+      ),
       content: SizedBox(
-        width: 440,
+        width: ancho,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -752,13 +769,28 @@ class _FilaMontoArqueo extends StatelessWidget {
     );
     final dif = declarado - sistema;
     final colorDif = dif == 0 ? AppColors.badgeGreen : (dif > 0 ? AppColors.steelBlue : AppColors.error);
+    final borde = ultima
+        ? null
+        : Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.7)));
+    if (Responsive.isMobileContext(context)) {
+      if (esEncabezado) return const SizedBox.shrink();
+      return Container(
+        decoration: BoxDecoration(border: borde),
+        child: FilaComparativaMovil(
+          concepto: etiqueta,
+          sistema: formatMoneda(sistema),
+          declarado: formatMoneda(declarado),
+          etiquetaDeclarado: 'Rendido',
+          diferencia: Text(
+            dif == 0 ? 'OK' : formatMoneda(dif),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: colorDif),
+          ),
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: BoxDecoration(
-        border: ultima
-            ? null
-            : Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.7))),
-      ),
+      decoration: BoxDecoration(border: borde),
       child: Row(
         children: [
           Expanded(

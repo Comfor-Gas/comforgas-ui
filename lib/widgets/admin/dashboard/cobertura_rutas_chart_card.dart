@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/dashboard/dashboard_kpis.dart';
 import '../../../theme/app_colors.dart';
 import '../../../utils/formato.dart';
@@ -25,7 +26,9 @@ class CoberturaRutasChartCard extends StatefulWidget {
 
 class _CoberturaRutasChartCardState extends State<CoberturaRutasChartCard> {
   static const int _porPagina = 8;
+  static const int _porPaginaMovil = 5;
   static const double _anchoGrupo = 64;
+  static const double _anchoGrupoMovil = 52;
 
   OrdenRutas _orden = OrdenRutas.programadas;
   int _pagina = 0;
@@ -46,15 +49,19 @@ class _CoberturaRutasChartCardState extends State<CoberturaRutasChartCard> {
     return lista;
   }
 
-  String _corto(String nombre) => nombre.length <= 11 ? nombre : '${nombre.substring(0, 10)}…';
+  String _corto(String nombre, int maximo) =>
+      nombre.length <= maximo ? nombre : '${nombre.substring(0, maximo - 1)}…';
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
+    final porPagina = movil ? _porPaginaMovil : _porPagina;
+    final anchoGrupo = movil ? _anchoGrupoMovil : _anchoGrupo;
     final todas = _rutasOrdenadas;
     final total = todas.length;
-    final pagina = PaginadorCompacto.acotar(_pagina, _porPagina, total);
-    final inicio = pagina * _porPagina;
-    final rutas = todas.sublist(inicio, math.min(inicio + _porPagina, total));
+    final pagina = PaginadorCompacto.acotar(_pagina, porPagina, total);
+    final inicio = pagina * porPagina;
+    final rutas = todas.sublist(inicio, math.min(inicio + porPagina, total));
     final maximo = todas.fold<int>(0, (a, r) => r.programadas > a ? r.programadas : a);
     return DashboardCard(
       titulo: 'Cobertura de rutas',
@@ -93,22 +100,22 @@ class _CoberturaRutasChartCardState extends State<CoberturaRutasChartCard> {
                     opacity: widget.cargando ? 0.45 : 1,
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final necesario = rutas.length * _anchoGrupo + 60;
+                        final necesario = rutas.length * anchoGrupo + 60;
                         final ancho = necesario > constraints.maxWidth ? necesario : constraints.maxWidth;
-                        final grafico = SizedBox(width: ancho, child: _grafico(rutas, maximo));
+                        final grafico = SizedBox(width: ancho, child: _grafico(rutas, maximo, movil ? 8 : 11));
                         if (ancho <= constraints.maxWidth) return grafico;
                         return SingleChildScrollView(scrollDirection: Axis.horizontal, child: grafico);
                       },
                     ),
                   ),
           ),
-          if (total > _porPagina) ...[
+          if (total > porPagina) ...[
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
               child: PaginadorCompacto(
                 pagina: pagina,
-                porPagina: _porPagina,
+                porPagina: porPagina,
                 total: total,
                 unidad: 'rutas',
                 onCambio: (p) => setState(() => _pagina = p),
@@ -120,7 +127,7 @@ class _CoberturaRutasChartCardState extends State<CoberturaRutasChartCard> {
     );
   }
 
-  Widget _grafico(List<KpiRuta> rutas, int maximo) {
+  Widget _grafico(List<KpiRuta> rutas, int maximo, int largoEtiqueta) {
     final escala = EscalaGrafico.para(maximo.toDouble(), entero: true);
     const radio = BorderRadius.vertical(top: Radius.circular(4));
 
@@ -169,7 +176,7 @@ class _CoberturaRutasChartCardState extends State<CoberturaRutasChartCard> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_corto(r.nombre), style: DashboardPaleta.ejeTexto),
+                      Text(_corto(r.nombre, largoEtiqueta), style: DashboardPaleta.ejeTexto),
                       Text(
                         formatPorcentaje(r.porcentajeCumplimiento, decimales: 0),
                         style: DashboardPaleta.ejeTexto.copyWith(

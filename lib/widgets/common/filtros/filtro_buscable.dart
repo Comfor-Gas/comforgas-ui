@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import 'decoracion_filtro.dart';
@@ -45,6 +48,7 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
 
   final _ctrl = TextEditingController();
   final _foco = FocusNode();
+  final _campoKey = GlobalKey();
 
   @override
   void initState() {
@@ -98,8 +102,13 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
   @override
   Widget build(BuildContext context) {
     final activo = widget.seleccion != null;
+    final movil = Responsive.isMobileContext(context);
+    final ancho = movil
+        ? math.max(widget.ancho, MediaQuery.sizeOf(context).width)
+        : widget.ancho;
     return SizedBox(
-      width: widget.ancho,
+      key: _campoKey,
+      width: ancho,
       child: RawAutocomplete<OpcionFiltro>(
         textEditingController: _ctrl,
         focusNode: _foco,
@@ -138,6 +147,9 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
         },
         optionsViewBuilder: (context, onSelected, opciones) {
           final lista = opciones.toList();
+          final caja = movil ? _campoKey.currentContext?.findRenderObject() : null;
+          final anchoOpciones =
+              caja is RenderBox && caja.hasSize ? caja.size.width : double.infinity;
           return Align(
             alignment: Alignment.topLeft,
             child: Material(
@@ -145,7 +157,7 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
               borderRadius: BorderRadius.circular(10),
               color: AppColors.white,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 280),
+                constraints: BoxConstraints(maxHeight: 280, maxWidth: anchoOpciones),
                 child: lista.isEmpty
                     ? const Padding(
                         padding: EdgeInsets.all(14),

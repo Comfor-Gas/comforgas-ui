@@ -12,6 +12,7 @@ import '../../repositories/venta_monitoreo_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
+import '../../widgets/admin/ventas/ventas_cabecera.dart';
 import '../../widgets/admin/ventas/ventas_filtros_bar.dart';
 import '../../widgets/admin/ventas/ventas_tabla.dart';
 import '../../widgets/admin/ventas/venta_detalle_panel.dart';
@@ -247,7 +248,7 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ..._encabezadoYFiltros(),
-              const SizedBox(height: 20),
+              SizedBox(height: Responsive.isMobile(constraints) ? 16 : 20),
               _contenidoApilado(),
             ],
           ),
@@ -259,7 +260,7 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
   List<Widget> _encabezadoYFiltros() {
     return [
       ReportarCarga(cargando: _loading),
-      _Cabecera(
+      VentasCabecera(
         cantidad: _ventasFiltradas.length,
         montoTotal: _montoTotalDia,
       ),
@@ -347,85 +348,6 @@ class _ConsolaVentasScreenState extends State<ConsolaVentasScreen> {
   }
 }
 
-class _Cabecera extends StatelessWidget {
-  final int cantidad;
-  final int montoTotal;
-
-  const _Cabecera({
-    required this.cantidad,
-    required this.montoTotal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Consola de Ventas', style: AppTextStyles.desktopTitle),
-              const SizedBox(height: 4),
-              Text(
-                'Monitoreo diario de ventas con el desglose de cilindros entregados y retribuidos.',
-                style: AppTextStyles.desktopSubtitle,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        _ResumenChip(
-          etiqueta: 'Total del día',
-          valor: formatMoneda(montoTotal),
-        ),
-      ],
-    );
-  }
-}
-
-class _ResumenChip extends StatelessWidget {
-  final String etiqueta;
-  final String valor;
-
-  const _ResumenChip({required this.etiqueta, required this.valor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            etiqueta,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.graphiteGray,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            valor,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: AppColors.orange,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TarjetaTabla extends StatelessWidget {
   final int cantidad;
   final bool scrollInterno;
@@ -439,6 +361,7 @@ class _TarjetaTabla extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lateral = Responsive.isMobileContext(context) ? 16.0 : 20.0;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -450,7 +373,7 @@ class _TarjetaTabla extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            padding: EdgeInsets.fromLTRB(lateral, 18, lateral, 14),
             child: Row(
               children: [
                 const Text('Consola de Ventas', style: AppTextStyles.label),
@@ -555,7 +478,13 @@ class _RegistrarCobroDialogState extends State<_RegistrarCobroDialog> {
   @override
   Widget build(BuildContext context) {
     final valido = _montoIngresado > 0;
+    final movil = Responsive.isMobileContext(context);
     return AlertDialog(
+      insetPadding: movil
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      contentPadding: movil ? const EdgeInsets.fromLTRB(18, 16, 18, 8) : null,
+      titlePadding: movil ? const EdgeInsets.fromLTRB(18, 18, 18, 0) : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text('Registrar cobro', style: AppTextStyles.title),
       content: SingleChildScrollView(

@@ -30,7 +30,10 @@ class CamionStockBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
+        Wrap(
+          spacing: 10,
+          runSpacing: 2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               hayReferencia ? '$llenos/$cupo Llenos' : '$llenos Llenos',
@@ -40,8 +43,7 @@ class CamionStockBar extends StatelessWidget {
                 color: AppColors.orange,
               ),
             ),
-            if (mostrarVacios) ...[
-              const SizedBox(width: 10),
+            if (mostrarVacios)
               Text(
                 '$vacios Vacíos',
                 style: TextStyle(
@@ -50,7 +52,6 @@ class CamionStockBar extends StatelessWidget {
                   color: AppColors.graphiteGray,
                 ),
               ),
-            ],
           ],
         ),
         if (hayReferencia) ...[

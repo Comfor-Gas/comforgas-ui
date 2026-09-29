@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/cuenta_corriente_resumen.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -143,10 +146,16 @@ class _EditarLimiteDialogState extends State<EditarLimiteDialog> {
     final limite = _limite;
     final disponible = limite == null ? null : limite - _saldoUsado;
     final hayCliente = _idCliente != null;
+    final movil = Responsive.isMobileContext(context);
+    final ancho = movil ? math.min(420.0, MediaQuery.sizeOf(context).width - 64) : 420.0;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
+      insetPadding: movil
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      titlePadding: movil ? const EdgeInsets.fromLTRB(16, 20, 16, 0) : const EdgeInsets.fromLTRB(24, 22, 24, 0),
+      contentPadding: movil ? const EdgeInsets.fromLTRB(16, 16, 16, 12) : null,
       title: Row(
         children: [
           Container(
@@ -161,13 +170,13 @@ class _EditarLimiteDialogState extends State<EditarLimiteDialog> {
           Expanded(
             child: Text(
               _modoNuevo ? 'Asignar límite de crédito' : 'Editar límite de crédito',
-              style: AppTextStyles.title.copyWith(fontSize: 18),
+              style: AppTextStyles.title.copyWith(fontSize: movil ? 17 : 18),
             ),
           ),
         ],
       ),
       content: SizedBox(
-        width: 420,
+        width: ancho,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -182,7 +191,7 @@ class _EditarLimiteDialogState extends State<EditarLimiteDialog> {
                   seleccion: _idSeleccionado,
                   hint: 'Elegí un cliente',
                   obligatorio: true,
-                  ancho: 420,
+                  ancho: ancho,
                   habilitado: widget.clientesCatalogo.isNotEmpty,
                   onCambio: _seleccionar,
                 ),
@@ -321,7 +330,9 @@ class _ResumenActual extends StatelessWidget {
           : Row(
               children: [
                 Expanded(child: _Dato(etiqueta: 'Límite actual', valor: formatMoneda(c.limiteCredito))),
+                const SizedBox(width: 8),
                 Expanded(child: _Dato(etiqueta: 'Debe', valor: formatMoneda(c.saldoUsado))),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _Dato(
                     etiqueta: 'Disponible',
@@ -349,9 +360,14 @@ class _Dato extends StatelessWidget {
       children: [
         Text(etiqueta, style: const TextStyle(fontSize: 10.5, color: AppColors.graphiteGray)),
         const SizedBox(height: 2),
-        Text(
-          valor,
-          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: acento ?? AppColors.steelBlue),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            valor,
+            maxLines: 1,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: acento ?? AppColors.steelBlue),
+          ),
         ),
       ],
     );

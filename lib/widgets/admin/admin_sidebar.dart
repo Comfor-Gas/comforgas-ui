@@ -37,8 +37,9 @@ class SidebarPaleta {
 
 class AdminSidebar extends StatelessWidget {
   final SidebarXController controller;
+  final bool enDrawer;
 
-  const AdminSidebar({super.key, required this.controller});
+  const AdminSidebar({super.key, required this.controller, this.enDrawer = false});
 
   static const double anchoColapsado = 70;
   static const double anchoExpandido = 240;
@@ -101,7 +102,8 @@ class AdminSidebar extends StatelessWidget {
       ),
       footerDivider: SidebarPaleta.divisor,
       headerBuilder: (context, extendido) => _Encabezado(extendido: extendido),
-      footerBuilder: (context, extendido) => _Pie(extendido: extendido, controller: controller),
+      footerBuilder: (context, extendido) =>
+          _Pie(extendido: extendido, controller: controller, mostrarPlegar: !enDrawer),
       items: [
         for (final item in adminNavItems) SidebarXItem(icon: item.icon, label: item.label),
       ],
@@ -298,8 +300,9 @@ class _CerrarSesionState extends State<_CerrarSesion> {
 class _Pie extends StatelessWidget {
   final bool extendido;
   final SidebarXController controller;
+  final bool mostrarPlegar;
 
-  const _Pie({required this.extendido, required this.controller});
+  const _Pie({required this.extendido, required this.controller, this.mostrarPlegar = true});
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +325,7 @@ class _Pie extends StatelessWidget {
         child: Row(
           children: [
             const Expanded(child: _CerrarSesion(extendido: true)),
-            plegar,
+            if (mostrarPlegar) plegar,
           ],
         ),
       ),

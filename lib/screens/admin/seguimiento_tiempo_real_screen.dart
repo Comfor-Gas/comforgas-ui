@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import '../../core/responsive.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/visita_alerta.dart';
 import '../../models/visita_estado.dart';
@@ -20,6 +21,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/alerta_visita_badge.dart';
 import '../../widgets/admin/estado_visita_badge.dart';
 import '../../widgets/admin/seguimiento/evidencias_visita_boton.dart';
+import '../../widgets/admin/seguimiento/seguimiento_vista_movil.dart';
 import '../../widgets/chofer/comodato_badge.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/common/carga/zona_carga.dart';
@@ -105,6 +107,7 @@ class _SeguimientoTiempoRealScreenState
 
   int? _selectedVisitaId;
   String? _estadoFilter;
+  int _tabMovil = 0;
 
   @override
   void initState() {
@@ -371,16 +374,26 @@ class _SeguimientoTiempoRealScreenState
   void _cerrarInfo() => setState(() => _selectedVisitaId = null);
 
   Future<void> _mostrarClusterVisitas(List<VisitaModel> grupo) async {
+    final anchoPantalla = MediaQuery.sizeOf(context).width;
+    final esMovil = Responsive.isMobileContext(context);
+    final anchoContenido = esMovil
+        ? (anchoPantalla - 32 - 40).clamp(200.0, 380.0).toDouble()
+        : 380.0;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.white,
+        insetPadding: esMovil
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+            : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        contentPadding: esMovil ? const EdgeInsets.fromLTRB(20, 16, 20, 8) : null,
+        titlePadding: esMovil ? const EdgeInsets.fromLTRB(20, 20, 20, 0) : null,
         title: Text(
           'Paradas en este punto (${grupo.length})',
-          style: AppTextStyles.title.copyWith(fontSize: 18),
+          style: AppTextStyles.title.copyWith(fontSize: esMovil ? 16 : 18),
         ),
         content: SizedBox(
-          width: 380,
+          width: anchoContenido,
           child: ListView(
             shrinkWrap: true,
             children: [
@@ -415,6 +428,7 @@ class _SeguimientoTiempoRealScreenState
                                 Text(
                                   v.nombreUsuario ?? 'Sin asignar',
                                   style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -440,6 +454,79 @@ class _SeguimientoTiempoRealScreenState
     );
   }
 
+  Widget _buildMapa({bool compacto = false}) {
+    return _MapaCard(
+      mapController: _mapController,
+      rutas: _rutasPorChofer,
+      visitas: _visitas,
+      posicionDe: _posicionDe,
+      alertaPorVisita: _alertaPorVisita,
+      selectedVisita: _selectedVisita,
+      selectedVisitaAlerta: _selectedVisitaId != null
+          ? _alertaPorVisita[_selectedVisitaId]
+          : null,
+      onMarkerTap: _selectVisita,
+      onClusterTap: _mostrarClusterVisitas,
+      onCerrarInfo: _cerrarInfo,
+      clienteNombreOf: _clienteNombre,
+      compacto: compacto,
+    );
+  }
+
+  Widget _buildListado({bool compacto = false, ValueChanged<VisitaModel>? onSelect}) {
+    return _ListadoCard(
+      choferCtrl: _choferFilterCtrl,
+      estadoFilter: _estadoFilter,
+      onEstadoChanged: (v) => setState(() => _estadoFilter = v),
+      onLimpiar: () {
+        _choferFilterCtrl.clear();
+        setState(() => _estadoFilter = null);
+      },
+      onActualizar: () {
+        _cargarDatos();
+        _cargarUbicaciones();
+      },
+      grupos: _agrupadasPorChofer,
+      selectedVisitaId: _selectedVisitaId,
+      onSelect: onSelect ?? _selectVisita,
+      clienteNombreOf: _clienteNombre,
+      horaProgramadaOf: _horaProgramada,
+      horaCheckInOf: _horaCheckIn,
+      alertaPorVisita: _alertaPorVisita,
+      compacto: compacto,
+    );
+  }
+
+  Widget _buildMovil(double bottomSafePadding) {
+    final grupos = _agrupadasPorChofer;
+    final cantidad = grupos.values.fold<int>(0, (a, l) => a + l.length);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomSafePadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Header(connected: _wsConnected, compacto: true),
+          const SizedBox(height: 12),
+          Expanded(
+            child: SeguimientoVistaMovil(
+              indice: _tabMovil,
+              onCambio: (i) => setState(() => _tabMovil = i),
+              cantidadVisitas: cantidad,
+              mapa: _buildMapa(compacto: true),
+              listado: _buildListado(
+                compacto: true,
+                onSelect: (v) {
+                  _selectVisita(v);
+                  setState(() => _tabMovil = 0);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomSafePadding = MediaQuery.of(context).padding.bottom;
@@ -450,110 +537,114 @@ class _SeguimientoTiempoRealScreenState
 
     if (_loadError != null) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_loadError!, style: AppTextStyles.errorText),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _cargarDatos,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Reintentar'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.steelBlue,
-                side: const BorderSide(color: AppColors.steelBlue),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _loadError!,
+                style: AppTextStyles.errorText,
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _cargarDatos,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reintentar'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.steelBlue,
+                  side: const BorderSide(color: AppColors.steelBlue),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafePadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ReportarCarga(cargando: _loading),
-          _Header(connected: _wsConnected),
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 1000;
+    return LayoutBuilder(
+      builder: (context, outer) {
+        final esMovil = Responsive.isMobile(outer);
+        if (esMovil && outer.hasBoundedHeight) {
+          return _buildMovil(bottomSafePadding);
+        }
+        final pad = esMovil ? 16.0 : 24.0;
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + bottomSafePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ReportarCarga(cargando: _loading),
+              _Header(connected: _wsConnected, compacto: esMovil),
+              SizedBox(height: esMovil ? 12 : 20),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 1000;
 
-              final mapa = _MapaCard(
-                mapController: _mapController,
-                rutas: _rutasPorChofer,
-                visitas: _visitas,
-                posicionDe: _posicionDe,
-                alertaPorVisita: _alertaPorVisita,
-                selectedVisita: _selectedVisita,
-                selectedVisitaAlerta: _selectedVisitaId != null
-                    ? _alertaPorVisita[_selectedVisitaId]
-                    : null,
-                onMarkerTap: _selectVisita,
-                onClusterTap: _mostrarClusterVisitas,
-                onCerrarInfo: _cerrarInfo,
-                clienteNombreOf: _clienteNombre,
-              );
+                  final mapa = _buildMapa(compacto: esMovil);
+                  final lista = _buildListado(compacto: esMovil);
 
-              final lista = _ListadoCard(
-                choferCtrl: _choferFilterCtrl,
-                estadoFilter: _estadoFilter,
-                onEstadoChanged: (v) => setState(() => _estadoFilter = v),
-                onLimpiar: () {
-                  _choferFilterCtrl.clear();
-                  setState(() => _estadoFilter = null);
-                },
-                onActualizar: () {
-                  _cargarDatos();
-                  _cargarUbicaciones();
-                },
-                grupos: _agrupadasPorChofer,
-                selectedVisitaId: _selectedVisitaId,
-                onSelect: _selectVisita,
-                clienteNombreOf: _clienteNombre,
-                horaProgramadaOf: _horaProgramada,
-                horaCheckInOf: _horaCheckIn,
-                alertaPorVisita: _alertaPorVisita,
-              );
+                  if (wide) {
+                    return SizedBox(
+                      height: 680,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 45, child: mapa),
+                          const SizedBox(width: 20),
+                          Expanded(flex: 55, child: lista),
+                        ],
+                      ),
+                    );
+                  }
 
-              if (wide) {
-                return SizedBox(
-                  height: 680,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  return Column(
                     children: [
-                      Expanded(flex: 45, child: mapa),
-                      const SizedBox(width: 20),
-                      Expanded(flex: 55, child: lista),
+                      SizedBox(height: esMovil ? 320 : 360, child: mapa),
+                      SizedBox(height: esMovil ? 12 : 20),
+                      SizedBox(height: 480, child: lista),
                     ],
-                  ),
-                );
-              }
-
-              return Column(
-                children: [
-                  SizedBox(height: 360, child: mapa),
-                  const SizedBox(height: 20),
-                  SizedBox(height: 480, child: lista),
-                ],
-              );
-            },
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 class _Header extends StatelessWidget {
   final bool connected;
+  final bool compacto;
 
-  const _Header({required this.connected});
+  const _Header({required this.connected, this.compacto = false});
 
   @override
   Widget build(BuildContext context) {
+    if (compacto) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Listado de Visitas en Tiempo Real',
+            style: AppTextStyles.desktopTitle.copyWith(fontSize: 20),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Seguimiento en vivo de choferes, visitas y alertas de hoy.',
+            style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          _WebSocketStatusChip(connected: connected),
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -596,9 +687,13 @@ class _WebSocketStatusChip extends StatelessWidget {
         children: [
           Icon(connected ? Icons.wifi : Icons.wifi_off, size: 14, color: color),
           const SizedBox(width: 6),
-          Text(
-            connected ? 'Tiempo real: conectado' : 'Tiempo real: reconectando',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+          Flexible(
+            child: Text(
+              connected ? 'Tiempo real: conectado' : 'Tiempo real: reconectando',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -639,6 +734,7 @@ class _MapaCard extends StatelessWidget {
   final ValueChanged<List<VisitaModel>> onClusterTap;
   final VoidCallback onCerrarInfo;
   final String Function(VisitaModel) clienteNombreOf;
+  final bool compacto;
 
   const _MapaCard({
     required this.mapController,
@@ -652,6 +748,7 @@ class _MapaCard extends StatelessWidget {
     required this.onClusterTap,
     required this.onCerrarInfo,
     required this.clienteNombreOf,
+    this.compacto = false,
   });
 
   List<List<VisitaModel>> _agruparPorPunto() {
@@ -731,22 +828,47 @@ class _MapaCard extends StatelessWidget {
                 ],
               ),
             ),
-            Positioned(top: 12, left: 12, child: _Leyenda(rutas: rutas)),
-            Positioned(
-              bottom: selectedVisita != null ? 92 : 12,
-              right: 12,
-              child: _ZoomControls(mapController: mapController),
-            ),
+            if (compacto)
+              Positioned(
+                top: 8,
+                left: 8,
+                right: 54,
+                child: LayoutBuilder(
+                  builder: (context, box) => Align(
+                    alignment: Alignment.topLeft,
+                    child: _Leyenda(
+                      rutas: rutas,
+                      maxWidth: box.maxWidth,
+                      maxHeight: 120,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Positioned(top: 12, left: 12, child: _Leyenda(rutas: rutas)),
+            if (compacto)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _ZoomControls(mapController: mapController),
+              )
+            else
+              Positioned(
+                bottom: selectedVisita != null ? 92 : 12,
+                right: 12,
+                child: _ZoomControls(mapController: mapController),
+              ),
             if (selectedVisita != null)
               Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
+                left: compacto ? 8 : 12,
+                right: compacto ? 8 : 12,
+                bottom: compacto ? 8 : 12,
                 child: _VisitaInfoPanel(
                   visita: selectedVisita!,
                   alerta: selectedVisitaAlerta,
                   clienteNombre: clienteNombreOf(selectedVisita!),
                   onClose: onCerrarInfo,
+                  compacto: compacto,
                 ),
               ),
           ],
@@ -948,14 +1070,59 @@ class _VisitaMarker extends StatelessWidget {
 
 class _Leyenda extends StatelessWidget {
   final List<_ChoferRuta> rutas;
+  final double? maxWidth;
+  final double? maxHeight;
 
-  const _Leyenda({required this.rutas});
+  const _Leyenda({required this.rutas, this.maxWidth, this.maxHeight});
 
   @override
   Widget build(BuildContext context) {
     if (rutas.isEmpty) return const SizedBox.shrink();
+    final limitado = maxWidth != null || maxHeight != null;
+    if (!limitado) return _contenido();
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: maxWidth ?? double.infinity,
+        maxHeight: maxHeight ?? double.infinity,
+      ),
+      child: _contenido(limitado: true),
+    );
+  }
+
+  Widget _contenido({bool limitado = false}) {
+    final columna = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < rutas.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '●  ',
+                  style: TextStyle(fontSize: 12, color: rutas[i].color),
+                ),
+                TextSpan(
+                  text: rutas[i].choferNombre,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.steelBlue,
+                  ),
+                ),
+              ],
+            ),
+            maxLines: limitado ? 1 : null,
+            overflow: limitado ? TextOverflow.ellipsis : null,
+          ),
+        ],
+      ],
+    );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: limitado
+          ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+          : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
         borderRadius: BorderRadius.circular(12),
@@ -963,33 +1130,7 @@ class _Leyenda extends StatelessWidget {
           BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (int i = 0; i < rutas.length; i++) ...[
-            if (i > 0) const SizedBox(height: 6),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '●  ',
-                    style: TextStyle(fontSize: 12, color: rutas[i].color),
-                  ),
-                  TextSpan(
-                    text: rutas[i].choferNombre,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.steelBlue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
+      child: limitado ? SingleChildScrollView(child: columna) : columna,
     );
   }
 }
@@ -999,18 +1140,90 @@ class _VisitaInfoPanel extends StatelessWidget {
   final VisitaAlertaTipo? alerta;
   final String clienteNombre;
   final VoidCallback onClose;
+  final bool compacto;
 
   const _VisitaInfoPanel({
     required this.visita,
     required this.alerta,
     required this.clienteNombre,
     required this.onClose,
+    this.compacto = false,
   });
+
+  Widget _buildCompacto(Color color, IconData icon, ClienteFicha ficha) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  clienteNombre,
+                  style: AppTextStyles.title.copyWith(fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${visita.nombreUsuario ?? 'Sin asignar'} · Cliente ID ${ficha.clienteId}',
+                  style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (ficha.tieneComodatoActivo)
+                      const ComodatoBadge(compacto: true),
+                    UltimaBajadaIndicator(fecha: ficha.ultimaBajada, compacto: true),
+                    if (alerta != null) AlertaVisitaBadge(tipo: alerta),
+                    EvidenciasVisitaBoton(
+                      idVisita: visita.idVisita,
+                      estado: visita.estadoVisita,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onClose,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            icon: const Icon(Icons.close, size: 18, color: AppColors.inputHint),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final (color, icon) = _estadoVisual(visita.estadoVisita);
     final ficha = ClienteFicha.fromVisita(visita, nombreResuelto: clienteNombre);
+    if (compacto) return _buildCompacto(color, icon, ficha);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1091,6 +1304,7 @@ class _ListadoCard extends StatelessWidget {
   final String Function(VisitaModel) horaProgramadaOf;
   final String? Function(VisitaModel) horaCheckInOf;
   final Map<int, VisitaAlertaTipo> alertaPorVisita;
+  final bool compacto;
 
   const _ListadoCard({
     required this.choferCtrl,
@@ -1105,6 +1319,7 @@ class _ListadoCard extends StatelessWidget {
     required this.horaProgramadaOf,
     required this.horaCheckInOf,
     required this.alertaPorVisita,
+    this.compacto = false,
   });
 
   static const List<OpcionFiltro> _estados = [
@@ -1122,36 +1337,44 @@ class _ListadoCard extends StatelessWidget {
     final hayFiltros = choferCtrl.text.trim().isNotEmpty || estadoFilter != null;
 
     return _CardContainer(
+      padding: compacto ? const EdgeInsets.all(12) : const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FiltrosPanel(
-            padding: const EdgeInsets.all(12),
-            filas: [
-              FilaFiltros(
-                children: [
-                  CampoBusquedaFiltro(
-                    controller: choferCtrl,
-                    etiqueta: 'Chofer',
-                    hint: 'Nombre del chofer',
-                    icono: Icons.person_search_outlined,
-                    ancho: 240,
+          LayoutBuilder(
+            builder: (context, box) {
+              final anchoCampo = compacto
+                  ? (box.maxWidth - 26).clamp(120.0, double.infinity).toDouble()
+                  : null;
+              return FiltrosPanel(
+                padding: const EdgeInsets.all(12),
+                filas: [
+                  FilaFiltros(
+                    children: [
+                      CampoBusquedaFiltro(
+                        controller: choferCtrl,
+                        etiqueta: 'Chofer',
+                        hint: 'Nombre del chofer',
+                        icono: Icons.person_search_outlined,
+                        ancho: anchoCampo ?? 240,
+                      ),
+                      FiltroBuscable(
+                        etiqueta: 'Estado',
+                        icono: Icons.flag_outlined,
+                        opciones: _estados,
+                        seleccion: estadoFilter,
+                        onCambio: onEstadoChanged,
+                        ancho: anchoCampo ?? 190,
+                      ),
+                      if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
+                      BotonActualizar(onPressed: onActualizar),
+                    ],
                   ),
-                  FiltroBuscable(
-                    etiqueta: 'Estado',
-                    icono: Icons.flag_outlined,
-                    opciones: _estados,
-                    seleccion: estadoFilter,
-                    onCambio: onEstadoChanged,
-                    ancho: 190,
-                  ),
-                  if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
-                  BotonActualizar(onPressed: onActualizar),
                 ],
-              ),
-            ],
+              );
+            },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compacto ? 12 : 16),
           Text(
             '$totalVisitas visita(s) de hoy · agrupadas por chofer',
             style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 12),
@@ -1164,6 +1387,7 @@ class _ListadoCard extends StatelessWidget {
                     child: Text(
                       'No hay visitas para los filtros seleccionados.',
                       style: AppTextStyles.desktopSubtitle,
+                      textAlign: TextAlign.center,
                     ),
                   )
                 : ListView(
@@ -1221,7 +1445,13 @@ class _GrupoChofer extends StatelessWidget {
             children: [
               const Icon(Icons.person_outline, size: 16, color: AppColors.steelBlue),
               const SizedBox(width: 6),
-              Text(choferNombre, style: AppTextStyles.label.copyWith(fontSize: 13)),
+              Flexible(
+                child: Text(
+                  choferNombre,
+                  style: AppTextStyles.label.copyWith(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -1352,10 +1582,15 @@ class _VisitaRowWide extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Prog. $horaProgramada', style: AppTextStyles.input.copyWith(fontSize: 12)),
+              Text(
+                'Prog. $horaProgramada',
+                style: AppTextStyles.input.copyWith(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
               Text(
                 horaCheckIn != null ? 'Check-in $horaCheckIn' : 'Sin check-in',
                 style: AppTextStyles.desktopSubtitle.copyWith(fontSize: 11),
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

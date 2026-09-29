@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/evidencia_fotografica_model.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -49,10 +50,13 @@ class GaleriaEvidenciasDialogState extends State<GaleriaEvidenciasDialog> {
   Widget build(BuildContext context) {
     final fotos = widget.fotos;
     final actual = fotos[_indice];
+    final movil = Responsive.isMobileContext(context);
 
     return Dialog(
       backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      insetPadding: movil
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
@@ -61,7 +65,7 @@ class GaleriaEvidenciasDialogState extends State<GaleriaEvidenciasDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 10, 12),
+              padding: EdgeInsets.fromLTRB(movil ? 14 : 18, 16, movil ? 4 : 10, 12),
               child: Row(
                 children: [
                   const Icon(Icons.photo_library_outlined, size: 20, color: AppColors.orange),
@@ -69,6 +73,8 @@ class GaleriaEvidenciasDialogState extends State<GaleriaEvidenciasDialog> {
                   Expanded(
                     child: Text(
                       widget.titulo,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.title.copyWith(fontSize: 17),
                     ),
                   ),
@@ -160,29 +166,35 @@ class GaleriaEvidenciasDialogState extends State<GaleriaEvidenciasDialog> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+              padding: EdgeInsets.fromLTRB(movil ? 14 : 18, 12, movil ? 14 : 18, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.orange.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _etiquetaTipo(actual.tipoEvidencia),
-                          style: AppTextStyles.label.copyWith(fontSize: 12, color: AppColors.orange),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.orange.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _etiquetaTipo(actual.tipoEvidencia),
+                              style: AppTextStyles.label.copyWith(fontSize: 12, color: AppColors.orange),
+                            ),
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      if (actual.timestampCaptura != null)
+                      if (actual.timestampCaptura != null) ...[
+                        const SizedBox(width: 8),
                         Text(
                           _formatoFecha(actual.timestampCaptura!),
                           style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
                         ),
+                      ],
                     ],
                   ),
                   if ((actual.observaciones ?? '').trim().isNotEmpty) ...[

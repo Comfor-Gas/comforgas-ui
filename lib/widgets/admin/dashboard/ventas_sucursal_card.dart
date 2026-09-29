@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/dashboard/dashboard_kpis.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -122,6 +123,7 @@ class _FilaSucursalState extends State<_FilaSucursal> {
   @override
   Widget build(BuildContext context) {
     final s = widget.sucursal;
+    final movil = Responsive.isMobileContext(context);
     return Tooltip(
       message:
           '${s.nombre}\n${formatMoneda(s.montoTotal)} · ${formatPorcentaje(widget.participacion)} del total\n'
@@ -145,74 +147,120 @@ class _FilaSucursalState extends State<_FilaSucursal> {
               color: _hover ? AppColors.background : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 30,
-                  child: Text(
-                    '${widget.posicion}',
-                    style: AppTextStyles.footer.copyWith(
-                      color: AppColors.graphiteGray,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Flexible(
-                  flex: 2,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 150),
-                    child: SizedBox(
-                      width: 150,
+            child: movil
+                ? _contenidoMovil(s)
+                : Row(
+                  children: [
+                    SizedBox(
+                      width: 30,
                       child: Text(
-                        s.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.label.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+                        '${widget.posicion}',
+                        style: AppTextStyles.footer.copyWith(
+                          color: AppColors.graphiteGray,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 3,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final ancho = math.min(constraints.maxWidth, math.max(4.0, constraints.maxWidth * widget.proporcion));
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          width: ancho,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: _hover
-                                ? DashboardPaleta.serieAzul
-                                : DashboardPaleta.serieAzul.withOpacity(0.85),
-                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+                    Flexible(
+                      flex: 2,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 150),
+                        child: SizedBox(
+                          width: 150,
+                          child: Text(
+                            s.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.label.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 96,
-                  child: Text(
-                    formatMoneda(s.montoTotal),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.steelBlue,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 3,
+                      child: _barra(14),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 96,
+                      child: Text(
+                        formatMoneda(s.montoTotal),
+                        textAlign: TextAlign.right,
+                        style: _estiloMonto,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
           ),
         ),
       ),
+    );
+  }
+
+  static const TextStyle _estiloMonto = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w800,
+    color: AppColors.steelBlue,
+  );
+
+  Widget _barra(double alto) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final ancho = math.min(constraints.maxWidth, math.max(4.0, constraints.maxWidth * widget.proporcion));
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: ancho,
+            height: alto,
+            decoration: BoxDecoration(
+              color: _hover
+                  ? DashboardPaleta.serieAzul
+                  : DashboardPaleta.serieAzul.withOpacity(0.85),
+              borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _contenidoMovil(VentaSucursal s) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 26,
+              child: Text(
+                '${widget.posicion}',
+                style: AppTextStyles.footer.copyWith(
+                  color: AppColors.graphiteGray,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                s.nombre,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.label.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(formatMoneda(s.montoTotal), style: _estiloMonto),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 26),
+          child: _barra(10),
+        ),
+      ],
     );
   }
 }

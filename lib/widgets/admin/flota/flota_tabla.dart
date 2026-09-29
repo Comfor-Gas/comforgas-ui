@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/deposito_camion.dart';
 import '../../../models/stock_rodante_chofer.dart';
 import '../../../theme/app_colors.dart';
@@ -53,7 +54,7 @@ class FlotaTabla extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 860) {
-          return Column(
+          final tarjetas = Column(
             children: [
               for (final camion in camiones)
                 _CamionCard(
@@ -69,6 +70,13 @@ class FlotaTabla extends StatelessWidget {
                 ),
             ],
           );
+          if (Responsive.isMobileContext(context)) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: tarjetas,
+            );
+          }
+          return tarjetas;
         }
 
         return Column(
@@ -535,7 +543,7 @@ class _CamionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(Responsive.isMobileContext(context) ? 14 : 16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
@@ -564,6 +572,7 @@ class _CamionCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               _NotaEstadoChip(nota: nota),
             ],
           ),

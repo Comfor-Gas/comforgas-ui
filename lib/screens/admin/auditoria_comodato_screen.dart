@@ -9,6 +9,7 @@ import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/comodato/auditoria_comodato_fila.dart';
+import '../../widgets/admin/comodato/auditoria_comodato_tarjeta.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
 
@@ -169,7 +170,10 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
                 onRefrescar: _cargar,
               ),
               const SizedBox(height: 18),
-              _buildTabla(constraints.maxWidth - (padding.horizontal)),
+              if (Responsive.isMobile(constraints))
+                _buildTarjetas()
+              else
+                _buildTabla(constraints.maxWidth - (padding.horizontal)),
             ],
           ),
         );
@@ -177,12 +181,10 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
     );
   }
 
-  Widget _buildTabla(double anchoDisponible) {
-    Widget contenido;
-    if (_loading) {
-      contenido = const SizedBox(height: 160);
-    } else if (_error != null) {
-      contenido = Padding(
+  Widget? _estadoEspecial() {
+    if (_loading) return const SizedBox(height: 160);
+    if (_error != null) {
+      return Padding(
         padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
         child: Column(
           children: [
@@ -201,8 +203,9 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
           ],
         ),
       );
-    } else if (_filtrados.isEmpty) {
-      contenido = Padding(
+    }
+    if (_filtrados.isEmpty) {
+      return Padding(
         padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
         child: Center(
           child: Text(
@@ -214,6 +217,37 @@ class _AuditoriaComodatoAdminScreenState extends State<AuditoriaComodatoAdminScr
           ),
         ),
       );
+    }
+    return null;
+  }
+
+  Widget _buildTarjetas() {
+    final especial = _estadoEspecial();
+    if (especial != null) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: especial,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final c in _filtrados)
+          AuditoriaComodatoTarjeta(control: c, nombreCliente: _nombreDe(c)),
+      ],
+    );
+  }
+
+  Widget _buildTabla(double anchoDisponible) {
+    Widget contenido;
+    final especial = _estadoEspecial();
+    if (especial != null) {
+      contenido = especial;
     } else {
       contenido = Column(
         mainAxisSize: MainAxisSize.min,
@@ -262,7 +296,12 @@ class _Cabecera extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Auditoría de Comodato', style: AppTextStyles.desktopTitle),
+        Text(
+          'Auditoría de Comodato',
+          style: Responsive.isMobileContext(context)
+              ? AppTextStyles.desktopTitle.copyWith(fontSize: 22)
+              : AppTextStyles.desktopTitle,
+        ),
         const SizedBox(height: 4),
         Text(
           'Controles físicos de envases realizados por los choferes, con foco en faltantes.',
@@ -306,6 +345,17 @@ class _Stats extends StatelessWidget {
         icon: Icons.propane_tank_rounded,
       ),
     ];
+    if (Responsive.isMobileContext(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < cards.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            cards[i],
+          ],
+        ],
+      );
+    }
     return Row(
       children: [
         for (var i = 0; i < cards.length; i++) ...[

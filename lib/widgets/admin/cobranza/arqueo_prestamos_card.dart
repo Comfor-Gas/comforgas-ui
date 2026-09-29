@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/arqueo_caja.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -21,8 +22,9 @@ class ArqueoPrestamosCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(movil ? 14 : 18),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
@@ -86,10 +88,12 @@ class ArqueoPrestamosCard extends StatelessWidget {
           if (notas.isEmpty)
             _VacioPrestamos()
           else ...[
-            const _EncabezadoNotas(),
-            const Divider(height: 16, color: AppColors.inputBorder),
+            if (!movil) ...[
+              const _EncabezadoNotas(),
+              const Divider(height: 16, color: AppColors.inputBorder),
+            ],
             for (int i = 0; i < notas.length; i++) ...[
-              _FilaNota(nota: notas[i]),
+              movil ? _FilaNotaMovil(nota: notas[i]) : _FilaNota(nota: notas[i]),
               if (i < notas.length - 1)
                 const Divider(height: 16, color: AppColors.inputBorder),
             ],
@@ -219,6 +223,59 @@ class _FilaNota extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: _EstadoChip(estado: nota.estado),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FilaNotaMovil extends StatelessWidget {
+  final ArqueoNotaDebito nota;
+
+  const _FilaNotaMovil({required this.nota});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                nota.productoMostrable,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.input.copyWith(fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                nota.clienteMostrable,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.link.copyWith(fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Adeuda ${nota.cantidadAdeudada}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.orange,
+              ),
+            ),
+            const SizedBox(height: 4),
+            _EstadoChip(estado: nota.estado),
+          ],
         ),
       ],
     );

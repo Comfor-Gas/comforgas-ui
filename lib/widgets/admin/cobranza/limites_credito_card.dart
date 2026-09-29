@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/cuenta_corriente_resumen.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -28,7 +29,7 @@ class LimitesCreditoCard extends StatelessWidget {
     final agotados = _sinDisponible;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(Responsive.isMobileContext(context) ? 14 : 18),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
@@ -184,7 +185,9 @@ class _Indicador extends StatelessWidget {
         children: [
           Icon(icono, size: 15, color: color),
           const SizedBox(width: 6),
-          Text(texto, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+          Flexible(
+            child: Text(texto, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+          ),
         ],
       ),
     );

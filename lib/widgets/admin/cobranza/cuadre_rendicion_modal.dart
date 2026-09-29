@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/responsive.dart';
 import '../../../models/cuadre_rendicion.dart';
 import '../../../repositories/network_exception.dart';
 import '../../../repositories/rendicion_admin_repository.dart';
@@ -9,6 +10,7 @@ import '../../../theme/app_text_styles.dart';
 import '../../../utils/formato.dart';
 import '../../common/carga/zona_carga.dart';
 import 'ajustes_conciliacion_panel.dart';
+import 'fila_comparativa_movil.dart';
 import 'justificacion_diferencias_panel.dart';
 import '../../../core/feedback/app_feedback.dart';
 
@@ -239,9 +241,10 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
     return Dialog(
       backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(horizontal: movil ? 12 : 20, vertical: movil ? 16 : 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 660, maxHeight: 720),
@@ -256,7 +259,7 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
               child: _loading
                   ? const SizedBox(height: 160)
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
+                      padding: EdgeInsets.all(movil ? 14 : 20),
                       child: _contenido(),
                     ),
             ),
@@ -437,22 +440,34 @@ class _Encabezado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+      padding: movil ? const EdgeInsets.fromLTRB(16, 12, 4, 12) : const EdgeInsets.fromLTRB(20, 16, 12, 16),
       child: Row(
         children: [
-          const Icon(Icons.fact_check_outlined, size: 22, color: AppColors.steelBlue),
-          const SizedBox(width: 10),
+          if (!movil) ...[
+            const Icon(Icons.fact_check_outlined, size: 22, color: AppColors.steelBlue),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Cuadre de Rendición', style: AppTextStyles.title.copyWith(fontSize: 18)),
+                Text(
+                  'Cuadre de Rendición',
+                  style: AppTextStyles.title.copyWith(fontSize: movil ? 17 : 18),
+                ),
                 const SizedBox(height: 2),
-                Text(nombreChofer, style: AppTextStyles.link.copyWith(fontSize: 13)),
+                Text(
+                  nombreChofer,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.link.copyWith(fontSize: 13),
+                ),
               ],
             ),
           ),
+          if (movil) const SizedBox(width: 8),
           _EstadoChip(bloqueada: bloqueada),
           IconButton(
             onPressed: onCerrar,
@@ -509,6 +524,8 @@ class _SeccionPlegableCuadreState extends State<_SeccionPlegableCuadre> {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
+    final titulo = Text(widget.titulo, style: AppTextStyles.label.copyWith(fontSize: 15));
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -522,15 +539,24 @@ class _SeccionPlegableCuadreState extends State<_SeccionPlegableCuadre> {
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _abierta = !_abierta),
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(movil ? 12 : 14),
               child: Row(
                 children: [
                   Icon(widget.icono, size: 18, color: AppColors.orange),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(widget.titulo, style: AppTextStyles.label.copyWith(fontSize: 15)),
+                    child: movil && widget.trailing != null
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              titulo,
+                              const SizedBox(height: 6),
+                              widget.trailing!,
+                            ],
+                          )
+                        : titulo,
                   ),
-                  if (widget.trailing != null) ...[
+                  if (!movil && widget.trailing != null) ...[
                     widget.trailing!,
                     const SizedBox(width: 8),
                   ],
@@ -547,7 +573,7 @@ class _SeccionPlegableCuadreState extends State<_SeccionPlegableCuadre> {
             duration: const Duration(milliseconds: 160),
             crossFadeState: _abierta ? CrossFadeState.showFirst : CrossFadeState.showSecond,
             firstChild: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              padding: movil ? const EdgeInsets.fromLTRB(12, 0, 12, 12) : const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: widget.child,
             ),
             secondChild: const SizedBox(width: double.infinity),
@@ -602,6 +628,7 @@ class _TablaCuadre extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -610,14 +637,14 @@ class _TablaCuadre extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const _EncabezadoTabla(),
-          for (final l in lineas) ...[
-            const Divider(height: 1, color: AppColors.inputBorder),
+          if (!movil) const _EncabezadoTabla(),
+          for (int i = 0; i < lineas.length; i++) ...[
+            if (!movil || i > 0) const Divider(height: 1, color: AppColors.inputBorder),
             _FilaComparativa(
-              concepto: l.etiqueta,
-              sistema: l.sistema,
-              declarado: l.declarado,
-              diferencia: l.diferencia,
+              concepto: lineas[i].etiqueta,
+              sistema: lineas[i].sistema,
+              declarado: lineas[i].declarado,
+              diferencia: lineas[i].diferencia,
               esMoneda: esMoneda,
             ),
           ],
@@ -698,6 +725,15 @@ class _FilaComparativa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Responsive.isMobileContext(context)) {
+      return FilaComparativaMovil(
+        concepto: concepto,
+        sistema: _fmt(sistema),
+        declarado: _fmt(declarado),
+        destacado: destacado,
+        diferencia: _BadgeDif(diferencia: diferencia, esMoneda: esMoneda),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       child: Row(
@@ -787,6 +823,7 @@ class _BloqueEnvaseState extends State<_BloqueEnvase> {
   @override
   Widget build(BuildContext context) {
     final linea = widget.linea;
+    final movil = Responsive.isMobileContext(context);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -827,8 +864,10 @@ class _BloqueEnvaseState extends State<_BloqueEnvase> {
             firstChild: Column(
               children: [
                 const Divider(height: 1, color: AppColors.inputBorder),
-                const _EncabezadoTabla(),
-                const Divider(height: 1, color: AppColors.inputBorder),
+                if (!movil) ...[
+                  const _EncabezadoTabla(),
+                  const Divider(height: 1, color: AppColors.inputBorder),
+                ],
                 _FilaComparativa(
                   concepto: 'Llenas',
                   sistema: linea.llenosSistema,

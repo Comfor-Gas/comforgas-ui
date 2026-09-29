@@ -321,31 +321,42 @@ class _Cabecera extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
+    final titulos = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Reporte de Cuentas Corrientes',
+          style: movil ? AppTextStyles.desktopTitle.copyWith(fontSize: 22) : AppTextStyles.desktopTitle,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Saldos y deuda pendiente por cliente comercial.',
+          style: AppTextStyles.desktopSubtitle,
+        ),
+      ],
+    );
+    final boton = FlotaBotonPrimario(
+      texto: 'Generar Reporte PDF',
+      icono: Icons.picture_as_pdf_outlined,
+      onTap: onPdf,
+    );
+    if (movil) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          titulos,
+          const SizedBox(height: 14),
+          boton,
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Reporte de Cuentas Corrientes', style: AppTextStyles.desktopTitle),
-              const SizedBox(height: 4),
-              Text(
-                'Saldos y deuda pendiente por cliente comercial.',
-                style: AppTextStyles.desktopSubtitle,
-              ),
-            ],
-          ),
-        ),
+        Expanded(child: titulos),
         const SizedBox(width: 16),
-        SizedBox(
-          width: 190,
-          child: FlotaBotonPrimario(
-            texto: 'Generar Reporte PDF',
-            icono: Icons.picture_as_pdf_outlined,
-            onTap: onPdf,
-          ),
-        ),
+        SizedBox(width: 190, child: boton),
       ],
     );
   }
@@ -465,7 +476,9 @@ class _TarjetaTabla extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            padding: Responsive.isMobileContext(context)
+                ? const EdgeInsets.fromLTRB(16, 16, 16, 12)
+                : const EdgeInsets.fromLTRB(20, 18, 20, 14),
             child: Row(
               children: [
                 const Text('Clientes', style: AppTextStyles.label),
@@ -502,7 +515,8 @@ class _DetallePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final disponible = cliente.limiteCredito - cliente.saldoUsado;
     final anchoPantalla = MediaQuery.of(context).size.width;
-    final ancho = anchoPantalla < 480
+    final completo = anchoPantalla < 480;
+    final ancho = completo
         ? anchoPantalla
         : (anchoPantalla * 0.34).clamp(360.0, 460.0);
     return Material(
@@ -510,13 +524,15 @@ class _DetallePanel extends StatelessWidget {
       child: Container(
         width: ancho.toDouble(),
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+          borderRadius: completo ? null : const BorderRadius.horizontal(left: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 16, 24),
+            padding: completo
+                ? const EdgeInsets.fromLTRB(16, 12, 8, 16)
+                : const EdgeInsets.fromLTRB(24, 16, 16, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -528,6 +544,8 @@ class _DetallePanel extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           cliente.nombreMostrado,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.title.copyWith(fontSize: 20),
                         ),
                       ),
@@ -589,6 +607,7 @@ class _LineaDetalle extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(etiqueta, style: AppTextStyles.link.copyWith(fontSize: 13.5))),
+          const SizedBox(width: 8),
           Text(
             valor,
             style: TextStyle(
@@ -679,94 +698,106 @@ class _RegistrarPagoDialogState extends State<_RegistrarPagoDialog> {
     final monto = int.tryParse(_monto.text.trim()) ?? 0;
     final excede = monto > deuda;
     final valido = monto > 0 && !excede;
+    final movil = Responsive.isMobileContext(context);
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text('Registrar pago', style: AppTextStyles.title),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              widget.cliente.nombreMostrado,
-              style: AppTextStyles.label.copyWith(fontSize: 15),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Deuda actual: ${formatMoneda(deuda)}',
-              style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _monto,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              onChanged: (_) => setState(() {}),
-              cursorColor: AppColors.orange,
-              style: AppTextStyles.title.copyWith(fontSize: 22),
-              decoration: InputDecoration(
-                labelText: 'Monto del pago',
-                prefixText: '\$ ',
-                isDense: true,
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.inputBorder),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.orange),
-                ),
-                floatingLabelStyle: const TextStyle(color: AppColors.orange),
+      insetPadding: movil
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      titlePadding: movil ? const EdgeInsets.fromLTRB(16, 20, 16, 0) : null,
+      contentPadding: movil ? const EdgeInsets.fromLTRB(16, 16, 16, 12) : null,
+      title: Text(
+        'Registrar pago',
+        style: movil ? AppTextStyles.title.copyWith(fontSize: 19) : AppTextStyles.title,
+      ),
+      content: SizedBox(
+        width: movil ? MediaQuery.sizeOf(context).width - 64 : null,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.cliente.nombreMostrado,
+                style: AppTextStyles.label.copyWith(fontSize: 15),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              excede
-                  ? 'No puede superar la deuda (${formatMoneda(deuda)}).'
-                  : 'Se descuenta del saldo del cliente.',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: excede ? AppColors.error : AppColors.graphiteGray,
+              const SizedBox(height: 4),
+              Text(
+                'Deuda actual: ${formatMoneda(deuda)}',
+                style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
               ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _referencia,
-              maxLength: 255,
-              cursorColor: AppColors.orange,
-              decoration: const InputDecoration(
-                labelText: 'Referencia (opcional)',
-                hintText: 'Ej: transferencia #1234',
-                isDense: true,
-                counterText: '',
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.inputBorder),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _monto,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+                cursorColor: AppColors.orange,
+                style: AppTextStyles.title.copyWith(fontSize: 22),
+                decoration: InputDecoration(
+                  labelText: 'Monto del pago',
+                  prefixText: '\$ ',
+                  isDense: true,
+                  enabledBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.inputBorder),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.orange),
+                  ),
+                  floatingLabelStyle: const TextStyle(color: AppColors.orange),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.orange),
-                ),
-                floatingLabelStyle: TextStyle(color: AppColors.orange),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _observacion,
-              maxLines: 2,
-              maxLength: 2000,
-              cursorColor: AppColors.orange,
-              decoration: const InputDecoration(
-                labelText: 'Observación (opcional)',
-                isDense: true,
-                counterText: '',
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.inputBorder),
+              const SizedBox(height: 6),
+              Text(
+                excede
+                    ? 'No puede superar la deuda (${formatMoneda(deuda)}).'
+                    : 'Se descuenta del saldo del cliente.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: excede ? AppColors.error : AppColors.graphiteGray,
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.orange),
-                ),
-                floatingLabelStyle: TextStyle(color: AppColors.orange),
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              TextField(
+                controller: _referencia,
+                maxLength: 255,
+                cursorColor: AppColors.orange,
+                decoration: const InputDecoration(
+                  labelText: 'Referencia (opcional)',
+                  hintText: 'Ej: transferencia #1234',
+                  isDense: true,
+                  counterText: '',
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.inputBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.orange),
+                  ),
+                  floatingLabelStyle: TextStyle(color: AppColors.orange),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _observacion,
+                maxLines: 2,
+                maxLength: 2000,
+                cursorColor: AppColors.orange,
+                decoration: const InputDecoration(
+                  labelText: 'Observación (opcional)',
+                  isDense: true,
+                  counterText: '',
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.inputBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.orange),
+                  ),
+                  floatingLabelStyle: TextStyle(color: AppColors.orange),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

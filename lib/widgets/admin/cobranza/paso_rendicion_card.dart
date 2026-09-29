@@ -166,13 +166,15 @@ class _NumeroPaso extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          texto,
-          style: const TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.6,
-            color: AppColors.steelBlue,
+        Flexible(
+          child: Text(
+            texto,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: AppColors.steelBlue,
+            ),
           ),
         ),
       ],

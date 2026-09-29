@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sidebarx/sidebarx.dart';
 import '../../core/responsive.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/admin/admin_barra_movil.dart';
 import '../../widgets/admin/admin_sidebar.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import 'arqueo_caja_screen.dart';
@@ -25,7 +26,10 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _sidebar = SidebarXController(selectedIndex: 1, extended: true);
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   bool? _eraEscritorio;
+  bool _esMovil = false;
+  int _indiceAnterior = 1;
 
   int get _selectedIndex => _sidebar.selectedIndex;
 
@@ -43,18 +47,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   void _alCambiarSidebar() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final cambioSeccion = _sidebar.selectedIndex != _indiceAnterior;
+    _indiceAnterior = _sidebar.selectedIndex;
+    if (cambioSeccion && _esMovil && (_scaffoldKey.currentState?.isDrawerOpen ?? false)) {
+      _scaffoldKey.currentState?.closeDrawer();
+    }
+    setState(() {});
   }
 
-  void _ajustarAncho(bool esEscritorio) {
-    if (_eraEscritorio == esEscritorio) return;
-    _eraEscritorio = esEscritorio;
-    if (_sidebar.extended != esEscritorio) {
+  void _ajustarAncho(bool esEscritorio, bool esMovil) {
+    _esMovil = esMovil;
+    final extendido = esEscritorio || esMovil;
+    final cambioModo = _eraEscritorio != extendido;
+    _eraEscritorio = extendido;
+    if ((cambioModo || esMovil) && _sidebar.extended != extendido) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _sidebar.setExtended(esEscritorio);
+        if (mounted) _sidebar.setExtended(extendido);
       });
     }
   }
+
+  Widget get _contenido => ZonaCarga(
+        child: KeyedSubtree(
+          key: ValueKey(_selectedIndex),
+          child: _body,
+        ),
+      );
 
   Widget get _body {
     switch (_selectedIndex) {
@@ -90,8 +109,40 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        _ajustarAncho(Responsive.isDesktop(constraints));
+        final esMovil = Responsive.isMobile(constraints);
+        _ajustarAncho(Responsive.isDesktop(constraints), esMovil);
+        if (esMovil) {
+          return Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: AppColors.background,
+            drawerEdgeDragWidth: 24,
+            drawerScrimColor: Colors.black.withOpacity(0.45),
+            drawer: Drawer(
+              width: AdminSidebar.anchoExpandido + 12,
+              backgroundColor: SidebarPaleta.lienzo,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+              ),
+              child: SafeArea(
+                child: AdminSidebar(controller: _sidebar, enDrawer: true),
+              ),
+            ),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AdminBarraMovil(
+                  indice: _selectedIndex,
+                  onMenu: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
+                Expanded(
+                  child: SafeArea(top: false, child: _contenido),
+                ),
+              ],
+            ),
+          );
+        }
         return Scaffold(
+          key: _scaffoldKey,
           backgroundColor: AppColors.background,
           body: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -103,12 +154,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               Expanded(
                 child: SafeArea(
                   left: false,
-                  child: ZonaCarga(
-                    child: KeyedSubtree(
-                      key: ValueKey(_selectedIndex),
-                      child: _body,
-                    ),
-                  ),
+                  child: _contenido,
                 ),
               ),
             ],

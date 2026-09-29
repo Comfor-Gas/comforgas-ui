@@ -63,13 +63,15 @@ class _Titulo extends StatelessWidget {
       children: [
         Icon(icono, size: 15, color: AppColors.steelBlue),
         const SizedBox(width: 6),
-        Text(
-          texto,
-          style: const TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.6,
-            color: AppColors.steelBlue,
+        Flexible(
+          child: Text(
+            texto,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: AppColors.steelBlue,
+            ),
           ),
         ),
       ],

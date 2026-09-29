@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/dashboard/dashboard_filtros.dart';
 import '../../common/filtros/filtros.dart';
 
@@ -39,37 +40,45 @@ class DashboardFiltrosPanel extends StatelessWidget {
             onCambio(filtros.conRango(desde, hasta, RangoPreset.personalizado));
           },
         ),
-        FilaFiltros(
-          children: [
-            FiltroBuscable(
-              etiqueta: 'Chofer',
-              icono: Icons.person_outline,
-              opciones: choferes,
-              seleccion: filtros.idChofer,
-              habilitado: !catalogosCargando,
-              onCambio: (id) => onCambio(filtros.conChofer(id)),
-            ),
-            FiltroBuscable(
-              etiqueta: 'Ruta',
-              icono: Icons.alt_route_outlined,
-              opciones: rutas,
-              seleccion: filtros.idRuta?.toString(),
-              habilitado: !catalogosCargando,
-              onCambio: (id) => onCambio(filtros.conRuta(id == null ? null : int.tryParse(id))),
-            ),
-            FiltroBuscable(
-              etiqueta: 'Cliente',
-              icono: Icons.person_pin_circle_outlined,
-              opciones: sucursales,
-              seleccion: filtros.idSucursal?.toString(),
-              habilitado: !catalogosCargando,
-              ancho: 260,
-              onCambio: (id) => onCambio(filtros.conSucursal(id == null ? null : int.tryParse(id))),
-            ),
-            if (filtros.tieneFiltrosDeEntidad)
-              BotonLimpiarFiltros(onPressed: () => onCambio(filtros.sinEntidades())),
-            BotonActualizar(onPressed: onRefrescar, cargando: refrescando),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final movil = Responsive.isMobileContext(context);
+            final double? anchoMovil = movil ? constraints.maxWidth : null;
+            return FilaFiltros(
+              children: [
+                FiltroBuscable(
+                  etiqueta: 'Chofer',
+                  icono: Icons.person_outline,
+                  opciones: choferes,
+                  seleccion: filtros.idChofer,
+                  habilitado: !catalogosCargando,
+                  ancho: anchoMovil ?? 220.0,
+                  onCambio: (id) => onCambio(filtros.conChofer(id)),
+                ),
+                FiltroBuscable(
+                  etiqueta: 'Ruta',
+                  icono: Icons.alt_route_outlined,
+                  opciones: rutas,
+                  seleccion: filtros.idRuta?.toString(),
+                  habilitado: !catalogosCargando,
+                  ancho: anchoMovil ?? 220.0,
+                  onCambio: (id) => onCambio(filtros.conRuta(id == null ? null : int.tryParse(id))),
+                ),
+                FiltroBuscable(
+                  etiqueta: 'Cliente',
+                  icono: Icons.person_pin_circle_outlined,
+                  opciones: sucursales,
+                  seleccion: filtros.idSucursal?.toString(),
+                  habilitado: !catalogosCargando,
+                  ancho: anchoMovil ?? 260.0,
+                  onCambio: (id) => onCambio(filtros.conSucursal(id == null ? null : int.tryParse(id))),
+                ),
+                if (filtros.tieneFiltrosDeEntidad)
+                  BotonLimpiarFiltros(onPressed: () => onCambio(filtros.sinEntidades())),
+                BotonActualizar(onPressed: onRefrescar, cargando: refrescando),
+              ],
+            );
+          },
         ),
       ],
     );

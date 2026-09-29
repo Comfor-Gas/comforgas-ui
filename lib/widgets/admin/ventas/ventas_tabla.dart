@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/venta_monitoreo.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -43,9 +44,14 @@ class VentasTabla extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return constraints.maxWidth < _compactBreakpoint
-            ? _buildCompact()
-            : _buildTabla();
+        if (constraints.maxWidth >= _compactBreakpoint) return _buildTabla();
+        if (Responsive.isMobileContext(context)) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: _buildCompact(),
+          );
+        }
+        return _buildCompact();
       },
     );
   }
@@ -298,6 +304,7 @@ class _TarjetaVenta extends StatelessWidget {
                   style: const TextStyle(fontSize: 12.5, color: AppColors.graphiteGray),
                 ),
                 const Spacer(),
+                const SizedBox(width: 8),
                 VentaEstadoBadge(estado: venta.estado),
               ],
             ),
@@ -318,6 +325,7 @@ class _TarjetaVenta extends StatelessWidget {
                   'Monto Total',
                   style: AppTextStyles.desktopSubtitle.copyWith(fontWeight: FontWeight.w700),
                 ),
+                const SizedBox(width: 8),
                 const Spacer(),
                 Text(
                   formatMoneda(venta.montoTotal),

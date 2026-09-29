@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/dashboard/tendencia_punto.dart';
 import '../../../theme/app_colors.dart';
 import '../../../utils/formato.dart';
@@ -64,6 +65,7 @@ class _TendenciaChartCardState extends State<TendenciaChartCard> {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
     return DashboardCard(
       titulo: 'Tendencia comercial',
       subtitulo: _subtitulo,
@@ -73,11 +75,11 @@ class _TendenciaChartCardState extends State<TendenciaChartCard> {
         etiqueta: (m) => m.etiqueta,
         onCambio: (m) => setState(() => _metrica = m),
       ),
-      child: SizedBox(height: 270, child: _contenido()),
+      child: SizedBox(height: movil ? 230 : 270, child: _contenido(movil)),
     );
   }
 
-  Widget _contenido() {
+  Widget _contenido(bool movil) {
     if (widget.error != null && widget.puntos.isEmpty) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -117,7 +119,7 @@ class _TendenciaChartCardState extends State<TendenciaChartCard> {
       entero: _metrica == MetricaTendencia.garrafas,
     );
     final n = widget.puntos.length;
-    final pasoEtiqueta = math.max(1, (n / 7).ceil());
+    final pasoEtiqueta = math.max(1, (n / (movil ? 4 : 7)).ceil());
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 200),

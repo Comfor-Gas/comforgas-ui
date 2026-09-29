@@ -4,6 +4,7 @@ import '../../../models/cuadre_rodante.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../common/carga/zona_carga.dart';
+import 'flota_dialogo_layout.dart';
 
 typedef CargarCuadre = Future<CuadreRodante> Function();
 
@@ -56,7 +57,7 @@ class _ReporteCuadreModalState extends State<ReporteCuadreModal> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      insetPadding: FlotaDialogoLayout.inset(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
@@ -68,7 +69,7 @@ class _ReporteCuadreModalState extends State<ReporteCuadreModal> {
             BarraCarga(visible: _loading),
             Flexible(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
+                padding: FlotaDialogoLayout.contenido(context, inferior: 18),
                 child: _contenido(),
               ),
             ),
@@ -96,9 +97,10 @@ class _ReporteCuadreModalState extends State<ReporteCuadreModal> {
             Expanded(
               child: Text(
                 'Reporte de cierre',
-                style: AppTextStyles.desktopTitle.copyWith(fontSize: 20),
+                style: FlotaDialogoLayout.titulo(context, AppTextStyles.desktopTitle),
               ),
             ),
+            const SizedBox(width: 8),
             _ChipCuadra(cuadra: cuadre.cuadra),
           ],
         ),
@@ -188,6 +190,7 @@ class _ProductoCard extends StatelessWidget {
               Expanded(
                 child: Text(p.etiqueta, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
               ),
+              const SizedBox(width: 8),
               _ChipCuadra(cuadra: p.cuadra, compacto: true),
             ],
           ),
@@ -252,9 +255,11 @@ class _EnvasesResumen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Envases (llenos + vacíos + averiados)',
-                  style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
-              const Spacer(),
+              Expanded(
+                child: Text('Envases (llenos + vacíos + averiados)',
+                    style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+              ),
+              const SizedBox(width: 8),
               Text('Salida $salida  →  Entrada $entrada',
                   style: AppTextStyles.label.copyWith(fontSize: 13, color: AppColors.steelBlue)),
             ],
@@ -263,9 +268,10 @@ class _EnvasesResumen extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                Text('Faltante no explicado',
-                    style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
-                const Spacer(),
+                Expanded(
+                  child: Text('Faltante no explicado',
+                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+                ),
                 Text('$faltante',
                     style: AppTextStyles.label.copyWith(fontSize: 13, color: AppColors.error)),
               ],
@@ -274,9 +280,10 @@ class _EnvasesResumen extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                Text('Sobrante',
-                    style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
-                const Spacer(),
+                Expanded(
+                  child: Text('Sobrante',
+                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+                ),
                 Text('+$diferencia',
                     style: AppTextStyles.label.copyWith(fontSize: 13, color: AppColors.badgeAmber)),
               ],
@@ -306,7 +313,9 @@ class _Stat extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(etiqueta, style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+          Flexible(
+            child: Text(etiqueta, style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray)),
+          ),
           const SizedBox(width: 6),
           Text(
             valor,

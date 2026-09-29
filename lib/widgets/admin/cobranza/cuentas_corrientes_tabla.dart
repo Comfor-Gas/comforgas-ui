@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/cuenta_corriente_resumen.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -34,7 +35,7 @@ class CuentasCorrientesTabla extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 760) {
-          return Column(
+          final lista = Column(
             children: [
               for (final c in clientes)
                 _ClienteCard(
@@ -43,6 +44,11 @@ class CuentasCorrientesTabla extends StatelessWidget {
                   onEditar: onEditarLimite == null ? null : () => onEditarLimite!(c),
                 ),
             ],
+          );
+          if (!Responsive.isMobileContext(context)) return lista;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: lista,
           );
         }
         return Column(
@@ -245,8 +251,14 @@ class _ClienteCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(cliente.nombreMostrado, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
+                  child: Text(
+                    cliente.nombreMostrado,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.label.copyWith(fontSize: 14.5),
+                  ),
                 ),
+                const SizedBox(width: 8),
                 CreditoEstadoBadge(moroso: cliente.moroso),
                 if (onEditar != null)
                   IconButton(
@@ -261,7 +273,9 @@ class _ClienteCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(child: _MiniDato(etiqueta: 'Límite', valor: formatMoneda(cliente.limiteCredito))),
+                const SizedBox(width: 8),
                 Expanded(child: _MiniDato(etiqueta: 'Saldo', valor: formatMoneda(cliente.saldoUsado))),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _MiniDato(
                     etiqueta: 'Vencido',
@@ -292,12 +306,17 @@ class _MiniDato extends StatelessWidget {
       children: [
         Text(etiqueta, style: const TextStyle(fontSize: 10.5, color: AppColors.graphiteGray)),
         const SizedBox(height: 2),
-        Text(
-          valor,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: acento ?? AppColors.steelBlue,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            valor,
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: acento ?? AppColors.steelBlue,
+            ),
           ),
         ),
       ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../models/venta_monitoreo.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
@@ -85,7 +86,9 @@ class _PanelContenido extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const padding = EdgeInsets.fromLTRB(22, 22, 22, 24);
+    final padding = Responsive.isMobileContext(context)
+        ? const EdgeInsets.fromLTRB(16, 18, 16, 20)
+        : const EdgeInsets.fromLTRB(22, 22, 22, 24);
     final columna = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -148,6 +151,7 @@ class _PanelContenido extends StatelessWidget {
                   style: AppTextStyles.label.copyWith(fontSize: 15),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 formatMoneda(venta.montoTotal),
                 style: const TextStyle(

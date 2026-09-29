@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive.dart';
 import '../../../models/deposito_camion.dart';
 import '../../../models/producto_catalogo.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../chofer/venta/cantidad_stepper.dart';
+import 'flota_dialogo_layout.dart';
 import 'flota_form_controls.dart';
 
 typedef RecargaConfirmada = Future<bool> Function({
@@ -90,23 +92,32 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
     }
   }
 
+  double _anchoStepper(BuildContext context, double disponible) {
+    const base = 158.0;
+    const espacio = 12.0;
+    if (!Responsive.isMobileContext(context) || !disponible.isFinite) return base;
+    final calculado = ((disponible + espacio) / (base + espacio)).floor();
+    final porFila = calculado < 1 ? 1 : (calculado > 3 ? 3 : calculado);
+    return (disponible - espacio * (porFila - 1)) / porFila;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+      insetPadding: FlotaDialogoLayout.inset(context, vertical: 36),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+          padding: FlotaDialogoLayout.contenido(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Registrar Recarga en Ruta',
-                style: AppTextStyles.desktopTitle.copyWith(fontSize: 20),
+                style: FlotaDialogoLayout.titulo(context, AppTextStyles.desktopTitle),
               ),
               const SizedBox(height: 4),
               Text(
@@ -125,25 +136,30 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                   style: AppTextStyles.footer,
                 )
               else
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final p in widget.productos)
-                      SizedBox(
-                        width: 158,
-                        child: CantidadStepper(
-                          titulo: 'SKU ${p.sku}',
-                          subtitulo: p.etiquetaKg,
-                          icono: Icons.propane_tank_outlined,
-                          acento: AppColors.orange,
-                          valor: _desglose[p.idProducto] ?? 0,
-                          editable: true,
-                          onChanged: (valor) =>
-                              setState(() => _desglose[p.idProducto] = valor),
-                        ),
-                      ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final anchoItem = _anchoStepper(context, constraints.maxWidth);
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final p in widget.productos)
+                          SizedBox(
+                            width: anchoItem,
+                            child: CantidadStepper(
+                              titulo: 'SKU ${p.sku}',
+                              subtitulo: p.etiquetaKg,
+                              icono: Icons.propane_tank_outlined,
+                              acento: AppColors.orange,
+                              valor: _desglose[p.idProducto] ?? 0,
+                              editable: true,
+                              onChanged: (valor) =>
+                                  setState(() => _desglose[p.idProducto] = valor),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               const SizedBox(height: 12),
               _TotalRecarga(total: _total),
@@ -176,24 +192,16 @@ class _RecargaFaltanteModalState extends State<RecargaFaltanteModal> {
                 ),
               ),
               const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: FlotaBotonSecundario(
-                      texto: 'Cancelar',
-                      onTap: _guardando ? null : () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: FlotaBotonPrimario(
-                      texto: 'Confirmar Recarga de Stock',
-                      cargando: _guardando,
-                      onTap: (_valido && !_guardando) ? _confirmar : null,
-                    ),
-                  ),
-                ],
+              FlotaAccionesDialogo(
+                secundaria: FlotaBotonSecundario(
+                  texto: 'Cancelar',
+                  onTap: _guardando ? null : () => Navigator.of(context).pop(),
+                ),
+                primaria: FlotaBotonPrimario(
+                  texto: 'Confirmar Recarga de Stock',
+                  cargando: _guardando,
+                  onTap: (_valido && !_guardando) ? _confirmar : null,
+                ),
               ),
             ],
           ),

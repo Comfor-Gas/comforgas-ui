@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/feedback/app_feedback.dart';
+import '../../core/responsive.dart';
 import '../../models/dashboard/dashboard_filtros.dart';
 import '../../models/dashboard/dashboard_kpis.dart';
 import '../../models/dashboard/tendencia_punto.dart';
@@ -307,6 +308,7 @@ class _Cabecera extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final movil = Responsive.isMobileContext(context);
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -317,11 +319,14 @@ class _Cabecera extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Dashboard / Reportes', style: AppTextStyles.desktopTitle),
+            Text(
+              'Dashboard / Reportes',
+              style: movil ? AppTextStyles.desktopTitle.copyWith(fontSize: 22) : AppTextStyles.desktopTitle,
+            ),
             const SizedBox(height: 4),
             Text(
               'Indicadores comerciales, cobertura de rutas y control de comodatos.',
-              style: AppTextStyles.desktopSubtitle,
+              style: movil ? AppTextStyles.desktopSubtitle.copyWith(fontSize: 13) : AppTextStyles.desktopSubtitle,
             ),
           ],
         ),
@@ -340,7 +345,10 @@ class _ErrorCarga extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
+      padding: EdgeInsets.symmetric(
+        vertical: Responsive.isMobileContext(context) ? 32 : 48,
+        horizontal: Responsive.isMobileContext(context) ? 16 : 20,
+      ),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),

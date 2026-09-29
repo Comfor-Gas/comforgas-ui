@@ -597,7 +597,12 @@ class _Cabecera extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Gestión de Flota', style: AppTextStyles.desktopTitle),
+        Text(
+          'Gestión de Flota',
+          style: Responsive.isMobileContext(context)
+              ? AppTextStyles.desktopTitle.copyWith(fontSize: 22)
+              : AppTextStyles.desktopTitle,
+        ),
         const SizedBox(height: 4),
         Text(
           'El chofer y su vehículo vienen de la API. Acá asignás y controlás el stock de garrafas de cada camión.',
@@ -749,7 +754,9 @@ class _TarjetaTabla extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+            padding: Responsive.isMobileContext(context)
+                ? const EdgeInsets.fromLTRB(16, 16, 16, 12)
+                : const EdgeInsets.fromLTRB(20, 18, 20, 14),
             child: Row(
               children: [
                 const Text('Monitoreo Diario', style: AppTextStyles.label),

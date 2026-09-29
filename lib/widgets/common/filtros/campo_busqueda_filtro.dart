@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../theme/app_colors.dart';
 import 'decoracion_filtro.dart';
 
@@ -55,8 +58,11 @@ class _CampoBusquedaFiltroState extends State<CampoBusquedaFiltro> {
   @override
   Widget build(BuildContext context) {
     final activo = widget.controller.text.trim().isNotEmpty;
+    final ancho = Responsive.isMobileContext(context)
+        ? math.max(widget.ancho, MediaQuery.sizeOf(context).width)
+        : widget.ancho;
     return SizedBox(
-      width: widget.ancho,
+      width: ancho,
       child: TextField(
         controller: widget.controller,
         keyboardType: widget.keyboardType,

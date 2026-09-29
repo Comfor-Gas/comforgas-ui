@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/responsive.dart';
 import '../../data/mock_chofer_data.dart';
 import '../../models/visita_estado.dart';
 import '../../models/usuario_model.dart';
@@ -269,14 +270,21 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
     }
 
     final hojas = _hojasFiltradas;
+    final mobile = Responsive.isMobileContext(context);
+    final pad = mobile ? 16.0 : 24.0;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafePadding),
+      padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + bottomSafePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ReportarCarga(cargando: _loading),
-          Text('Visitas por Hoja de Ruta', style: AppTextStyles.desktopTitle),
+          Text(
+            'Visitas por Hoja de Ruta',
+            style: mobile
+                ? AppTextStyles.desktopTitle.copyWith(fontSize: 22)
+                : AppTextStyles.desktopTitle,
+          ),
           const SizedBox(height: 4),
           Text(
             'Agenda del día de cada hoja de ruta, con todos los clientes a visitar en orden de recorrido.',
@@ -304,6 +312,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
                   _visitas.isEmpty
                       ? 'No hay visitas cargadas para hoy.'
                       : 'No hay hojas de ruta para los filtros seleccionados.',
+                  textAlign: TextAlign.center,
                   style: AppTextStyles.desktopSubtitle,
                 ),
               ),
@@ -317,7 +326,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
                 domicilio: _domicilio,
                 barrio: _barrio,
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: mobile ? 16 : 20),
             ],
         ],
       ),
@@ -347,6 +356,7 @@ class _FiltroBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hayFiltros = controller.text.trim().isNotEmpty || estadoFilter != null;
+    final mobile = Responsive.isMobileContext(context);
     return FiltrosPanel(
       filas: [
         FilaFiltros(
@@ -356,7 +366,7 @@ class _FiltroBar extends StatelessWidget {
               etiqueta: 'Buscar hoja de ruta',
               hint: 'Chofer, vendedor, zona o cliente',
               icono: Icons.search,
-              ancho: 320,
+              ancho: mobile ? double.infinity : 320,
             ),
             FiltroBuscable(
               etiqueta: 'Estado',
@@ -364,7 +374,7 @@ class _FiltroBar extends StatelessWidget {
               opciones: estados,
               seleccion: estadoFilter,
               onCambio: onEstadoChanged,
-              ancho: 200,
+              ancho: mobile ? double.infinity : 200,
             ),
             if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
             BotonActualizar(onPressed: onRefrescar, cargando: cargando),
@@ -421,7 +431,9 @@ class _HojaRutaCardState extends State<_HojaRutaCard> {
             alignment: Alignment.topCenter,
             child: _expandida
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    padding: Responsive.isMobileContext(context)
+                        ? const EdgeInsets.fromLTRB(12, 4, 12, 12)
+                        : const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     child: _Tabla(
                       visitas: hoja.visitas,
                       clienteNombre: widget.clienteNombre,
@@ -446,13 +458,20 @@ class _Encabezado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = Responsive.isMobileContext(context);
+    final datos = [
+      _DatoCabecera(label: 'Vendedor', valor: hoja.vendedor),
+      _DatoCabecera(label: 'Acompañante', valor: hoja.acompanante),
+      _DatoCabecera(label: 'Móvil', valor: hoja.movil),
+      _DatoCabecera(label: 'Chofer', valor: hoja.choferNombre),
+    ];
     return Material(
       color: AppColors.steelBlue,
       child: InkWell(
         onTap: onToggle,
         hoverColor: Colors.white.withOpacity(0.05),
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(mobile ? 14 : 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -463,16 +482,17 @@ class _Encabezado extends StatelessWidget {
                   Expanded(
                     child: Text(
                       hoja.zona,
-                      style: const TextStyle(
-                        fontSize: 17,
+                      style: TextStyle(
+                        fontSize: mobile ? 15 : 17,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         letterSpacing: 0.3,
                       ),
                     ),
                   ),
+                  if (mobile) const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: EdgeInsets.symmetric(horizontal: mobile ? 8 : 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(20),
@@ -497,17 +517,27 @@ class _Encabezado extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 28,
-                runSpacing: 12,
-                children: [
-                  _DatoCabecera(label: 'Vendedor', valor: hoja.vendedor),
-                  _DatoCabecera(label: 'Acompañante', valor: hoja.acompanante),
-                  _DatoCabecera(label: 'Móvil', valor: hoja.movil),
-                  _DatoCabecera(label: 'Chofer', valor: hoja.choferNombre),
-                ],
-              ),
+              SizedBox(height: mobile ? 12 : 14),
+              if (mobile)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    const espacio = 16.0;
+                    final ancho = (constraints.maxWidth - espacio) / 2;
+                    return Wrap(
+                      spacing: espacio,
+                      runSpacing: 12,
+                      children: [
+                        for (final dato in datos) SizedBox(width: ancho, child: dato),
+                      ],
+                    );
+                  },
+                )
+              else
+                Wrap(
+                  spacing: 28,
+                  runSpacing: 12,
+                  children: datos,
+                ),
             ],
           ),
         ),

@@ -156,13 +156,18 @@ class _Celda extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: alinearFinal ? Alignment.centerRight : Alignment.centerLeft,
-      child: Text(
-        texto,
-        style: const TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-          color: AppColors.graphiteGray,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: alinearFinal ? Alignment.centerRight : Alignment.centerLeft,
+        child: Text(
+          texto,
+          maxLines: 1,
+          style: const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            color: AppColors.graphiteGray,
+          ),
         ),
       ),
     );

@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/responsive.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 
@@ -20,8 +22,19 @@ class DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final EdgeInsetsGeometry efectivo;
+    if (Responsive.isMobileContext(context)) {
+      final base = padding.resolve(Directionality.of(context));
+      efectivo = base.copyWith(
+        left: math.min(base.left, 16.0),
+        right: math.min(base.right, 16.0),
+        top: math.min(base.top, 16.0),
+      );
+    } else {
+      efectivo = padding;
+    }
     return Container(
-      padding: padding,
+      padding: efectivo,
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),

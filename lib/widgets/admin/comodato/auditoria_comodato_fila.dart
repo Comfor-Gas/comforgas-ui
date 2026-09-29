@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/control_comodato.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
+import 'comodato_formato.dart';
 import 'faltante_badge.dart';
 import 'foto_control_comodato.dart';
 
@@ -28,22 +29,9 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
       widget.control.observaciones != null &&
       widget.control.observaciones!.trim().isNotEmpty;
 
-  String _fecha(DateTime? f) {
-    if (f == null) return '—';
-    final l = f.toLocal();
-    final dd = l.day.toString().padLeft(2, '0');
-    final mm = l.month.toString().padLeft(2, '0');
-    return '$dd/$mm/${l.year}';
-  }
+  String _fecha(DateTime? f) => fechaControlComodato(f);
 
-  String _cliente() {
-    final nombre = widget.nombreCliente?.trim();
-    if (nombre != null && nombre.isNotEmpty) return nombre;
-    final nombreControl = widget.control.nombreCliente?.trim();
-    if (nombreControl != null && nombreControl.isNotEmpty) return nombreControl;
-    final id = widget.control.idClienteExt;
-    return id == null ? 'Cliente s/d' : 'Cliente #$id';
-  }
+  String _cliente() => clienteControlComodato(widget.control, widget.nombreCliente);
 
   @override
   Widget build(BuildContext context) {

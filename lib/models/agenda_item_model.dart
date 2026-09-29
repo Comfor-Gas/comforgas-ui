@@ -1,6 +1,7 @@
 import 'visita_estado.dart';
 import 'visita_model.dart';
 import '../utils/json_parsing.dart';
+import '../local/credito_local_service.dart';
 
 class AgendaItemModel {
   final int idAgendaItem;
@@ -197,6 +198,7 @@ class AgendaItemModel {
       'montoCobrado': montoCobrado,
       'totalVendido': totalVendido,
       if (cobrosPorMetodo.isNotEmpty) 'cobrosPorMetodo': cobrosPorMetodo,
+      CreditoLocalService.claveConsultadoEn: DateTime.now().toUtc().toIso8601String(),
     };
 
     return VisitaModel(

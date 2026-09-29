@@ -66,6 +66,7 @@ class RegistroCobroScreen extends StatefulWidget {
   final List<CanjeGarrafaDraft> canjes;
   final NotaDebitoResumen notaDebito;
   final List<CobroVentaRef> ventas;
+  final ValueChanged<int>? onCuentaCorrienteRegistrada;
 
   const RegistroCobroScreen({
     super.key,
@@ -77,6 +78,7 @@ class RegistroCobroScreen extends StatefulWidget {
     this.canjes = const [],
     this.notaDebito = const NotaDebitoResumen([]),
     this.ventas = const [],
+    this.onCuentaCorrienteRegistrada,
   }) : assert(
           ventas.length > 0 || (idVenta == null) != (uuidVentaOffline == null),
           'Informá ventas, o exactamente uno entre idVenta y uuidVentaOffline',
@@ -253,9 +255,7 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
   int get _asignado => _lineas.fold(0, (a, l) => a + l.monto);
   int get _restante => _total - _asignado;
 
-  bool get _hayDatosCredito =>
-      widget.credito.limiteCredito != null ||
-      widget.credito.saldoDisponible != null;
+  bool get _hayDatosCredito => widget.credito.tieneDatos;
 
   int get _creditoDisponible {
     final d = widget.credito.disponible;
@@ -347,6 +347,12 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
       _mostrarError('Ingresá al menos un pago.');
       return;
     }
+    if (_creditoExcedido) {
+      _mostrarError(_creditoDisponible > 0
+          ? 'La Cuenta Corriente no puede superar ${formatMoneda(_creditoDisponible)}, que es el crédito disponible del cliente.'
+          : 'El cliente no tiene crédito disponible en Cuenta Corriente.');
+      return;
+    }
     if (_total > 0 && _asignado != _total) {
       _mostrarError(_asignado > _total
           ? 'La suma de los pagos supera el total a cobrar.'
@@ -418,6 +424,8 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
       transferencia: transferenciaOk,
       cuentaCorriente: cuentaCorrienteOk,
     );
+
+    if (cuentaCorrienteOk > 0) widget.onCuentaCorrienteRegistrada?.call(cuentaCorrienteOk);
 
     if (!mounted) return;
     setState(() {

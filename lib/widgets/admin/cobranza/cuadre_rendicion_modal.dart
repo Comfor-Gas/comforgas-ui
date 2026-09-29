@@ -8,9 +8,8 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../utils/formato.dart';
 import '../../common/carga/zona_carga.dart';
-import 'ajuste_conciliacion_dialog.dart';
 import 'ajustes_conciliacion_panel.dart';
-import 'aprobar_conciliacion_dialog.dart';
+import 'justificacion_diferencias_panel.dart';
 import '../../../core/feedback/app_feedback.dart';
 
 Future<void> mostrarCuadreRendicion(
@@ -58,14 +57,24 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
   bool _modoEjemplo = false;
   String? _aviso;
   bool _aprobando = false;
-  bool _procesandoAjuste = false;
   bool _aprobadaLocal = false;
+  final Map<String, TextEditingController> _comentarios = {};
+  final _observacion = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _repo = RendicionAdminRepository(widget.apiClient);
     _cargar();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _comentarios.values) {
+      c.dispose();
+    }
+    _observacion.dispose();
+    super.dispose();
   }
 
   Future<void> _cargar() async {
@@ -105,15 +114,64 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
   bool get _bloqueada =>
       _aprobadaLocal || (_cuadre?.rutaBloqueada ?? false) || (_cuadre?.aprobada ?? false);
 
+  List<DiferenciaJustificable> get _diferencias {
+    final cuadre = _cuadre;
+    if (cuadre == null || !cuadre.hayRendicion) return const [];
+    final lista = diferenciasJustificables(cuadre);
+    for (final d in lista) {
+      _comentarios.putIfAbsent(d.clave, () => TextEditingController());
+    }
+    return lista;
+  }
+
+  bool _justificacionCompleta(List<DiferenciaJustificable> diferencias) => diferencias
+      .every((d) => (_comentarios[d.clave]?.text.trim() ?? '').isNotEmpty);
+
+  Future<bool> _confirmarAprobacion(bool conDiferencias) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          conDiferencias ? '¿Aprobar con diferencias?' : '¿Aprobar rendición?',
+          style: AppTextStyles.title.copyWith(fontSize: 18),
+        ),
+        content: Text(
+          conDiferencias
+              ? 'Las diferencias quedan registradas como aceptadas, con las justificaciones que escribiste. La ruta del chofer se cierra.'
+              : 'La ruta del chofer se cierra y podés pasar al arqueo de caja.',
+          style: AppTextStyles.link.copyWith(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('Cancelar', style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Aprobar', style: AppTextStyles.button.copyWith(color: AppColors.badgeGreen)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _aprobar() async {
     final cuadre = _cuadre;
     if (_aprobando || _bloqueada || cuadre == null) return;
-    final aprobacion = await mostrarAprobarConciliacionDialog(
-      context,
-      diferencias: cuadre.saldosPendientes,
-      forzarDiferencias: cuadre.tieneDiferencias,
-    );
-    if (aprobacion == null || !mounted) return;
+    final diferencias = _diferencias;
+    final conDiferencias = diferencias.isNotEmpty || cuadre.tieneDiferencias;
+    if (!_justificacionCompleta(diferencias)) {
+      AppFeedback.advertencia('Escribí la justificación de cada diferencia antes de aprobar.');
+      return;
+    }
+    if (!await _confirmarAprobacion(conDiferencias) || !mounted) return;
+
+    final general = _observacion.text.trim();
+    final observacion = diferencias.isEmpty
+        ? general
+        : [componerJustificacion(diferencias, _comentarios), if (general.isNotEmpty) general].join('\n');
 
     setState(() => _aprobando = true);
     try {
@@ -121,8 +179,8 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
       if (!_modoEjemplo && idRendicion != null) {
         await _repo.aprobarConciliacion(
           idRendicion: idRendicion,
-          observacion: aprobacion.observacion,
-          aceptarDiferencias: aprobacion.aceptarDiferencias || cuadre.tieneDiferencias,
+          observacion: observacion,
+          aceptarDiferencias: conDiferencias,
         );
       }
       if (!mounted) return;
@@ -130,8 +188,8 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
         _aprobando = false;
         _aprobadaLocal = true;
       });
-      _snack(aprobacion.aceptarDiferencias
-          ? 'Rendición aprobada con diferencias. Ya podés cerrar el arqueo de caja.'
+      _snack(conDiferencias
+          ? 'Rendición aprobada con diferencias justificadas. Ya podés cerrar el arqueo de caja.'
           : 'Rendición aprobada. Ya podés cerrar el arqueo de caja.');
       await _cargar();
     } on RendicionAdminRepositoryException catch (e) {
@@ -146,41 +204,6 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
       if (!mounted) return;
       setState(() => _aprobando = false);
       _snack('No se pudo aprobar la rendición.', error: true);
-    }
-  }
-
-  Future<void> _registrarAjuste() async {
-    final cuadre = _cuadre;
-    final idRendicion = cuadre?.idRendicion;
-    if (_procesandoAjuste || cuadre == null || idRendicion == null) return;
-    final ajuste = await mostrarAjusteConciliacionDialog(context, saldos: cuadre.saldos);
-    if (ajuste == null || !mounted) return;
-
-    setState(() => _procesandoAjuste = true);
-    try {
-      await _repo.ajustarConciliacion(
-        idRendicion: idRendicion,
-        concepto: ajuste.concepto,
-        tipo: ajuste.tipo,
-        valor: ajuste.valor,
-        observacion: ajuste.observacion,
-      );
-      if (!mounted) return;
-      setState(() => _procesandoAjuste = false);
-      _snack('Ajuste registrado.');
-      await _cargar();
-    } on RendicionAdminRepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() => _procesandoAjuste = false);
-      _snack(e.message, error: true);
-    } on NetworkException {
-      if (!mounted) return;
-      setState(() => _procesandoAjuste = false);
-      _snack('Sin conexión: no se pudo registrar el ajuste.', error: true);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _procesandoAjuste = false);
-      _snack('No se pudo registrar el ajuste.', error: true);
     }
   }
 
@@ -249,6 +272,7 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
     final totalDeclarado = cuadre.totalDeclaradoValores;
     final cuadraEnvases = const [ConceptoAjuste.vacios, ConceptoAjuste.llenos, ConceptoAjuste.danados]
         .every((c) => (cuadre.saldos[c] ?? 0) == 0);
+    final diferencias = _diferencias;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -298,21 +322,31 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
             _BloqueosAviso(bloqueos: cuadre.bloqueosDuros),
             const SizedBox(height: 12),
           ],
-          if (cuadre.saldosPendientes.isNotEmpty || cuadre.ajustes.isNotEmpty) ...[
+          if (cuadre.ajustes.isNotEmpty) ...[
             AjustesConciliacionPanel(
-              pendientes: cuadre.saldosPendientes,
+              pendientes: const [],
               ajustes: cuadre.ajustes,
             ),
             const SizedBox(height: 12),
           ],
+          if (diferencias.isNotEmpty) ...[
+            JustificacionDiferenciasPanel(
+              diferencias: diferencias,
+              comentarios: _comentarios,
+              habilitado: !_aprobando,
+              onCambio: () => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            _ObservacionGeneral(controller: _observacion, habilitado: !_aprobando),
+            const SizedBox(height: 12),
+          ],
           _PanelAcciones(
             aprobando: _aprobando,
-            procesandoAjuste: _procesandoAjuste,
-            aprobarHabilitado: cuadre.bloqueosDuros.isEmpty,
-            ajusteHabilitado: cuadre.saldosPendientes.isNotEmpty && cuadre.idRendicion != null,
-            conDiferencias: cuadre.saldosPendientes.isNotEmpty || cuadre.tieneDiferencias,
+            aprobarHabilitado: cuadre.bloqueosDuros.isEmpty && _justificacionCompleta(diferencias),
+            conDiferencias: diferencias.isNotEmpty || cuadre.tieneDiferencias,
+            pendientesJustificar: diferencias.isNotEmpty && !_justificacionCompleta(diferencias),
             onAprobar: _aprobar,
-            onAjuste: _registrarAjuste,
           ),
         ],
       ],
@@ -795,21 +829,17 @@ class _BloqueEnvaseState extends State<_BloqueEnvase> {
 
 class _PanelAcciones extends StatelessWidget {
   final bool aprobando;
-  final bool procesandoAjuste;
   final bool aprobarHabilitado;
-  final bool ajusteHabilitado;
   final bool conDiferencias;
+  final bool pendientesJustificar;
   final VoidCallback onAprobar;
-  final VoidCallback onAjuste;
 
   const _PanelAcciones({
     required this.aprobando,
-    required this.procesandoAjuste,
     this.aprobarHabilitado = true,
-    this.ajusteHabilitado = true,
     this.conDiferencias = false,
+    this.pendientesJustificar = false,
     required this.onAprobar,
-    required this.onAjuste,
   });
 
   @override
@@ -817,25 +847,14 @@ class _PanelAcciones extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: (procesandoAjuste || !ajusteHabilitado) ? null : onAjuste,
-            icon: procesandoAjuste
-                ? const SizedBox(
-                    height: 16, width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.steelBlue))
-                : const Icon(Icons.edit_note_outlined, size: 20),
-            label: const Text('Ajustar diferencia'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.steelBlue,
-              side: const BorderSide(color: AppColors.steelBlue),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+        if (pendientesJustificar) ...[
+          Text(
+            'Completá la justificación de todas las diferencias para poder aprobar.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.footer.copyWith(color: AppColors.orange, fontWeight: FontWeight.w700),
           ),
-        ),
-        const SizedBox(height: 10),
+          const SizedBox(height: 8),
+        ],
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -845,7 +864,7 @@ class _PanelAcciones extends StatelessWidget {
                     height: 16, width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.white))
                 : const Icon(Icons.verified_outlined, size: 20),
-            label: Text(conDiferencias ? 'Aprobar con diferencias' : 'Aprobar rendición'),
+            label: Text(conDiferencias ? 'Aprobar con diferencias justificadas' : 'Aprobar rendición'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.badgeGreen,
               foregroundColor: AppColors.white,
@@ -858,6 +877,39 @@ class _PanelAcciones extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ObservacionGeneral extends StatelessWidget {
+  final TextEditingController controller;
+  final bool habilitado;
+
+  const _ObservacionGeneral({required this.controller, required this.habilitado});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      enabled: habilitado,
+      minLines: 1,
+      maxLines: 3,
+      maxLength: 500,
+      cursorColor: AppColors.orange,
+      decoration: InputDecoration(
+        labelText: 'Observación (opcional)',
+        isDense: true,
+        counterText: '',
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.inputBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.orange),
+        ),
+        floatingLabelStyle: const TextStyle(color: AppColors.orange),
+      ),
     );
   }
 }

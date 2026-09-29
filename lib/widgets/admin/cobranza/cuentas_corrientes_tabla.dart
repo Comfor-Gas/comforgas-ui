@@ -9,12 +9,14 @@ import 'credito_estado_badge.dart';
 class CuentasCorrientesTabla extends StatelessWidget {
   final List<CuentaCorrienteResumen> clientes;
   final ValueChanged<CuentaCorrienteResumen> onVerDetalle;
+  final ValueChanged<CuentaCorrienteResumen>? onEditarLimite;
   final String mensajeVacio;
 
   const CuentasCorrientesTabla({
     super.key,
     required this.clientes,
     required this.onVerDetalle,
+    this.onEditarLimite,
     this.mensajeVacio = 'No hay clientes con cuenta corriente.',
   });
 
@@ -35,7 +37,11 @@ class CuentasCorrientesTabla extends StatelessWidget {
           return Column(
             children: [
               for (final c in clientes)
-                _ClienteCard(cliente: c, onVer: () => onVerDetalle(c)),
+                _ClienteCard(
+                  cliente: c,
+                  onVer: () => onVerDetalle(c),
+                  onEditar: onEditarLimite == null ? null : () => onEditarLimite!(c),
+                ),
             ],
           );
         }
@@ -44,7 +50,11 @@ class CuentasCorrientesTabla extends StatelessWidget {
           children: [
             const _Header(),
             for (final c in clientes)
-              _Fila(cliente: c, onVer: () => onVerDetalle(c)),
+              _Fila(
+                cliente: c,
+                onVer: () => onVerDetalle(c),
+                onEditar: onEditarLimite == null ? null : () => onEditarLimite!(c),
+              ),
           ],
         );
       },
@@ -57,7 +67,7 @@ const _colEstado = 2;
 const _colLimite = 2;
 const _colSaldo = 2;
 const _colVencido = 2;
-const _colAcciones = 1;
+const _colAcciones = 2;
 
 class _Header extends StatelessWidget {
   const _Header();
@@ -111,8 +121,9 @@ class _CeldaHeader extends StatelessWidget {
 class _Fila extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
   final VoidCallback onVer;
+  final VoidCallback? onEditar;
 
-  const _Fila({required this.cliente, required this.onVer});
+  const _Fila({required this.cliente, required this.onVer, this.onEditar});
 
   @override
   Widget build(BuildContext context) {
@@ -153,10 +164,21 @@ class _Fila extends StatelessWidget {
             flex: _colAcciones,
             child: Align(
               alignment: Alignment.centerRight,
-              child: IconButton(
-                onPressed: onVer,
-                tooltip: 'Ver detalle',
-                icon: const Icon(Icons.chevron_right, color: AppColors.steelBlue),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onEditar != null)
+                    IconButton(
+                      onPressed: onEditar,
+                      tooltip: 'Editar límite',
+                      icon: const Icon(Icons.edit_outlined, size: 19, color: AppColors.orange),
+                    ),
+                  IconButton(
+                    onPressed: onVer,
+                    tooltip: 'Ver detalle',
+                    icon: const Icon(Icons.chevron_right, color: AppColors.steelBlue),
+                  ),
+                ],
               ),
             ),
           ),
@@ -201,8 +223,9 @@ class _Monto extends StatelessWidget {
 class _ClienteCard extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
   final VoidCallback onVer;
+  final VoidCallback? onEditar;
 
-  const _ClienteCard({required this.cliente, required this.onVer});
+  const _ClienteCard({required this.cliente, required this.onVer, this.onEditar});
 
   @override
   Widget build(BuildContext context) {
@@ -225,6 +248,13 @@ class _ClienteCard extends StatelessWidget {
                   child: Text(cliente.nombreMostrado, style: AppTextStyles.label.copyWith(fontSize: 14.5)),
                 ),
                 CreditoEstadoBadge(moroso: cliente.moroso),
+                if (onEditar != null)
+                  IconButton(
+                    onPressed: onEditar,
+                    tooltip: 'Editar límite',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.edit_outlined, size: 19, color: AppColors.orange),
+                  ),
               ],
             ),
             const SizedBox(height: 12),

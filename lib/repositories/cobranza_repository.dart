@@ -163,6 +163,47 @@ class CobranzaRepository {
     _validar(response);
   }
 
+  Future<CuentaCorrienteResumen> configurarLimiteCuentaCorriente({
+    required int idCliente,
+    required int limiteCredito,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/admin/clientes/$idCliente/cuenta-corriente',
+    );
+    http.Response response;
+    try {
+      response = await _client
+          .put(
+            uri,
+            headers: _jsonHeaders,
+            body: jsonEncode({'limiteCredito': limiteCredito}),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw NetworkException();
+    }
+    if (response.statusCode == 404) {
+      throw CobranzaRepositoryException(
+        _mensajeError(response.body) ??
+            'Ese cliente todavía no figura en ninguna agenda: no se le puede abrir cuenta corriente.',
+        statusCode: 404,
+      );
+    }
+    _validar(response);
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) return CuentaCorrienteResumen.fromJson(decoded);
+    } catch (_) {}
+    return CuentaCorrienteResumen(
+      idCliente: idCliente,
+      nombreCliente: '',
+      moroso: false,
+      limiteCredito: limiteCredito,
+      saldoUsado: 0,
+      montoVencido: 0,
+    );
+  }
+
   Future<http.Response> _get(Uri uri) async {
     http.Response response;
     try {

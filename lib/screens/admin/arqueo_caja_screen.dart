@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/responsive.dart';
@@ -184,15 +183,20 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
       return;
     }
 
-    // El cierre exige los montos declarados (arqueo auditado). Los pedimos
-    // prellenados con lo que calculó el sistema, para que el admin confirme
-    // o ajuste según lo contado físicamente.
+    final actual = _cuadre;
+    final cuadre = actual != null && actual.hayRendicion ? actual : null;
+    final efectivoSistema = _totalSistema('EFECTIVO');
+    final chequeSistema = _totalSistema('CHEQUE');
+    final transferenciaSistema = _totalSistema('TRANSFERENCIA');
     final declarado = await showDialog<_MontosDeclarados>(
       context: context,
       builder: (_) => _CierreArqueoDialog(
-        efectivoSistema: _totalSistema('EFECTIVO'),
-        chequeSistema: _totalSistema('CHEQUE'),
-        transferenciaSistema: _totalSistema('TRANSFERENCIA'),
+        efectivoSistema: efectivoSistema,
+        chequeSistema: chequeSistema,
+        transferenciaSistema: transferenciaSistema,
+        efectivoDeclarado: cuadre?.efectivoDeclarado ?? efectivoSistema,
+        chequeDeclarado: cuadre?.chequesDeclarado ?? chequeSistema,
+        transferenciaDeclarada: cuadre?.transferenciasDeclarado ?? transferenciaSistema,
       ),
     );
     if (declarado == null || !mounted) return;
@@ -565,11 +569,17 @@ class _CierreArqueoDialog extends StatefulWidget {
   final int efectivoSistema;
   final int chequeSistema;
   final int transferenciaSistema;
+  final int efectivoDeclarado;
+  final int chequeDeclarado;
+  final int transferenciaDeclarada;
 
   const _CierreArqueoDialog({
     required this.efectivoSistema,
     required this.chequeSistema,
     required this.transferenciaSistema,
+    required this.efectivoDeclarado,
+    required this.chequeDeclarado,
+    required this.transferenciaDeclarada,
   });
 
   @override
@@ -577,36 +587,28 @@ class _CierreArqueoDialog extends StatefulWidget {
 }
 
 class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
-  late final TextEditingController _efectivo;
-  late final TextEditingController _cheque;
-  late final TextEditingController _transferencia;
   final _observacion = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _efectivo = TextEditingController(text: '${widget.efectivoSistema}');
-    _cheque = TextEditingController(text: '${widget.chequeSistema}');
-    _transferencia = TextEditingController(text: '${widget.transferenciaSistema}');
-  }
+  bool get _hayDiferencia =>
+      widget.efectivoDeclarado != widget.efectivoSistema ||
+      widget.chequeDeclarado != widget.chequeSistema ||
+      widget.transferenciaDeclarada != widget.transferenciaSistema;
+
+  bool get _valido => !_hayDiferencia || _observacion.text.trim().isNotEmpty;
 
   @override
   void dispose() {
-    _efectivo.dispose();
-    _cheque.dispose();
-    _transferencia.dispose();
     _observacion.dispose();
     super.dispose();
   }
 
-  int _leer(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
-
   void _confirmar() {
+    if (!_valido) return;
     Navigator.of(context).pop(_MontosDeclarados(
-      efectivo: _leer(_efectivo),
-      cheque: _leer(_cheque),
-      transferencia: _leer(_transferencia),
-      observacion: _observacion.text,
+      efectivo: widget.efectivoDeclarado,
+      cheque: widget.chequeDeclarado,
+      transferencia: widget.transferenciaDeclarada,
+      observacion: _observacion.text.trim(),
     ));
   }
 
@@ -615,40 +617,75 @@ class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text('Cerrar arqueo auditado', style: AppTextStyles.title),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Ingresá los montos contados físicamente. Vienen prellenados con '
-              'lo que registró el sistema; ajustalos si hay diferencia.',
-              style: AppTextStyles.link.copyWith(fontSize: 12.5),
-            ),
-            const SizedBox(height: 16),
-            _campo('Efectivo', _efectivo, widget.efectivoSistema),
-            const SizedBox(height: 14),
-            _campo('Cheque', _cheque, widget.chequeSistema),
-            const SizedBox(height: 14),
-            _campo('Transferencia', _transferencia, widget.transferenciaSistema),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _observacion,
-              maxLines: 2,
-              cursorColor: AppColors.orange,
-              decoration: InputDecoration(
-                labelText: 'Observación (opcional)',
-                isDense: true,
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.inputBorder),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.orange),
-                ),
-                floatingLabelStyle: const TextStyle(color: AppColors.orange),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Los montos salen de la rendición aprobada y no se pueden modificar. '
+                'Si hay diferencia con el sistema, dejá un comentario que la explique.',
+                style: AppTextStyles.link.copyWith(fontSize: 12.5),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.inputBorder),
+                ),
+                child: Column(
+                  children: [
+                    const _FilaMontoArqueo.encabezado(),
+                    _FilaMontoArqueo(
+                      etiqueta: 'Efectivo',
+                      sistema: widget.efectivoSistema,
+                      declarado: widget.efectivoDeclarado,
+                    ),
+                    _FilaMontoArqueo(
+                      etiqueta: 'Cheque',
+                      sistema: widget.chequeSistema,
+                      declarado: widget.chequeDeclarado,
+                    ),
+                    _FilaMontoArqueo(
+                      etiqueta: 'Transferencia',
+                      sistema: widget.transferenciaSistema,
+                      declarado: widget.transferenciaDeclarada,
+                      ultima: true,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _observacion,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 500,
+                onChanged: (_) => setState(() {}),
+                cursorColor: AppColors.orange,
+                decoration: InputDecoration(
+                  labelText: _hayDiferencia ? 'Comentario (obligatorio)' : 'Comentario (opcional)',
+                  hintText: _hayDiferencia ? 'Explicá el faltante o sobrante' : null,
+                  isDense: true,
+                  counterText: '',
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: _hayDiferencia && _observacion.text.trim().isEmpty
+                          ? AppColors.orange.withOpacity(0.6)
+                          : AppColors.inputBorder,
+                    ),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.orange),
+                  ),
+                  floatingLabelStyle: const TextStyle(color: AppColors.orange),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -660,50 +697,98 @@ class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
           ),
         ),
         TextButton(
-          onPressed: _confirmar,
+          onPressed: _valido ? _confirmar : null,
           child: Text(
             'Cerrar arqueo',
-            style: AppTextStyles.button.copyWith(color: AppColors.orange),
+            style: AppTextStyles.button.copyWith(
+              color: _valido ? AppColors.orange : AppColors.badgeGray,
+            ),
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _campo(String label, TextEditingController controller, int sistema) {
-    final declarado = _leer(controller);
+class _FilaMontoArqueo extends StatelessWidget {
+  final String etiqueta;
+  final int sistema;
+  final int declarado;
+  final bool ultima;
+  final bool esEncabezado;
+
+  const _FilaMontoArqueo({
+    required this.etiqueta,
+    required this.sistema,
+    required this.declarado,
+    this.ultima = false,
+  }) : esEncabezado = false;
+
+  const _FilaMontoArqueo.encabezado()
+      : etiqueta = 'CONCEPTO',
+        sistema = 0,
+        declarado = 0,
+        ultima = false,
+        esEncabezado = true;
+
+  @override
+  Widget build(BuildContext context) {
+    const estiloEncabezado = TextStyle(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.3,
+      color: AppColors.graphiteGray,
+    );
     final dif = declarado - sistema;
-    final Color colorDif = dif == 0
-        ? AppColors.badgeGreen
-        : (dif > 0 ? AppColors.steelBlue : AppColors.error);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: AppTextStyles.label.copyWith(fontSize: 13)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (_) => setState(() {}),
-          cursorColor: AppColors.orange,
-          decoration: const InputDecoration(
-            prefixText: '\$ ',
-            isDense: true,
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: AppColors.inputBorder),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: AppColors.orange),
+    final colorDif = dif == 0 ? AppColors.badgeGreen : (dif > 0 ? AppColors.steelBlue : AppColors.error);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        border: ultima
+            ? null
+            : Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.7))),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              etiqueta,
+              style: esEncabezado ? estiloEncabezado : AppTextStyles.label.copyWith(fontSize: 13),
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Sistema: ${formatMoneda(sistema)}  ·  Diferencia: ${formatMoneda(dif)}',
-          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: colorDif),
-        ),
-      ],
+          Expanded(
+            flex: 3,
+            child: Text(
+              esEncabezado ? 'SISTEMA' : formatMoneda(sistema),
+              textAlign: TextAlign.right,
+              style: esEncabezado
+                  ? estiloEncabezado
+                  : const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.graphiteGray),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              esEncabezado ? 'RENDIDO' : formatMoneda(declarado),
+              textAlign: TextAlign.right,
+              style: esEncabezado
+                  ? estiloEncabezado
+                  : const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.steelBlue),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              esEncabezado ? 'DIFERENCIA' : (dif == 0 ? 'OK' : formatMoneda(dif)),
+              textAlign: TextAlign.right,
+              style: esEncabezado
+                  ? estiloEncabezado
+                  : TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: colorDif),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

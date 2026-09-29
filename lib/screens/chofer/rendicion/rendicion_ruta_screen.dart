@@ -52,7 +52,9 @@ const List<StockRodanteProducto> _productosPorDefecto = [
 ];
 
 class RendicionRutaScreen extends StatefulWidget {
-  const RendicionRutaScreen({super.key});
+  final bool visible;
+
+  const RendicionRutaScreen({super.key, this.visible = true});
 
   @override
   State<RendicionRutaScreen> createState() => _RendicionRutaScreenState();
@@ -60,6 +62,7 @@ class RendicionRutaScreen extends StatefulWidget {
 
 class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
   static const _uuid = Uuid();
+  static const Duration _vigencia = Duration(seconds: 20);
 
   final _efectivo = TextEditingController();
   final _cheques = TextEditingController();
@@ -75,6 +78,8 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
   bool _enviando = false;
   bool _pendienteLocal = false;
   bool _precargado = false;
+  bool _editado = false;
+  DateTime? _cargadoEn;
   bool _online = true;
   RendicionRegistrada? _registrada;
 
@@ -89,6 +94,51 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
     ConnectivityService.instance.tieneConexion().then((online) {
       if (mounted) setState(() => _online = online);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant RendicionRutaScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.visible || oldWidget.visible || _cargando || _enviando) return;
+    final ultimo = _cargadoEn;
+    final vencido = ultimo == null || DateTime.now().difference(ultimo) > _vigencia;
+    if (!vencido) return;
+    if (_bloqueada || !_editado) _cargar();
+  }
+
+  void _marcarEditado() {
+    setState(() => _editado = true);
+  }
+
+  Future<void> _recalcular() async {
+    if (_editado) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('¿Volver a precargar?', style: AppTextStyles.title.copyWith(fontSize: 18)),
+          content: Text(
+            'Se reemplazan los valores y garrafas que cargaste a mano por los registrados hoy.',
+            style: AppTextStyles.link.copyWith(fontSize: 13.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.graphiteGray)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text(
+                'Precargar',
+                style: TextStyle(color: AppColors.orange, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true || !mounted) return;
+    }
+    await _cargar();
   }
 
   @override
@@ -173,6 +223,8 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
       _rendicionEnviada = jornadaCerrada || registrada != null || enviadaLocal != null;
       _pendienteLocal = false;
       _precargado = false;
+      _editado = false;
+      _cargadoEn = DateTime.now();
       _conteos.clear();
       for (final p in productos) {
         _conteos[_clave(p)] = _Conteo();
@@ -374,8 +426,12 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                           ],
                           if (!_rendicionEnviada && _pendienteLocal)
                             const _AvisoPendiente(),
-                          if (!_rendicionEnviada && _precargado && !_pendienteLocal)
-                            const _AvisoPrecargado(),
+                          if (!_rendicionEnviada && !_pendienteLocal)
+                            _AvisoPrecargado(
+                              precargado: _precargado,
+                              editado: _editado,
+                              onRecalcular: _recalcular,
+                            ),
                           _SeccionValores(
                             efectivo: _efectivo,
                             cheques: _cheques,
@@ -384,7 +440,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                             resumen: _totalValores > 0
                                 ? formatMoneda(_totalValores)
                                 : 'Sin valores cargados',
-                            onChanged: () => setState(() {}),
+                            onChanged: _marcarEditado,
                           ),
                           const SizedBox(height: 16),
                           _SeccionEnvases(
@@ -394,7 +450,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                             resumen: _totalGarrafas > 0
                                 ? '$_totalGarrafas garrafas'
                                 : 'Sin garrafas cargadas',
-                            onChanged: () => setState(() {}),
+                            onChanged: _marcarEditado,
                             claveDe: _clave,
                           ),
                           const SizedBox(height: 16),
@@ -488,10 +544,25 @@ class _Cabecera extends StatelessWidget {
 }
 
 class _AvisoPrecargado extends StatelessWidget {
-  const _AvisoPrecargado();
+  final bool precargado;
+  final bool editado;
+  final VoidCallback onRecalcular;
+
+  const _AvisoPrecargado({
+    required this.precargado,
+    required this.editado,
+    required this.onRecalcular,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final texto = !precargado
+        ? 'Todavía no hay cobros ni garrafas registrados hoy para precargar. '
+            'Si ya cobraste, tocá "Precargar" para traer lo último.'
+        : editado
+            ? 'Modificaste los valores precargados. Revisá que coincidan con lo que entregás.'
+            : 'Precargamos los valores cobrados y las garrafas del camión de hoy. '
+                'Revisá los números y ajustá lo que haga falta antes de enviar.';
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -506,9 +577,20 @@ class _AvisoPrecargado extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Precargamos los valores cobrados y las garrafas del camión de hoy. '
-              'Revisá los números y ajustá lo que haga falta antes de enviar.',
+              texto,
               style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
+            ),
+          ),
+          const SizedBox(width: 6),
+          TextButton.icon(
+            onPressed: onRecalcular,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Precargar'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.orange,
+              textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              visualDensity: VisualDensity.compact,
             ),
           ),
         ],

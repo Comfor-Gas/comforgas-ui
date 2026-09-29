@@ -22,6 +22,7 @@ class ChoferHomeScreen extends StatefulWidget {
 class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
   static const int _tabInicio = 0;
   static const int _tabAgenda = 1;
+  static const int _tabRendicion = 3;
 
   int _index = _tabInicio;
 
@@ -43,7 +44,7 @@ class _ChoferHomeScreenState extends State<ChoferHomeScreen> {
           ),
           const AgendaChoferScreen(),
           const StockChoferScreen(),
-          const RendicionRutaScreen(),
+          RendicionRutaScreen(visible: _index == _tabRendicion),
           const _ChoferPerfilTab(),
         ],
       ),

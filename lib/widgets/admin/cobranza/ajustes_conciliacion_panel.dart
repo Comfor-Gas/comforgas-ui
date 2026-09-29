@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/cuadre_rendicion.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
-import 'ajuste_conciliacion_dialog.dart';
+import 'justificacion_diferencias_panel.dart';
 
 class AjustesConciliacionPanel extends StatelessWidget {
   final List<MapEntry<ConceptoAjuste, int>> pendientes;

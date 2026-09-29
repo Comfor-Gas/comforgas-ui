@@ -63,6 +63,7 @@ import 'cobro/registro_cobro_screen.dart';
 import 'venta/registro_venta_screen.dart';
 import 'venta_social/finalizar_venta_social_screen.dart';
 import '../../core/feedback/app_feedback.dart';
+import '../../local/credito_local_service.dart';
 
 const _uuid = Uuid();
 
@@ -855,7 +856,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
 
       if (!mounted) return;
       setState(() {
-        _visita = actualizada.copyWith(idAgendaItem: _visita.idAgendaItem);
+        _visita = actualizada.copyWith(
+          idAgendaItem: _visita.idAgendaItem,
+          sucursalSnapshot: _combinarSnapshot(actualizada.sucursalSnapshot),
+        );
         _fase = _FaseVisita.enCurso;
       });
 
@@ -1383,8 +1387,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     return items;
   }
 
+  Map<String, dynamic> _combinarSnapshot(Map<String, dynamic> nuevo) {
+    return {
+      ..._visita.sucursalSnapshot,
+      for (final e in nuevo.entries)
+        if (e.value != null) e.key: e.value,
+    };
+  }
+
+  CreditoCliente get _creditoActual =>
+      CreditoLocalService.instance.creditoActual(_visita.sucursalSnapshot, _idClienteExt);
+
   Future<Object?> _abrirCobroCombinado(List<VentaEnVisita> ventas) {
-    final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
+    final credito = _creditoActual;
+    final idCliente = _idClienteExt;
     final refs = ventas
         .map((v) => CobroVentaRef(
               idVenta: v.idVenta,
@@ -1408,6 +1424,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           canjes: _canjes,
           notaDebito: NotaDebitoResumen(itemsNota),
           ventas: refs,
+          onCuentaCorrienteRegistrada: idCliente == null
+              ? null
+              : (monto) => CreditoLocalService.instance.registrarCargo(idCliente, monto),
         ),
       ),
     );
@@ -2252,7 +2271,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           onCancelar: () => Navigator.of(context).pop(),
         );
       case _FaseVisita.enCurso:
-        final credito = CreditoCliente.fromSnapshot(_visita.sucursalSnapshot);
+        final credito = _creditoActual;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

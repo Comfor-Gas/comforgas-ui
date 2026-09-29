@@ -5,12 +5,15 @@ import '../../core/responsive.dart';
 import '../../data/mock_cobranza_data.dart';
 import '../../models/cuenta_corriente_resumen.dart';
 import '../../providers/auth_provider.dart';
+import '../../repositories/catalogo_repository.dart';
 import '../../repositories/cobranza_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/cuentas_corrientes_tabla.dart';
+import '../../widgets/admin/cobranza/editar_limite_dialog.dart';
+import '../../widgets/admin/cobranza/limites_credito_card.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
 import '../../widgets/admin/flota/flota_stat_card.dart';
 import '../../widgets/common/aviso_regla_cuenta_corriente.dart';
@@ -27,7 +30,10 @@ class CuentasCorrientesScreen extends StatefulWidget {
 
 class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   late final CobranzaRepository _repo;
+  late final CatalogoRepository _catalogoRepo;
   final _searchCtrl = TextEditingController();
+  List<OpcionFiltro>? _catalogoClientes;
+  bool _guardandoLimite = false;
 
   ReporteCuentasCorrientes _reporte = const ReporteCuentasCorrientes();
   bool _loading = true;
@@ -38,7 +44,9 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   @override
   void initState() {
     super.initState();
-    _repo = CobranzaRepository(context.read<AuthProvider>().apiClient);
+    final client = context.read<AuthProvider>().apiClient;
+    _repo = CobranzaRepository(client);
+    _catalogoRepo = CatalogoRepository(client);
     _searchCtrl.addListener(() => setState(() {}));
     _cargar();
   }
@@ -106,6 +114,10 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
         child: _DetallePanel(
           cliente: cliente,
           onRegistrarPago: () => _registrarPago(cliente),
+          onEditarLimite: () {
+            Navigator.of(context).pop();
+            _editarLimite(cliente);
+          },
         ),
       ),
       transitionBuilder: (_, animacion, __, child) {
@@ -151,6 +163,72 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
     }
   }
 
+  Future<List<OpcionFiltro>> _obtenerCatalogo() async {
+    final cache = _catalogoClientes;
+    if (cache != null) return cache;
+    try {
+      final clientes = await _catalogoRepo.listarClientes();
+      final vistos = <int>{};
+      final opciones = <OpcionFiltro>[];
+      for (final c in clientes) {
+        final id = c.idClienteExt;
+        if (id == null || !vistos.add(id)) continue;
+        final nombre = c.nombre.trim().isEmpty ? 'Cliente #$id' : c.nombre.trim();
+        opciones.add(OpcionFiltro('$id', nombre));
+      }
+      opciones.sort((a, b) => a.etiqueta.toLowerCase().compareTo(b.etiqueta.toLowerCase()));
+      _catalogoClientes = opciones;
+      return opciones;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _editarLimite([CuentaCorrienteResumen? cliente]) async {
+    if (_modoEjemplo) {
+      _snack('En modo de ejemplo no se pueden editar límites.', error: true);
+      return;
+    }
+    if (_guardandoLimite) return;
+    var catalogo = const <OpcionFiltro>[];
+    if (cliente == null) {
+      setState(() => _guardandoLimite = true);
+      catalogo = await _obtenerCatalogo();
+      if (!mounted) return;
+      setState(() => _guardandoLimite = false);
+    }
+    final elegido = await EditarLimiteDialog.mostrar(
+      context,
+      cliente: cliente,
+      clientesCatalogo: catalogo,
+      cuentasExistentes: {for (final c in _reporte.clientes) c.idCliente: c},
+    );
+    if (elegido == null || !mounted) return;
+    setState(() => _guardandoLimite = true);
+    try {
+      await _repo.configurarLimiteCuentaCorriente(
+        idCliente: elegido.idCliente,
+        limiteCredito: elegido.limiteCredito,
+      );
+      if (!mounted) return;
+      setState(() => _guardandoLimite = false);
+      _snack('Límite de ${elegido.nombreCliente.isEmpty ? 'el cliente' : elegido.nombreCliente} actualizado a ${formatMoneda(elegido.limiteCredito)}.');
+      await _cargar();
+    } on NetworkException {
+      if (!mounted) return;
+      setState(() => _guardandoLimite = false);
+      _snack('Sin conexión: no se pudo guardar el límite.', error: true);
+    } on CobranzaRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() => _guardandoLimite = false);
+      _snack(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _guardandoLimite = false);
+      _snack('No se pudo guardar el límite.', error: true);
+    }
+  }
+
   void _snack(String mensaje, {bool error = false}) {
     if (error) {
       AppFeedback.error(mensaje);
@@ -174,12 +252,19 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ReportarCarga(cargando: _loading),
+              ReportarCarga(cargando: _loading || _guardandoLimite),
               _Cabecera(onPdf: _generarPdf),
               const SizedBox(height: 20),
               _Stats(reporte: _reporte),
               const SizedBox(height: 12),
               const AvisoReglaCuentaCorriente(),
+              const SizedBox(height: 16),
+              LimitesCreditoCard(
+                clientes: _reporte.clientes,
+                cargando: _loading || _guardandoLimite,
+                onAsignar: () => _editarLimite(),
+                onEditar: _editarLimite,
+              ),
               const SizedBox(height: 16),
               _Filtros(
                 searchCtrl: _searchCtrl,
@@ -210,6 +295,7 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
                     : CuentasCorrientesTabla(
                         clientes: _clientesFiltrados,
                         onVerDetalle: _verDetalle,
+                        onEditarLimite: _editarLimite,
                         mensajeVacio: _reporte.clientes.isEmpty
                             ? 'No hay clientes con cuenta corriente.'
                             : 'No hay clientes que coincidan con los filtros.',
@@ -393,8 +479,9 @@ class _TarjetaTabla extends StatelessWidget {
 class _DetallePanel extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
   final VoidCallback? onRegistrarPago;
+  final VoidCallback? onEditarLimite;
 
-  const _DetallePanel({required this.cliente, this.onRegistrarPago});
+  const _DetallePanel({required this.cliente, this.onRegistrarPago, this.onEditarLimite});
 
   @override
   Widget build(BuildContext context) {
@@ -450,14 +537,20 @@ class _DetallePanel extends StatelessWidget {
                   valor: cliente.tieneVencido ? formatMoneda(cliente.montoVencido) : '—',
                   acento: cliente.tieneVencido ? AppColors.error : null,
                 ),
-                if (onRegistrarPago != null && cliente.saldoUsado > 0) ...[
-                  const Spacer(),
+                const Spacer(),
+                if (onEditarLimite != null) ...[
+                  FlotaBotonSecundario(
+                    texto: 'Editar límite',
+                    onTap: onEditarLimite,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (onRegistrarPago != null && cliente.saldoUsado > 0)
                   FlotaBotonPrimario(
                     texto: 'Registrar pago',
                     icono: Icons.payments_outlined,
                     onTap: onRegistrarPago,
                   ),
-                ],
               ],
             ),
           ),

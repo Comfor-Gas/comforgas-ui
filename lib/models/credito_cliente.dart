@@ -13,7 +13,7 @@ class CreditoCliente {
     this.moroso = false,
   });
 
-  bool get tieneDatos => limiteCredito != null || saldoUsado != null;
+  bool get tieneDatos => limiteCredito != null || saldoUsado != null || saldoDisponible != null;
 
   double get disponible {
     if (saldoDisponible != null) return saldoDisponible!;
@@ -27,6 +27,16 @@ class CreditoCliente {
       limiteCredito != null && saldoUsado != null && saldoUsado! > limiteCredito!;
 
   bool get tieneAlerta => moroso || limiteExcedido;
+
+  CreditoCliente conCargoLocal(num monto) {
+    if (monto <= 0 || !tieneDatos) return this;
+    return CreditoCliente(
+      limiteCredito: limiteCredito,
+      saldoUsado: (saldoUsado ?? 0) + monto,
+      saldoDisponible: disponible - monto,
+      moroso: moroso,
+    );
+  }
 
   factory CreditoCliente.fromSnapshot(Map<String, dynamic> snapshot) {
     bool boolDe(String clave) {

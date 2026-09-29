@@ -27,6 +27,8 @@ String traducirBloqueoCuadre(String codigo) {
   }
 }
 
+String _claveSku(String valor) => valor.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
 const Set<String> _bloqueosIgnorados = {
   'ARQUEO_ABIERTO_O_INEXISTENTE',
 };
@@ -148,6 +150,7 @@ class CuadreEnvaseLinea {
   final int llenosDeclarado;
   final int vaciosSistema;
   final int vaciosDeclarado;
+  final int averiadosSistema;
   final int averiadosDeclarado;
 
   const CuadreEnvaseLinea({
@@ -157,14 +160,18 @@ class CuadreEnvaseLinea {
     this.llenosDeclarado = 0,
     this.vaciosSistema = 0,
     this.vaciosDeclarado = 0,
+    this.averiadosSistema = 0,
     this.averiadosDeclarado = 0,
   });
 
   int get difLlenos => llenosDeclarado - llenosSistema;
   int get difVacios => vaciosDeclarado - vaciosSistema;
+  int get difAveriados => averiadosDeclarado - averiadosSistema;
   bool get cuadraLlenos => difLlenos == 0;
   bool get cuadraVacios => difVacios == 0;
-  bool get cuadra => cuadraLlenos && cuadraVacios;
+  bool get cuadraAveriados => difAveriados == 0;
+  bool get cuadra => cuadraLlenos && cuadraVacios && cuadraAveriados;
+  bool get tieneAveriados => averiadosSistema > 0 || averiadosDeclarado > 0;
 
   factory CuadreEnvaseLinea.fromJson(Map<String, dynamic> json) {
     final sku = (json['sku'] ?? '').toString();
@@ -272,6 +279,20 @@ class CuadreRendicion {
       }
     }
 
+    final declaradoPorSku = <String, List<int>>{};
+    for (final n in (json['notasStock'] as List? ?? const [])) {
+      if (n is! Map) continue;
+      for (final d in (n['detalles'] as List? ?? const [])) {
+        if (d is! Map) continue;
+        final clave = _claveSku((d['sku'] ?? d['idProducto'] ?? '').toString());
+        if (clave.isEmpty) continue;
+        final acumulado = declaradoPorSku.putIfAbsent(clave, () => [0, 0, 0]);
+        acumulado[0] += parseInt(d['llenosEntrada']) ?? 0;
+        acumulado[1] += parseInt(d['vaciosEntrada']) ?? 0;
+        acumulado[2] += parseInt(d['averiadosEntrada']) ?? 0;
+      }
+    }
+
     final envases = <CuadreEnvaseLinea>[];
     final env = json['envases'];
     if (env is Map<String, dynamic>) {
@@ -281,14 +302,18 @@ class CuadreRendicion {
         final llenosEsp = parseInt(r['llenosEsperados']) ?? 0;
         final vaciosEsp = parseInt(r['vaciosEsperados']) ?? 0;
         final danadosEsp = parseInt(r['danadosEsperados']) ?? 0;
+        final declarado = declaradoPorSku[_claveSku(sku)] ??
+            declaradoPorSku[_claveSku((r['idProducto'] ?? '').toString())] ??
+            const [0, 0, 0];
         envases.add(CuadreEnvaseLinea(
           sku: sku,
           etiqueta: CuadreEnvaseLinea._etiquetaDeSku(sku),
           llenosSistema: llenosEsp,
-          llenosDeclarado: llenosEsp,
+          llenosDeclarado: declarado[0],
           vaciosSistema: vaciosEsp,
-          vaciosDeclarado: vaciosEsp,
-          averiadosDeclarado: danadosEsp,
+          vaciosDeclarado: declarado[1],
+          averiadosSistema: danadosEsp,
+          averiadosDeclarado: declarado[2],
         ));
       }
     }

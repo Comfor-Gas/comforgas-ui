@@ -76,9 +76,7 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
       setState(() {
         _cuadre = cuadre;
         _modoEjemplo = !cuadre.hayRendicion;
-        _aviso = cuadre.hayRendicion
-            ? null
-            : 'El chofer todavía no envió la rendición del día. Los valores quedan en cero hasta recibirla.';
+        _aviso = null;
         _loading = false;
       });
     } on NetworkException {
@@ -262,7 +260,9 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
         _SeccionPlegableCuadre(
           icono: Icons.payments_outlined,
           titulo: 'Rendición de Valores',
-          trailing: _BadgeDif(diferencia: totalDeclarado - totalSistema, esMoneda: true),
+          trailing: cuadre.hayRendicion
+              ? _BadgeDif(diferencia: totalDeclarado - totalSistema, esMoneda: true)
+              : null,
           child: _TablaCuadre(
             lineas: valores,
             totalSistema: totalSistema,
@@ -274,7 +274,7 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
         _SeccionPlegableCuadre(
           icono: Icons.propane_tank_outlined,
           titulo: 'Envases (garrafas)',
-          trailing: cuadre.envases.isEmpty ? null : _BadgeEstado(cuadra: cuadraEnvases),
+          trailing: !cuadre.hayRendicion || cuadre.envases.isEmpty ? null : _BadgeEstado(cuadra: cuadraEnvases),
           child: cuadre.envases.isEmpty
               ? Text('El chofer no declaró envases en esta rendición.',
                   style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray))
@@ -773,21 +773,16 @@ class _BloqueEnvaseState extends State<_BloqueEnvase> {
                   diferencia: linea.difVacios,
                   esMoneda: false,
                 ),
-                if (linea.averiadosDeclarado > 0)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text('Dañadas / canjeadas',
-                              style: AppTextStyles.input.copyWith(fontSize: 13)),
-                        ),
-                        Text('${linea.averiadosDeclarado}',
-                            style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.steelBlue)),
-                      ],
-                    ),
+                if (linea.tieneAveriados) ...[
+                  const Divider(height: 1, color: AppColors.inputBorder),
+                  _FilaComparativa(
+                    concepto: 'Dañadas / canjeadas',
+                    sistema: linea.averiadosSistema,
+                    declarado: linea.averiadosDeclarado,
+                    diferencia: linea.difAveriados,
+                    esMoneda: false,
                   ),
+                ],
               ],
             ),
             secondChild: const SizedBox(width: double.infinity),

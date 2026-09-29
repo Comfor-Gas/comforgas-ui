@@ -3,6 +3,7 @@ import '../../../models/control_comodato.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import 'faltante_badge.dart';
+import 'foto_control_comodato.dart';
 
 class AuditoriaComodatoFila extends StatefulWidget {
   final ControlComodato control;
@@ -56,7 +57,7 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
           onTap: _tieneObs ? () => setState(() => _expandido = !_expandido) : null,
           child: Container(
             color: fondo,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
                 Expanded(flex: 3, child: _texto(c.nombreChofer ?? 'Sin asignar', bold: true)),
@@ -84,6 +85,13 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
                           size: 22,
                         )
                       : const SizedBox.shrink(),
+                ),
+                SizedBox(
+                  width: 64,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FotoControlComodato(control: c),
+                  ),
                 ),
               ],
             ),

@@ -96,6 +96,7 @@ class ControlComodato {
   final DateTime? timestampRecepcion;
   final String? observaciones;
   final String? uuidOffline;
+  final int? idEvidencia;
 
   const ControlComodato({
     this.idControl,
@@ -112,6 +113,7 @@ class ControlComodato {
     this.timestampRecepcion,
     this.observaciones,
     this.uuidOffline,
+    this.idEvidencia,
   });
 
   int get faltante => discrepancia > 0 ? discrepancia : 0;
@@ -159,6 +161,7 @@ class ControlComodato {
           parseDate(json['timestampRecepcion']),
       observaciones: json['observaciones'] as String?,
       uuidOffline: (json['uuid_offline'] ?? json['uuidOffline']) as String?,
+      idEvidencia: parseInt(json['id_evidencia']) ?? parseInt(json['idEvidencia']),
     );
   }
 }

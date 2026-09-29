@@ -442,6 +442,10 @@ class _EncabezadoTabla extends StatelessWidget {
           Expanded(flex: 2, child: _Th('Físicas')),
           Expanded(flex: 3, child: _Th('Estado')),
           SizedBox(width: 32),
+          SizedBox(
+            width: 64,
+            child: Align(alignment: Alignment.centerRight, child: _Th('Foto')),
+          ),
         ],
       ),
     );

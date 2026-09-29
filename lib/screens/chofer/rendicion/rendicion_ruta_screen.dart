@@ -76,6 +76,9 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
   bool _pendienteLocal = false;
   bool _precargado = false;
   bool _online = true;
+  RendicionRegistrada? _registrada;
+
+  bool get _bloqueada => _rendicionEnviada || _pendienteLocal;
 
   DateTime get _hoy => DateTime.now();
 
@@ -134,47 +137,68 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
     }
 
     final pendiente = RendicionLocalService.instance.obtener(_hoy);
+    final enviadaLocal = RendicionLocalService.instance.obtenerEnviada(_hoy);
     final idUsuario = auth.user?.id ?? '';
 
-    final local = RecaudacionDiariaService.instance.obtener(idUsuario, _hoy);
-    var efectivoPrecarga = local.efectivo;
-    var chequePrecarga = local.cheque;
-    var transferenciaPrecarga = local.transferencia;
-
-    if (efectivoPrecarga + chequePrecarga + transferenciaPrecarga == 0) {
-      try {
-        final items = await VisitaRepository(auth.apiClient)
-            .getVisitasPorUsuarioYFecha(idUsuario: idUsuario, fecha: _hoy);
-        for (final item in items) {
-          efectivoPrecarga += item.cobrosPorMetodo['EFECTIVO'] ?? 0;
-          chequePrecarga += item.cobrosPorMetodo['CHEQUE'] ?? 0;
-          transferenciaPrecarga += item.cobrosPorMetodo['TRANSFERENCIA'] ?? 0;
-        }
-      } catch (_) {}
+    RendicionRegistrada? registrada;
+    try {
+      registrada = await RendicionRepository(auth.apiClient).obtenerMia(_hoy);
+    } catch (_) {
+      registrada = null;
     }
+
+    final local = RecaudacionDiariaService.instance.obtener(idUsuario, _hoy);
+    var efectivoServidor = 0;
+    var chequeServidor = 0;
+    var transferenciaServidor = 0;
+    try {
+      final items = await VisitaRepository(auth.apiClient)
+          .getVisitasPorUsuarioYFecha(idUsuario: idUsuario, fecha: _hoy);
+      for (final item in items) {
+        efectivoServidor += item.cobrosPorMetodo['EFECTIVO'] ?? 0;
+        chequeServidor += item.cobrosPorMetodo['CHEQUE'] ?? 0;
+        transferenciaServidor += item.cobrosPorMetodo['TRANSFERENCIA'] ?? 0;
+      }
+    } catch (_) {}
+    final efectivoPrecarga = efectivoServidor > local.efectivo ? efectivoServidor : local.efectivo;
+    final chequePrecarga = chequeServidor > local.cheque ? chequeServidor : local.cheque;
+    final transferenciaPrecarga =
+        transferenciaServidor > local.transferencia ? transferenciaServidor : local.transferencia;
 
     if (!mounted) return;
     setState(() {
       _productos = productos;
       _clavesNota = clavesNota;
-      _rendicionEnviada = jornadaCerrada;
+      _registrada = registrada;
+      _rendicionEnviada = jornadaCerrada || registrada != null || enviadaLocal != null;
+      _pendienteLocal = false;
+      _precargado = false;
       _conteos.clear();
       for (final p in productos) {
         _conteos[_clave(p)] = _Conteo();
       }
-      if (pendiente != null) {
+      final copiaEnviada = enviadaLocal ?? (registrada == null ? null : pendiente);
+      if (_rendicionEnviada && copiaEnviada != null) {
+        _cargarDesdeDraft(copiaEnviada);
+      } else if (_rendicionEnviada) {
+        final r = registrada;
+        _efectivo.text = r == null || r.efectivo == 0 ? '' : '${r.efectivo}';
+        _cheques.text = r == null || r.cheques == 0 ? '' : '${r.cheques}';
+        _transferencias.text = r == null || r.transferencias == 0 ? '' : '${r.transferencias}';
+        _observaciones.text = r?.observaciones ?? '';
+        for (final p in productos) {
+          _conteos[_clave(p)] = _Conteo(
+            vacios: p.vaciosEntrada,
+            llenos: p.llenosEntrada,
+            averiados: p.averiadosActuales,
+          );
+        }
+      } else if (pendiente != null) {
         _efectivo.text = pendiente.efectivo > 0 ? '${pendiente.efectivo}' : '';
         _cheques.text = pendiente.cheques > 0 ? '${pendiente.cheques}' : '';
         _transferencias.text =
             pendiente.transferencias > 0 ? '${pendiente.transferencias}' : '';
-        _observaciones.text = pendiente.observaciones;
-        for (final e in pendiente.envases) {
-          _conteos[e.idProducto.isNotEmpty ? e.idProducto : e.sku] = _Conteo(
-            vacios: e.vaciosRecuperados,
-            llenos: e.llenosNoVendidos,
-            averiados: e.averiados,
-          );
-        }
+        _cargarDesdeDraft(pendiente);
         _pendienteLocal = true;
       } else {
         if (efectivoPrecarga > 0) _efectivo.text = '$efectivoPrecarga';
@@ -204,6 +228,20 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
     });
   }
 
+  void _cargarDesdeDraft(RendicionDraft draft) {
+    _efectivo.text = draft.efectivo > 0 ? '${draft.efectivo}' : '';
+    _cheques.text = draft.cheques > 0 ? '${draft.cheques}' : '';
+    _transferencias.text = draft.transferencias > 0 ? '${draft.transferencias}' : '';
+    _observaciones.text = draft.observaciones;
+    for (final e in draft.envases) {
+      _conteos[e.idProducto.isNotEmpty ? e.idProducto : e.sku] = _Conteo(
+        vacios: e.vaciosRecuperados,
+        llenos: e.llenosNoVendidos,
+        averiados: e.averiados,
+      );
+    }
+  }
+
   int _leer(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
 
   int get _totalValores =>
@@ -217,7 +255,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
       _conteos.values.fold(0, (a, c) => a + c.averiados);
   int get _totalGarrafas => _totalVacios + _totalLlenos + _totalAveriados;
 
-  bool get _valido => (_totalValores > 0 || _totalGarrafas > 0) && !_enviando;
+  bool get _valido => (_totalValores > 0 || _totalGarrafas > 0) && !_enviando && !_bloqueada;
 
   RendicionDraft _armarDraft() {
     final envases = <RendicionEnvaseItem>[];
@@ -256,7 +294,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
 
     try {
       await RendicionRepository(apiClient).enviar(draft);
-      await RendicionLocalService.instance.eliminar(draft.fecha);
+      await RendicionLocalService.instance.marcarEnviada(draft);
       if (!mounted) return;
       setState(() {
         _enviando = false;
@@ -273,6 +311,17 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
       });
       _mostrar('Sin conexión: la rendición se guardó y se enviará cuando haya señal.');
     } on RendicionRepositoryException catch (e) {
+      if (e.yaRegistrada) {
+        await RendicionLocalService.instance.eliminar(draft.fecha);
+        if (!mounted) return;
+        setState(() => _enviando = false);
+        _mostrar('Ya habías enviado la rendición de hoy. Te mostramos los datos registrados.', error: true);
+        await _cargar();
+        return;
+      }
+      if (!e.endpointNoDisponible) {
+        await RendicionLocalService.instance.eliminar(draft.fecha);
+      }
       if (!mounted) return;
       setState(() {
         _enviando = false;
@@ -320,7 +369,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                         children: [
                           if (_rendicionEnviada) ...[
-                            const _RendicionEnviadaAviso(),
+                            _RendicionEnviadaAviso(conciliada: _registrada?.conciliada ?? false),
                             const SizedBox(height: 12),
                           ],
                           if (!_rendicionEnviada && _pendienteLocal)
@@ -331,6 +380,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                             efectivo: _efectivo,
                             cheques: _cheques,
                             transferencias: _transferencias,
+                            habilitado: !_enviando && !_bloqueada,
                             resumen: _totalValores > 0
                                 ? formatMoneda(_totalValores)
                                 : 'Sin valores cargados',
@@ -340,7 +390,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                           _SeccionEnvases(
                             productos: _productos,
                             conteos: _conteos,
-                            habilitado: !_enviando && !_rendicionEnviada,
+                            habilitado: !_enviando && !_bloqueada,
                             resumen: _totalGarrafas > 0
                                 ? '$_totalGarrafas garrafas'
                                 : 'Sin garrafas cargadas',
@@ -350,6 +400,7 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                           const SizedBox(height: 16),
                           _SeccionObservaciones(
                             controller: _observaciones,
+                            habilitado: !_enviando && !_bloqueada,
                             resumen: _observaciones.text.trim().isEmpty
                                 ? 'Sin observaciones'
                                 : 'Con observaciones',
@@ -371,7 +422,9 @@ class _RendicionRutaScreenState extends State<RendicionRutaScreen> {
                           ),
                           const SizedBox(height: 20),
                           if (_rendicionEnviada)
-                            const _RendicionEnviadaAviso()
+                            const _DatosBloqueadosNota()
+                          else if (_pendienteLocal)
+                            const _DatosBloqueadosNota(pendiente: true)
                           else
                             PrimaryButton(
                               text: 'Enviar Rendición',
@@ -465,7 +518,9 @@ class _AvisoPrecargado extends StatelessWidget {
 }
 
 class _RendicionEnviadaAviso extends StatelessWidget {
-  const _RendicionEnviadaAviso();
+  final bool conciliada;
+
+  const _RendicionEnviadaAviso({this.conciliada = false});
 
   @override
   Widget build(BuildContext context) {
@@ -493,7 +548,9 @@ class _RendicionEnviadaAviso extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'La jornada quedó cerrada. Queda pendiente de conciliación del administrador.',
+                  conciliada
+                      ? 'El administrador ya aprobó tu rendición. Estos son los datos que enviaste.'
+                      : 'Estos son los datos que enviaste. Quedan bloqueados hasta que el administrador la revise.',
                   style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
                 ),
               ],
@@ -540,6 +597,7 @@ class _SeccionValores extends StatelessWidget {
   final TextEditingController transferencias;
   final String resumen;
   final VoidCallback onChanged;
+  final bool habilitado;
 
   const _SeccionValores({
     required this.efectivo,
@@ -547,6 +605,7 @@ class _SeccionValores extends StatelessWidget {
     required this.transferencias,
     required this.resumen,
     required this.onChanged,
+    this.habilitado = true,
   });
 
   @override
@@ -558,11 +617,16 @@ class _SeccionValores extends StatelessWidget {
       resumen: resumen,
       child: Column(
         children: [
-          _CampoMoneda(label: 'Efectivo entregado', controller: efectivo, onChanged: onChanged),
+          _CampoMoneda(label: 'Efectivo entregado', controller: efectivo, onChanged: onChanged, habilitado: habilitado),
           const SizedBox(height: 12),
-          _CampoMoneda(label: 'Sobres de cheques', controller: cheques, onChanged: onChanged),
+          _CampoMoneda(label: 'Sobres de cheques', controller: cheques, onChanged: onChanged, habilitado: habilitado),
           const SizedBox(height: 12),
-          _CampoMoneda(label: 'Comprobantes de transferencias', controller: transferencias, onChanged: onChanged),
+          _CampoMoneda(
+            label: 'Comprobantes de transferencias',
+            controller: transferencias,
+            onChanged: onChanged,
+            habilitado: habilitado,
+          ),
         ],
       ),
     );
@@ -764,8 +828,9 @@ class _LineaConteo extends StatelessWidget {
 class _SeccionObservaciones extends StatelessWidget {
   final TextEditingController controller;
   final String resumen;
+  final bool habilitado;
 
-  const _SeccionObservaciones({required this.controller, required this.resumen});
+  const _SeccionObservaciones({required this.controller, required this.resumen, this.habilitado = true});
 
   @override
   Widget build(BuildContext context) {
@@ -776,6 +841,7 @@ class _SeccionObservaciones extends StatelessWidget {
       resumen: resumen,
       child: TextField(
         controller: controller,
+        enabled: habilitado,
         maxLines: 3,
         cursorColor: AppColors.orange,
         style: AppTextStyles.input,
@@ -1092,11 +1158,13 @@ class _CampoMoneda extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final VoidCallback onChanged;
+  final bool habilitado;
 
   const _CampoMoneda({
     required this.label,
     required this.controller,
     required this.onChanged,
+    this.habilitado = true,
   });
 
   @override
@@ -1108,6 +1176,7 @@ class _CampoMoneda extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          enabled: habilitado,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           onChanged: (_) => onChanged(),
@@ -1122,6 +1191,32 @@ class _CampoMoneda extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderSide: BorderSide(color: AppColors.orange),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DatosBloqueadosNota extends StatelessWidget {
+  final bool pendiente;
+
+  const _DatosBloqueadosNota({this.pendiente = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.lock_outline, size: 16, color: AppColors.graphiteGray),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            pendiente
+                ? 'Rendición guardada: se envía sola cuando vuelva la señal.'
+                : 'Rendición enviada: los datos no se pueden modificar.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
           ),
         ),
       ],

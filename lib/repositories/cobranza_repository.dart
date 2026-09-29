@@ -43,11 +43,32 @@ class CobranzaRepository {
     return ArqueoCaja.fromJson(decoded);
   }
 
+  static const int _tamanioPaginaCuentas = 100;
+  static const int _maxPaginasCuentas = 50;
+
   Future<ReporteCuentasCorrientes> getReporteCuentasCorrientes({
     bool soloMorosos = false,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/clientes/cuentas-corrientes')
-        .replace(queryParameters: {'soloMorosos': '$soloMorosos'});
+    final primera = await _paginaCuentasCorrientes(soloMorosos, 0);
+    if (primera.totalPaginas <= 1) return primera;
+    final todos = [...primera.clientes];
+    final ultima = primera.totalPaginas > _maxPaginasCuentas ? _maxPaginasCuentas : primera.totalPaginas;
+    for (var pagina = 1; pagina < ultima; pagina++) {
+      final siguiente = await _paginaCuentasCorrientes(soloMorosos, pagina);
+      if (siguiente.clientes.isEmpty) break;
+      todos.addAll(siguiente.clientes);
+    }
+    return primera.conClientes(todos);
+  }
+
+  Future<ReporteCuentasCorrientes> _paginaCuentasCorrientes(bool soloMorosos, int pagina) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/clientes/cuentas-corrientes').replace(
+      queryParameters: {
+        'soloMorosos': '$soloMorosos',
+        'pagina': '$pagina',
+        'tamanio': '$_tamanioPaginaCuentas',
+      },
+    );
     final response = await _get(uri);
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {

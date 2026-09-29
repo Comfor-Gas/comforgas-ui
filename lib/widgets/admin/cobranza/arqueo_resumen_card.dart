@@ -16,6 +16,9 @@ class ArqueoResumenCard extends StatelessWidget {
   final bool reabriendo;
   final VoidCallback onCerrar;
   final VoidCallback? onReabrir;
+  final bool puedeCerrar;
+  final String? avisoCierre;
+  final Widget? encabezado;
 
   const ArqueoResumenCard({
     super.key,
@@ -27,6 +30,9 @@ class ArqueoResumenCard extends StatelessWidget {
     this.cerrado = false,
     this.cerrando = false,
     this.reabriendo = false,
+    this.puedeCerrar = true,
+    this.avisoCierre,
+    this.encabezado,
   });
 
   @override
@@ -42,6 +48,10 @@ class ArqueoResumenCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (encabezado != null) ...[
+            encabezado!,
+            const SizedBox(height: 12),
+          ],
           Text('Resumen del Día', style: AppTextStyles.label.copyWith(fontSize: 15)),
           const SizedBox(height: 14),
           for (final t in totales) ...[
@@ -93,13 +103,37 @@ class ArqueoResumenCard extends StatelessWidget {
                 ),
               ),
             ],
-          ] else
+          ] else ...[
+            if (!puedeCerrar && avisoCierre != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.badgeAmber.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_clock_outlined, size: 17, color: AppColors.badgeAmber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        avisoCierre!,
+                        style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray, fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             FlotaBotonPrimario(
               texto: 'Cerrar Arqueo Auditado',
               icono: Icons.verified_outlined,
               cargando: cerrando,
-              onTap: cerrando ? null : onCerrar,
+              onTap: (cerrando || !puedeCerrar) ? null : onCerrar,
             ),
+          ],
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

@@ -41,11 +41,11 @@ class ApiConfig {
   static const String visitaReanudarSocialSuffix = '/reanudar-social';
   static const String repartidorVisitasPath = '/api/repartidor/visitas';
   static const String repartidorRendicionPath = '/api/repartidor/rendicion';
+  static const String choferMiRendicionPath = '/api/conciliacion/rendicion';
   static const String adminRendicionCuadrePath = '/api/admin/stock-rodante/rendiciones/cuadre';
   static const String adminConciliacionPath = '/api/admin/conciliacion';
   static const String adminConciliacionChoferPath = '/api/admin/conciliacion/chofer';
   static const String adminRendicionAprobarPath = '/api/admin/stock-rodante/rendiciones/aprobar';
-  static const String adminRendicionAjustePath = '/api/admin/stock-rodante/rendiciones/ajuste';
   static const String visitaResultadoSuffix = '/resultado';
   static const String visitasSyncLotePath = '/api/visitas/sync-lote';
   static const String visitaUbicacionPath = '/api/visitas/ubicacion';

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../models/cuadre_rendicion.dart';
@@ -9,6 +8,9 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import '../../../utils/formato.dart';
 import '../../common/carga/zona_carga.dart';
+import 'ajuste_conciliacion_dialog.dart';
+import 'ajustes_conciliacion_panel.dart';
+import 'aprobar_conciliacion_dialog.dart';
 import '../../../core/feedback/app_feedback.dart';
 
 Future<void> mostrarCuadreRendicion(
@@ -106,97 +108,77 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
       _aprobadaLocal || (_cuadre?.rutaBloqueada ?? false) || (_cuadre?.aprobada ?? false);
 
   Future<void> _aprobar() async {
-    if (_aprobando || _bloqueada) return;
-    final hayDiferencias = _cuadre?.tieneDiferencias ?? false;
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (dc) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Aprobar conciliación', style: AppTextStyles.title),
-        content: Text(
-          hayDiferencias
-              ? 'Hay diferencias sin ajustar. Si aprobás, quedan registradas como diferencia '
-                  'y la ruta del chofer queda cerrada y bloqueada. No se podrán registrar más '
-                  'movimientos de esta jornada.'
-              : 'Al aprobar, la ruta del chofer queda cerrada y bloqueada. '
-                  'No se podrán registrar más movimientos de esta jornada.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dc).pop(false),
-            child: Text('Cancelar', style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dc).pop(true),
-            child: Text('Aprobar y cerrar', style: AppTextStyles.button.copyWith(color: AppColors.badgeGreen)),
-          ),
-        ],
-      ),
+    final cuadre = _cuadre;
+    if (_aprobando || _bloqueada || cuadre == null) return;
+    final aprobacion = await mostrarAprobarConciliacionDialog(
+      context,
+      diferencias: cuadre.saldosPendientes,
+      forzarDiferencias: cuadre.tieneDiferencias,
     );
-    if (confirmar != true || !mounted) return;
+    if (aprobacion == null || !mounted) return;
 
     setState(() => _aprobando = true);
     try {
-      final idRendicion = _cuadre?.idRendicion;
+      final idRendicion = cuadre.idRendicion;
       if (!_modoEjemplo && idRendicion != null) {
-        await _repo.aprobarConciliacion(idRendicion: idRendicion);
+        await _repo.aprobarConciliacion(
+          idRendicion: idRendicion,
+          observacion: aprobacion.observacion,
+          aceptarDiferencias: aprobacion.aceptarDiferencias || cuadre.tieneDiferencias,
+        );
       }
       if (!mounted) return;
       setState(() {
         _aprobando = false;
         _aprobadaLocal = true;
       });
-      _snack('Conciliación aprobada. La ruta quedó cerrada y bloqueada.');
+      _snack(aprobacion.aceptarDiferencias
+          ? 'Rendición aprobada con diferencias. Ya podés cerrar el arqueo de caja.'
+          : 'Rendición aprobada. Ya podés cerrar el arqueo de caja.');
+      await _cargar();
     } on RendicionAdminRepositoryException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _aprobando = false;
-        _aprobadaLocal = e.endpointNoDisponible;
-      });
-      _snack(
-        e.endpointNoDisponible
-            ? 'Aprobación local: el endpoint de cierre todavía no está en el backend.'
-            : _mensajeAprobacion(e.message),
-        error: !e.endpointNoDisponible,
-      );
+      setState(() => _aprobando = false);
+      _snack(_mensajeAprobacion(e.message), error: true);
+    } on NetworkException {
+      if (!mounted) return;
+      setState(() => _aprobando = false);
+      _snack('Sin conexión: no se pudo aprobar la rendición.', error: true);
     } catch (_) {
       if (!mounted) return;
       setState(() => _aprobando = false);
-      _snack('No se pudo aprobar la conciliación.', error: true);
+      _snack('No se pudo aprobar la rendición.', error: true);
     }
   }
 
   Future<void> _registrarAjuste() async {
-    if (_procesandoAjuste) return;
-    final ajuste = await showDialog<_AjusteResult>(
-      context: context,
-      builder: (_) => const _AjusteDialog(),
-    );
+    final cuadre = _cuadre;
+    final idRendicion = cuadre?.idRendicion;
+    if (_procesandoAjuste || cuadre == null || idRendicion == null) return;
+    final ajuste = await mostrarAjusteConciliacionDialog(context, saldos: cuadre.saldos);
     if (ajuste == null || !mounted) return;
 
     setState(() => _procesandoAjuste = true);
     try {
-      if (!_modoEjemplo) {
-        await _repo.registrarAjuste(
-          idUsuario: widget.idUsuario,
-          fecha: widget.fecha,
-          observacion: ajuste.observacion,
-          montoAjuste: ajuste.monto,
-          garrafasAjuste: ajuste.garrafas,
-        );
-      }
+      await _repo.ajustarConciliacion(
+        idRendicion: idRendicion,
+        concepto: ajuste.concepto,
+        tipo: ajuste.tipo,
+        valor: ajuste.valor,
+        observacion: ajuste.observacion,
+      );
       if (!mounted) return;
       setState(() => _procesandoAjuste = false);
-      _snack('Ajuste / observación registrado.');
+      _snack('Ajuste registrado.');
+      await _cargar();
     } on RendicionAdminRepositoryException catch (e) {
       if (!mounted) return;
       setState(() => _procesandoAjuste = false);
-      _snack(
-        e.endpointNoDisponible
-            ? 'Registro local: el endpoint de ajuste todavía no está en el backend.'
-            : e.message,
-        error: !e.endpointNoDisponible,
-      );
+      _snack(e.message, error: true);
+    } on NetworkException {
+      if (!mounted) return;
+      setState(() => _procesandoAjuste = false);
+      _snack('Sin conexión: no se pudo registrar el ajuste.', error: true);
     } catch (_) {
       if (!mounted) return;
       setState(() => _procesandoAjuste = false);
@@ -267,7 +249,8 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
     final totalSistema = cuadre.totalSistemaValores;
 
     final totalDeclarado = cuadre.totalDeclaradoValores;
-    final cuadraEnvases = cuadre.envases.every((e) => e.cuadra);
+    final cuadraEnvases = const [ConceptoAjuste.vacios, ConceptoAjuste.llenos, ConceptoAjuste.danados]
+        .every((c) => (cuadre.saldos[c] ?? 0) == 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -315,14 +298,19 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
             _BloqueosAviso(bloqueos: cuadre.bloqueosDuros),
             const SizedBox(height: 12),
           ],
-          if (cuadre.bloqueosBlandos.isNotEmpty) ...[
-            _DiferenciasAviso(bloqueos: cuadre.bloqueosBlandos),
+          if (cuadre.saldosPendientes.isNotEmpty || cuadre.ajustes.isNotEmpty) ...[
+            AjustesConciliacionPanel(
+              pendientes: cuadre.saldosPendientes,
+              ajustes: cuadre.ajustes,
+            ),
             const SizedBox(height: 12),
           ],
           _PanelAcciones(
             aprobando: _aprobando,
             procesandoAjuste: _procesandoAjuste,
             aprobarHabilitado: cuadre.bloqueosDuros.isEmpty,
+            ajusteHabilitado: cuadre.saldosPendientes.isNotEmpty && cuadre.idRendicion != null,
+            conDiferencias: cuadre.saldosPendientes.isNotEmpty || cuadre.tieneDiferencias,
             onAprobar: _aprobar,
             onAjuste: _registrarAjuste,
           ),
@@ -814,6 +802,8 @@ class _PanelAcciones extends StatelessWidget {
   final bool aprobando;
   final bool procesandoAjuste;
   final bool aprobarHabilitado;
+  final bool ajusteHabilitado;
+  final bool conDiferencias;
   final VoidCallback onAprobar;
   final VoidCallback onAjuste;
 
@@ -821,6 +811,8 @@ class _PanelAcciones extends StatelessWidget {
     required this.aprobando,
     required this.procesandoAjuste,
     this.aprobarHabilitado = true,
+    this.ajusteHabilitado = true,
+    this.conDiferencias = false,
     required this.onAprobar,
     required this.onAjuste,
   });
@@ -833,13 +825,13 @@ class _PanelAcciones extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: procesandoAjuste ? null : onAjuste,
+            onPressed: (procesandoAjuste || !ajusteHabilitado) ? null : onAjuste,
             icon: procesandoAjuste
                 ? const SizedBox(
                     height: 16, width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.steelBlue))
                 : const Icon(Icons.edit_note_outlined, size: 20),
-            label: const Text('Registrar Ajuste / Observación'),
+            label: const Text('Ajustar diferencia'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.steelBlue,
               side: const BorderSide(color: AppColors.steelBlue),
@@ -858,7 +850,7 @@ class _PanelAcciones extends StatelessWidget {
                     height: 16, width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.white))
                 : const Icon(Icons.verified_outlined, size: 20),
-            label: const Text('Aprobar Conciliación'),
+            label: Text(conDiferencias ? 'Aprobar con diferencias' : 'Aprobar rendición'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.badgeGreen,
               foregroundColor: AppColors.white,
@@ -967,70 +959,6 @@ class _BloqueosAviso extends StatelessWidget {
   }
 }
 
-class _DiferenciasAviso extends StatelessWidget {
-  final List<String> bloqueos;
-  const _DiferenciasAviso({required this.bloqueos});
-
-  @override
-  Widget build(BuildContext context) {
-    final mensajes = <String>[
-      for (final b in bloqueos)
-        if (traducirBloqueoCuadre(b).trim().isNotEmpty) traducirBloqueoCuadre(b),
-    ];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.info_outline, size: 18, color: AppColors.steelBlue),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Diferencias sin ajustar. Podés aprobar igual: quedan registradas.',
-                  style: AppTextStyles.link.copyWith(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.graphiteGray,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          for (final m in mensajes) ...[
-            Padding(
-              padding: const EdgeInsets.only(left: 28, bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2),
-                    child: Icon(Icons.fiber_manual_record, size: 7, color: AppColors.steelBlue),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      m,
-                      style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _AvisoBanner extends StatelessWidget {
   final String mensaje;
   final bool esEjemplo;
@@ -1056,123 +984,6 @@ class _AvisoBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AjusteResult {
-  final String observacion;
-  final int? monto;
-  final int? garrafas;
-  const _AjusteResult({required this.observacion, this.monto, this.garrafas});
-}
-
-class _AjusteDialog extends StatefulWidget {
-  const _AjusteDialog();
-
-  @override
-  State<_AjusteDialog> createState() => _AjusteDialogState();
-}
-
-class _AjusteDialogState extends State<_AjusteDialog> {
-  final _observacion = TextEditingController();
-  final _monto = TextEditingController();
-  final _garrafas = TextEditingController();
-
-  @override
-  void dispose() {
-    _observacion.dispose();
-    _monto.dispose();
-    _garrafas.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final valido = _observacion.text.trim().isNotEmpty;
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text('Registrar ajuste / observación', style: AppTextStyles.title),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Dejá registrado el motivo del descalce y, si corresponde, un ajuste de dinero o de garrafas.',
-              style: AppTextStyles.link.copyWith(fontSize: 12.5),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _observacion,
-              maxLines: 3,
-              onChanged: (_) => setState(() {}),
-              cursorColor: AppColors.orange,
-              decoration: const InputDecoration(
-                labelText: 'Observación',
-                isDense: true,
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.inputBorder)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.orange)),
-                floatingLabelStyle: TextStyle(color: AppColors.orange),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _monto,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    cursorColor: AppColors.orange,
-                    decoration: const InputDecoration(
-                      labelText: 'Ajuste \$',
-                      isDense: true,
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.inputBorder)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.orange)),
-                      floatingLabelStyle: TextStyle(color: AppColors.orange),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _garrafas,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    cursorColor: AppColors.orange,
-                    decoration: const InputDecoration(
-                      labelText: 'Ajuste garrafas',
-                      isDense: true,
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.inputBorder)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.orange)),
-                      floatingLabelStyle: TextStyle(color: AppColors.orange),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancelar', style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray)),
-        ),
-        TextButton(
-          onPressed: valido
-              ? () => Navigator.of(context).pop(_AjusteResult(
-                    observacion: _observacion.text.trim(),
-                    monto: int.tryParse(_monto.text.trim()),
-                    garrafas: int.tryParse(_garrafas.text.trim()),
-                  ))
-              : null,
-          child: Text('Registrar',
-              style: AppTextStyles.button.copyWith(
-                  color: valido ? AppColors.orange : AppColors.badgeGray)),
-        ),
-      ],
     );
   }
 }

@@ -57,25 +57,31 @@ class RendicionAdminRepository {
   Future<void> aprobarConciliacion({
     required int idRendicion,
     String? observacion,
+    bool aceptarDiferencias = false,
   }) async {
+    final obs = observacion?.trim();
     await _post('${ApiConfig.adminConciliacionPath}/$idRendicion/aprobar', {
-      if (observacion != null && observacion.isNotEmpty) 'observacionesAdmin': observacion,
+      if (obs != null && obs.isNotEmpty) 'observacionesAdmin': obs,
+      'aceptarDiferencias': aceptarDiferencias,
     });
   }
 
-  Future<void> registrarAjuste({
-    required String idUsuario,
-    required DateTime fecha,
+  Future<void> ajustarConciliacion({
+    required int idRendicion,
+    required ConceptoAjuste concepto,
+    required TipoAjuste tipo,
+    required int valor,
     required String observacion,
-    int? montoAjuste,
-    int? garrafasAjuste,
   }) async {
-    await _post(ApiConfig.adminRendicionAjustePath, {
-      'idUsuario': idUsuario,
-      'fecha': formatDateOnly(fecha),
-      'observacion': observacion,
-      if (montoAjuste != null) 'montoAjuste': montoAjuste,
-      if (garrafasAjuste != null) 'garrafasAjuste': garrafasAjuste,
+    await _post('${ApiConfig.adminConciliacionPath}/$idRendicion/ajustar', {
+      'ajustes': [
+        {
+          'concepto': concepto.codigo,
+          'tipo': tipo.codigo,
+          if (concepto.esDinero) 'importe': valor else 'cantidad': valor,
+          'observacion': observacion.trim(),
+        },
+      ],
     });
   }
 

@@ -7,11 +7,25 @@ class RendicionLocalService {
 
   static final RendicionLocalService instance = RendicionLocalService._();
   static const String boxName = 'rendiciones_pendientes';
+  static const String boxEnviadas = 'rendiciones_enviadas';
 
   Box<String>? _box;
+  Box<String>? _enviadas;
 
   Future<void> init() async {
     _box = await Hive.openBox<String>(boxName);
+    _enviadas = await Hive.openBox<String>(boxEnviadas);
+  }
+
+  Future<void> marcarEnviada(RendicionDraft draft) async {
+    await _enviadas?.put(_clave(draft.fecha), draft.toStorageJson());
+    await eliminar(draft.fecha);
+  }
+
+  RendicionDraft? obtenerEnviada(DateTime fecha) {
+    final raw = _enviadas?.get(_clave(fecha));
+    if (raw == null || raw.isEmpty) return null;
+    return RendicionDraft.fromStorageJson(raw);
   }
 
   Box<String> get _requireBox {

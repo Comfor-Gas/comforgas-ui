@@ -52,11 +52,12 @@ class RendicionSyncManager {
       for (final draft in pendientes) {
         try {
           await repo.enviar(draft);
-          await _local.eliminar(draft.fecha);
+          await _local.marcarEnviada(draft);
         } on NetworkException {
           break;
         } on RendicionRepositoryException catch (e) {
           if (e.endpointNoDisponible) break;
+          if (e.yaRegistrada) await _local.marcarEnviada(draft);
         }
       }
     } finally {

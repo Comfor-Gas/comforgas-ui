@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/rendicion_ruta.dart';
+import '../utils/json_parsing.dart';
 import 'network_exception.dart';
 
 class RendicionRepositoryException implements Exception {
@@ -9,6 +10,8 @@ class RendicionRepositoryException implements Exception {
   final bool endpointNoDisponible;
 
   RendicionRepositoryException(this.message, {this.endpointNoDisponible = false});
+
+  bool get yaRegistrada => message.toLowerCase().contains('ya existe una rendici');
 
   @override
   String toString() => message;
@@ -66,6 +69,27 @@ class RendicionRepository {
     );
   }
 
+  Future<RendicionRegistrada?> obtenerMia(DateTime fecha) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.choferMiRendicionPath}/${formatDateOnly(fecha)}',
+    );
+    http.Response response;
+    try {
+      response = await _client.get(uri).timeout(const Duration(seconds: 15));
+    } catch (_) {
+      throw NetworkException();
+    }
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200 || response.body.isEmpty) {
+      throw RendicionRepositoryException(
+        _extractErrorMessage(response.body) ?? 'No se pudo consultar la rendición enviada.',
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) return null;
+    return RendicionRegistrada.fromJson(decoded);
+  }
+
   String? _extractErrorMessage(String body) {
     if (body.isEmpty) return null;
     try {
@@ -79,5 +103,44 @@ class RendicionRepository {
       }
     } catch (_) {}
     return null;
+  }
+}
+
+class RendicionRegistrada {
+  final int efectivo;
+  final int cheques;
+  final int transferencias;
+  final int vacios;
+  final int llenos;
+  final int danados;
+  final String observaciones;
+  final String estado;
+  final bool conciliada;
+
+  const RendicionRegistrada({
+    required this.efectivo,
+    required this.cheques,
+    required this.transferencias,
+    required this.vacios,
+    required this.llenos,
+    required this.danados,
+    required this.observaciones,
+    required this.estado,
+    required this.conciliada,
+  });
+
+  factory RendicionRegistrada.fromJson(Map<String, dynamic> json) {
+    int monto(String k) => (parseDouble(json[k]) ?? 0).round();
+    return RendicionRegistrada(
+      efectivo: monto('montoEfectivoRendido'),
+      cheques: monto('montoChequesRendido'),
+      transferencias: monto('montoTransferenciasRendido'),
+      vacios: parseInt(json['cantidadVaciosRendidos']) ?? 0,
+      llenos: parseInt(json['cantidadLlenosDevueltos']) ?? 0,
+      danados: parseInt(json['cantidadDanadosRendidos']) ?? 0,
+      observaciones: (json['observacionesChofer'] ?? '').toString(),
+      estado: (json['estadoRendicion'] ?? '').toString(),
+      conciliada: json['conciliadoAt'] != null,
+    );
   }
 }

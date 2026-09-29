@@ -27,6 +27,112 @@ String traducirBloqueoCuadre(String codigo) {
   }
 }
 
+const Set<String> _bloqueosIgnorados = {
+  'ARQUEO_ABIERTO_O_INEXISTENTE',
+};
+
+enum ConceptoAjuste { efectivo, cheques, transferencias, vacios, llenos, danados }
+
+extension ConceptoAjusteInfo on ConceptoAjuste {
+  String get codigo {
+    switch (this) {
+      case ConceptoAjuste.efectivo:
+        return 'EFECTIVO';
+      case ConceptoAjuste.cheques:
+        return 'CHEQUES';
+      case ConceptoAjuste.transferencias:
+        return 'TRANSFERENCIAS';
+      case ConceptoAjuste.vacios:
+        return 'VACIOS';
+      case ConceptoAjuste.llenos:
+        return 'LLENOS';
+      case ConceptoAjuste.danados:
+        return 'DANADOS';
+    }
+  }
+
+  String get etiqueta {
+    switch (this) {
+      case ConceptoAjuste.efectivo:
+        return 'Efectivo';
+      case ConceptoAjuste.cheques:
+        return 'Cheques';
+      case ConceptoAjuste.transferencias:
+        return 'Transferencias';
+      case ConceptoAjuste.vacios:
+        return 'Garrafas vacías';
+      case ConceptoAjuste.llenos:
+        return 'Garrafas llenas';
+      case ConceptoAjuste.danados:
+        return 'Garrafas dañadas';
+    }
+  }
+
+  bool get esDinero =>
+      this == ConceptoAjuste.efectivo ||
+      this == ConceptoAjuste.cheques ||
+      this == ConceptoAjuste.transferencias;
+
+  static ConceptoAjuste? desdeCodigo(String codigo) {
+    final c = codigo.trim().toUpperCase();
+    for (final v in ConceptoAjuste.values) {
+      if (v.codigo == c) return v;
+    }
+    if (c.startsWith('CHEQUE')) return ConceptoAjuste.cheques;
+    if (c.startsWith('TRANSFER')) return ConceptoAjuste.transferencias;
+    return null;
+  }
+}
+
+enum TipoAjuste { faltanteCobrado, sobranteAceptado }
+
+extension TipoAjusteInfo on TipoAjuste {
+  String get codigo => this == TipoAjuste.faltanteCobrado ? 'FALTANTE_COBRADO' : 'SOBRANTE_ACEPTADO';
+
+  String get etiqueta => this == TipoAjuste.faltanteCobrado ? 'Faltante' : 'Sobrante';
+
+  static TipoAjuste? desdeCodigo(String codigo) {
+    final c = codigo.trim().toUpperCase();
+    if (c == 'FALTANTE_COBRADO') return TipoAjuste.faltanteCobrado;
+    if (c == 'SOBRANTE_ACEPTADO') return TipoAjuste.sobranteAceptado;
+    return null;
+  }
+}
+
+class AjusteCuadre {
+  final ConceptoAjuste concepto;
+  final TipoAjuste tipo;
+  final int valor;
+  final String observacion;
+  final DateTime? fecha;
+
+  const AjusteCuadre({
+    required this.concepto,
+    required this.tipo,
+    required this.valor,
+    required this.observacion,
+    this.fecha,
+  });
+
+  static AjusteCuadre? fromJson(Map<String, dynamic> json) {
+    final concepto = ConceptoAjusteInfo.desdeCodigo((json['concepto'] ?? '').toString());
+    final tipo = TipoAjusteInfo.desdeCodigo((json['tipo'] ?? '').toString());
+    if (concepto == null || tipo == null) return null;
+    final valor = concepto.esDinero
+        ? (parseDouble(json['importe']) ?? 0).round()
+        : (parseInt(json['cantidad']) ?? 0);
+    return AjusteCuadre(
+      concepto: concepto,
+      tipo: tipo,
+      valor: valor,
+      observacion: (json['observacion'] ?? '').toString(),
+      fecha: parseDate(json['ajustadoAt']),
+    );
+  }
+
+  int get valorFirmado => tipo == TipoAjuste.sobranteAceptado ? -valor : valor;
+}
+
 const Set<String> _bloqueosBlandos = {
   'SALDOS_FINANCIEROS_PENDIENTES',
   'SALDOS_DE_ENVASES_PENDIENTES',
@@ -97,6 +203,8 @@ class CuadreRendicion {
   final int? idRendicion;
   final bool puedeAprobar;
   final List<String> bloqueos;
+  final Map<ConceptoAjuste, int> saldos;
+  final List<AjusteCuadre> ajustes;
 
   const CuadreRendicion({
     required this.idUsuario,
@@ -116,6 +224,8 @@ class CuadreRendicion {
     this.idRendicion,
     this.puedeAprobar = false,
     this.bloqueos = const [],
+    this.saldos = const {},
+    this.ajustes = const [],
   });
 
   factory CuadreRendicion.vacio({
@@ -134,6 +244,8 @@ class CuadreRendicion {
 
   factory CuadreRendicion.fromConciliacion(Map<String, dynamic> json) {
     int sisEf = 0, sisCh = 0, sisTr = 0, decEf = 0, decCh = 0, decTr = 0;
+    final saldos = <ConceptoAjuste, int>{};
+    final sinSaldoBackend = <ConceptoAjuste>{};
     final fin = json['financiero'];
     if (fin is Map<String, dynamic>) {
       for (final r in (fin['rubros'] as List? ?? const [])) {
@@ -141,6 +253,12 @@ class CuadreRendicion {
         final concepto = (r['concepto'] ?? '').toString().toUpperCase();
         final sistema = (parseDouble(r['sistema']) ?? 0).round();
         final rendido = (parseDouble(r['rendido']) ?? 0).round();
+        final conceptoAjuste = ConceptoAjusteInfo.desdeCodigo(concepto);
+        if (conceptoAjuste != null) {
+          final saldoBackend = parseDouble(r['saldoAjustado']);
+          if (saldoBackend == null) sinSaldoBackend.add(conceptoAjuste);
+          saldos[conceptoAjuste] = (saldoBackend ?? (rendido - sistema).toDouble()).round();
+        }
         if (concepto.startsWith('EFECTIVO')) {
           sisEf = sistema;
           decEf = rendido;
@@ -182,9 +300,39 @@ class CuadreRendicion {
       observaciones = (rendicion['observacionesChofer'] ?? '').toString();
     }
 
+    final ajustes = (json['ajustes'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(AjusteCuadre.fromJson)
+        .whereType<AjusteCuadre>()
+        .toList();
+
+    for (final a in ajustes) {
+      if (!a.concepto.esDinero || !sinSaldoBackend.contains(a.concepto)) continue;
+      saldos[a.concepto] = (saldos[a.concepto] ?? 0) + a.valorFirmado;
+    }
+
+    if (rendicion is Map) {
+      final teorico = rendicion['teoricoEnvases'];
+      if (teorico is Map) {
+        final baseEnvases = <ConceptoAjuste, int>{
+          ConceptoAjuste.vacios: (parseInt(rendicion['cantidadVaciosRendidos']) ?? 0) -
+              (parseInt(teorico['vaciosEsperadosRetorno']) ?? 0),
+          ConceptoAjuste.llenos: (parseInt(rendicion['cantidadLlenosDevueltos']) ?? 0) -
+              (parseInt(teorico['llenosEsperadosRetorno']) ?? 0),
+          ConceptoAjuste.danados: (parseInt(rendicion['cantidadDanadosRendidos']) ?? 0) -
+              (parseInt(teorico['danadosEsperadosRetorno']) ?? 0),
+        };
+        for (final a in ajustes) {
+          if (a.concepto.esDinero) continue;
+          baseEnvases[a.concepto] = (baseEnvases[a.concepto] ?? 0) + a.valorFirmado;
+        }
+        saldos.addAll(baseEnvases);
+      }
+    }
+
     final bloqueos = <String>[
       for (final b in (json['bloqueos'] as List? ?? const []))
-        if (b != null) b.toString(),
+        if (b != null && !_bloqueosIgnorados.contains(b.toString().trim().toUpperCase())) b.toString(),
     ];
 
     return CuadreRendicion(
@@ -205,8 +353,17 @@ class CuadreRendicion {
       idRendicion: parseInt(json['idRendicion']),
       puedeAprobar: json['puedeAprobar'] == true,
       bloqueos: bloqueos,
+      saldos: saldos,
+      ajustes: ajustes,
     );
   }
+
+  bool get aprobadaORutaCerrada => rutaBloqueada || aprobada;
+
+  List<MapEntry<ConceptoAjuste, int>> get saldosPendientes => [
+        for (final c in ConceptoAjuste.values)
+          if ((saldos[c] ?? 0) != 0) MapEntry(c, saldos[c]!),
+      ];
 
   int get totalDeclaradoValores =>
       efectivoDeclarado + chequesDeclarado + transferenciasDeclarado;
@@ -219,7 +376,10 @@ class CuadreRendicion {
   int get totalVaciosDeclarado =>
       envases.fold(0, (a, e) => a + e.vaciosDeclarado);
 
-  bool get aprobada => estado.toUpperCase() == 'APROBADA';
+  bool get aprobada {
+    final e = estado.toUpperCase();
+    return e == 'APROBADA' || e == 'CONCILIADO';
+  }
   bool get aprobable => !rutaBloqueada && !aprobada;
 
   List<String> get bloqueosDuros =>

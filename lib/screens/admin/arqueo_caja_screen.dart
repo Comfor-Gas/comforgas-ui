@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/responsive.dart';
+import '../../models/cuadre_rendicion.dart';
+import '../../repositories/rendicion_admin_repository.dart';
 import '../../data/mock_cobranza_data.dart';
 import '../../models/arqueo_caja.dart';
 import '../../models/usuario_model.dart';
@@ -16,6 +19,7 @@ import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/arqueo_prestamos_card.dart';
 import '../../widgets/admin/cobranza/arqueo_resumen_card.dart';
 import '../../widgets/admin/cobranza/cuadre_rendicion_modal.dart';
+import '../../widgets/admin/cobranza/paso_rendicion_card.dart';
 import '../../widgets/admin/cobranza/arqueo_tabla.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
@@ -43,6 +47,12 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   bool _cerrando = false;
   bool _cerrado = false;
   bool _reabriendo = false;
+  late final RendicionAdminRepository _rendicionRepo;
+  CuadreRendicion? _cuadre;
+  bool _cargandoCuadre = false;
+  bool _errorCuadre = false;
+
+  bool get _rendicionAprobada => _cuadre?.aprobadaORutaCerrada ?? false;
 
   @override
   void initState() {
@@ -50,6 +60,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
     final apiClient = context.read<AuthProvider>().apiClient;
     _repo = CobranzaRepository(apiClient);
     _catalogoRepo = CatalogoRepository(apiClient);
+    _rendicionRepo = RendicionAdminRepository(apiClient);
     _cargarChoferes();
   }
 
@@ -77,9 +88,36 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
     return 'Chofer';
   }
 
+  Future<void> _cargarCuadre() async {
+    final idUsuario = _choferId;
+    if (idUsuario == null) return;
+    final fecha = _fecha;
+    setState(() {
+      _cargandoCuadre = true;
+      _errorCuadre = false;
+    });
+    try {
+      final cuadre = await _rendicionRepo.getCuadre(idUsuario: idUsuario, fecha: fecha);
+      if (!mounted || idUsuario != _choferId || fecha != _fecha) return;
+      setState(() {
+        _cuadre = cuadre;
+        _cargandoCuadre = false;
+      });
+    } catch (_) {
+      if (!mounted || idUsuario != _choferId || fecha != _fecha) return;
+      setState(() {
+        _cuadre = null;
+        _cargandoCuadre = false;
+        _errorCuadre = true;
+      });
+    }
+  }
+
   Future<void> _cargarArqueo() async {
     final idUsuario = _choferId;
     if (idUsuario == null) return;
+    _cuadre = null;
+    unawaited(_cargarCuadre());
     setState(() {
       _loading = true;
       _aviso = null;
@@ -138,6 +176,13 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   Future<void> _cerrarArqueo() async {
     final idUsuario = _choferId;
     if (idUsuario == null || _cerrando) return;
+    if (!_rendicionAprobada && !_modoEjemplo) {
+      AppFeedback.advertencia(
+        'Primero revisá y aprobá la rendición del chofer. Después podés cerrar el arqueo.',
+        titulo: 'Falta aprobar la rendición',
+      );
+      return;
+    }
 
     // El cierre exige los montos declarados (arqueo auditado). Los pedimos
     // prellenados con lo que calculó el sistema, para que el admin confirme
@@ -334,45 +379,46 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
 
   Widget _resumen() {
     final arqueo = _arqueo!;
+    final puedeCerrar = _rendicionAprobada || _modoEjemplo;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        PasoRendicionCard(
+          cuadre: _cuadre,
+          cargando: _cargandoCuadre,
+          error: _errorCuadre,
+          onAbrir: _choferId == null ? null : _abrirCuadre,
+        ),
+        const SizedBox(height: 16),
         ArqueoResumenCard(
+          encabezado: const NumeroPasoArqueo(),
           totales: arqueo.totalesPorMetodo,
           totalGeneral: arqueo.totalGeneral,
           totalVentaSocial: arqueo.totalVentaSocial,
           cerrado: _cerrado,
           cerrando: _cerrando,
           reabriendo: _reabriendo,
+          puedeCerrar: puedeCerrar,
+          avisoCierre: 'Para cerrar el arqueo primero tenés que aprobar la rendición del chofer (paso 1).',
           onCerrar: _cerrarArqueo,
           onReabrir: _reabrirArqueo,
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _choferId == null ? null : _abrirCuadre,
-          icon: const Icon(Icons.fact_check_outlined, size: 18),
-          label: const Text('Cuadre de rendición del chofer'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.steelBlue,
-            side: const BorderSide(color: AppColors.steelBlue),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
         ),
       ],
     );
   }
 
-  void _abrirCuadre() {
+  Future<void> _abrirCuadre() async {
     final idUsuario = _choferId;
     if (idUsuario == null) return;
-    mostrarCuadreRendicion(
+    await mostrarCuadreRendicion(
       context,
       apiClient: context.read<AuthProvider>().apiClient,
       idUsuario: idUsuario,
       nombreChofer: _nombreChofer,
       fecha: _fecha,
     );
+    if (!mounted) return;
+    await _cargarCuadre();
   }
 }
 

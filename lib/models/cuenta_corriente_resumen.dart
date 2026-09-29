@@ -39,13 +39,25 @@ class ReporteCuentasCorrientes {
   final int clientesMorosos;
   final int totalClientes;
   final List<CuentaCorrienteResumen> clientes;
+  final int totalPaginas;
 
   const ReporteCuentasCorrientes({
     this.totalDeuda = 0,
     this.clientesMorosos = 0,
     this.totalClientes = 0,
     this.clientes = const [],
+    this.totalPaginas = 1,
   });
+
+  ReporteCuentasCorrientes conClientes(List<CuentaCorrienteResumen> todos) {
+    return ReporteCuentasCorrientes(
+      totalDeuda: totalDeuda,
+      clientesMorosos: clientesMorosos,
+      totalClientes: totalClientes,
+      clientes: todos,
+      totalPaginas: totalPaginas,
+    );
+  }
 
   factory ReporteCuentasCorrientes.fromJson(Map<String, dynamic> json) {
     final clientes = (json['clientes'] as List? ?? const [])
@@ -57,6 +69,7 @@ class ReporteCuentasCorrientes {
       clientesMorosos: parseInt(json['clientesMorosos']) ?? 0,
       totalClientes: parseInt(json['totalClientes']) ?? clientes.length,
       clientes: clientes,
+      totalPaginas: parseInt(json['totalPaginas']) ?? 1,
     );
   }
 }

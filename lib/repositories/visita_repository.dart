@@ -131,39 +131,27 @@ class VisitaRepository {
   }
 
   Future<List<VisitaModel>> listarDelDia(DateTime dia) async {
+    const tamanio = 500;
     final objetivo = DateTime(dia.year, dia.month, dia.day);
     final acumulado = <VisitaModel>[];
-
     for (var page = 0; page < _maxPaginas; page++) {
-      final pagina = await _listarPagina(page: page, size: _pageSize);
-      if (pagina.isEmpty) break;
-
-      var alcanzoAnteriores = false;
-      for (final v in pagina) {
-        final f = v.fecha;
-        if (f == null) continue;
-        final d = DateTime(f.year, f.month, f.day);
-        if (d.isAfter(objetivo)) continue;
-        if (d.isAtSameMomentAs(objetivo)) {
-          acumulado.add(v);
-        } else {
-          alcanzoAnteriores = true;
-        }
-      }
-
-      if (alcanzoAnteriores) break;
-      if (pagina.length < _pageSize) break;
+      final pagina = await _listarPagina(page: page, size: tamanio, fecha: objetivo);
+      acumulado.addAll(pagina);
+      if (pagina.length < tamanio) break;
     }
-
     return acumulado;
   }
 
   Future<List<VisitaModel>> _listarPagina({
     required int page,
     required int size,
+    DateTime? fecha,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.visitasPath}')
-        .replace(queryParameters: {'page': '$page', 'size': '$size'});
+    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.visitasPath}').replace(queryParameters: {
+      'page': '$page',
+      'size': '$size',
+      if (fecha != null) 'fecha': formatDateOnly(fecha),
+    });
 
     http.Response response;
     try {

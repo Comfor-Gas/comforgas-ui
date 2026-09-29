@@ -39,6 +39,7 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   bool _loading = true;
   bool _modoEjemplo = false;
   bool _soloMorosos = false;
+  bool _soloConSaldo = false;
   String? _aviso;
 
   @override
@@ -97,6 +98,7 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
     final query = _searchCtrl.text.trim().toLowerCase();
     return _reporte.clientes.where((c) {
       if (_soloMorosos && !c.moroso) return false;
+      if (_soloConSaldo && c.saldoUsado <= 0) return false;
       if (query.isNotEmpty && !c.nombreCliente.toLowerCase().contains(query)) return false;
       return true;
     }).toList();
@@ -269,12 +271,15 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
               _Filtros(
                 searchCtrl: _searchCtrl,
                 soloMorosos: _soloMorosos,
+                soloConSaldo: _soloConSaldo,
+                onToggleConSaldo: (v) => setState(() => _soloConSaldo = v),
                 onToggleMorosos: (v) {
                   setState(() => _soloMorosos = v);
                   _cargar();
                 },
                 onLimpiar: () {
                   _searchCtrl.clear();
+                  if (_soloConSaldo) setState(() => _soloConSaldo = false);
                   if (_soloMorosos) {
                     setState(() => _soloMorosos = false);
                     _cargar();
@@ -390,7 +395,9 @@ class _Stats extends StatelessWidget {
 class _Filtros extends StatelessWidget {
   final TextEditingController searchCtrl;
   final bool soloMorosos;
+  final bool soloConSaldo;
   final ValueChanged<bool> onToggleMorosos;
+  final ValueChanged<bool> onToggleConSaldo;
   final VoidCallback onLimpiar;
   final VoidCallback onRefrescar;
   final bool cargando;
@@ -398,7 +405,9 @@ class _Filtros extends StatelessWidget {
   const _Filtros({
     required this.searchCtrl,
     required this.soloMorosos,
+    required this.soloConSaldo,
     required this.onToggleMorosos,
+    required this.onToggleConSaldo,
     required this.onLimpiar,
     required this.onRefrescar,
     required this.cargando,
@@ -406,7 +415,7 @@ class _Filtros extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hayFiltros = searchCtrl.text.trim().isNotEmpty || soloMorosos;
+    final hayFiltros = searchCtrl.text.trim().isNotEmpty || soloMorosos || soloConSaldo;
     return FiltrosPanel(
       filas: [
         FilaFiltros(
@@ -421,6 +430,12 @@ class _Filtros extends StatelessWidget {
               icono: soloMorosos ? Icons.check_box_outlined : Icons.check_box_outline_blank,
               activo: soloMorosos,
               onTap: () => onToggleMorosos(!soloMorosos),
+            ),
+            ChipFiltro(
+              etiqueta: 'Con saldo pendiente',
+              icono: soloConSaldo ? Icons.check_box_outlined : Icons.check_box_outline_blank,
+              activo: soloConSaldo,
+              onTap: () => onToggleConSaldo(!soloConSaldo),
             ),
             if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
             BotonActualizar(onPressed: onRefrescar, cargando: cargando),

@@ -13,9 +13,7 @@ class ArqueoResumenCard extends StatelessWidget {
   final int totalVentaSocial;
   final bool cerrado;
   final bool cerrando;
-  final bool reabriendo;
   final VoidCallback onCerrar;
-  final VoidCallback? onReabrir;
   final bool puedeCerrar;
   final String? avisoCierre;
   final Widget? encabezado;
@@ -26,10 +24,8 @@ class ArqueoResumenCard extends StatelessWidget {
     required this.totalGeneral,
     required this.onCerrar,
     this.totalVentaSocial = 0,
-    this.onReabrir,
     this.cerrado = false,
     this.cerrando = false,
-    this.reabriendo = false,
     this.puedeCerrar = true,
     this.avisoCierre,
     this.encabezado,
@@ -75,34 +71,6 @@ class ArqueoResumenCard extends StatelessWidget {
           const SizedBox(height: 18),
           if (cerrado) ...[
             const _ArqueoCerradoAviso(),
-            if (onReabrir != null) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: reabriendo ? null : onReabrir,
-                  icon: reabriendo
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: AppColors.steelBlue,
-                          ),
-                        )
-                      : const Icon(Icons.lock_open_outlined, size: 18),
-                  label: const Text('Reabrir arqueo'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.steelBlue,
-                    side: const BorderSide(color: AppColors.steelBlue),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ] else ...[
             if (!puedeCerrar && avisoCierre != null) ...[
               Container(

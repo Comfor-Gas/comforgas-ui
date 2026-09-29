@@ -109,29 +109,6 @@ class CobranzaRepository {
     _validar(response);
   }
 
-  Future<void> reabrirArqueo({
-    required String idUsuario,
-    required DateTime fecha,
-    required String motivo,
-  }) async {
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/admin/cobranzas/arqueo/$idUsuario/${_fechaIso(fecha)}/reabrir',
-    );
-    http.Response response;
-    try {
-      response = await _client
-          .post(
-            uri,
-            headers: _jsonHeaders,
-            body: jsonEncode({'motivo': motivo.trim()}),
-          )
-          .timeout(const Duration(seconds: 20));
-    } catch (_) {
-      throw NetworkException();
-    }
-    _validar(response);
-  }
-
   Future<void> registrarPagoCuentaCorriente({
     required int idCliente,
     required int monto,

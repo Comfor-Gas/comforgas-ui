@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/mock_chofer_data.dart';
 import '../../models/visita_estado.dart';
+import '../../models/usuario_model.dart';
 import '../../models/visita_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/catalogo_repository.dart';
@@ -47,6 +48,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
   bool _loading = true;
   String? _error;
   List<VisitaModel> _visitas = [];
+  List<UsuarioModel>? _choferes;
   Map<int, String> _rutaNombre = {};
   String? _estadoFilter;
 
@@ -72,10 +74,35 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
       _error = null;
     });
 
+    final rutasFuture = _catalogoRepo
+        .listarRutas()
+        .then((rutas) => {for (final r in rutas) r.idRuta: r.nombre})
+        .catchError((_) => <int, String>{});
+
     List<VisitaModel> visitasDelDia;
     try {
-      visitasDelDia = await _visitaRepo.listarDelDia(DateTime.now());
-    } on VisitaRepositoryException catch (e) {
+      final choferes = _choferes ??= await _catalogoRepo.listarUsuarios(rol: 'CHOFER');
+      final hoy = DateTime.now();
+      final listas = await Future.wait(
+        choferes.map(
+          (ch) => _visitaRepo
+              .getVisitasPorUsuarioYFecha(idUsuario: ch.id, fecha: hoy)
+              .then((items) => items.map((i) {
+                    final base = i.toVisitaModel(ch.id);
+                    return base.copyWith(
+                      nombreUsuario: ch.fullName,
+                      rutaSnapshot: {
+                        ...base.rutaSnapshot,
+                        if (i.movil != null) 'movil': i.movil,
+                        if (i.patente != null && i.patente!.trim().isNotEmpty) 'patente': i.patente,
+                      },
+                    );
+                  }).toList())
+              .catchError((_) => <VisitaModel>[]),
+        ),
+      );
+      visitasDelDia = [for (final l in listas) ...l];
+    } on CatalogoRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
@@ -85,19 +112,13 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'No se pudo cargar el tablero de hojas de ruta.';
+        _error = 'No se pudo cargar la agenda de las hojas de ruta.';
         _loading = false;
       });
       return;
     }
 
-    var rutaNombre = <int, String>{};
-    try {
-      final rutas = await _catalogoRepo.listarRutas();
-      rutaNombre = {for (final r in rutas) r.idRuta: r.nombre};
-    } catch (_) {
-      rutaNombre = {};
-    }
+    final rutaNombre = await rutasFuture;
 
     if (!mounted) return;
     setState(() {
@@ -258,7 +279,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
           Text('Visitas por Hoja de Ruta', style: AppTextStyles.desktopTitle),
           const SizedBox(height: 4),
           Text(
-            'Encabezado de cada hoja de ruta y sus visitas ordenadas por orden de recorrido.',
+            'Agenda del día de cada hoja de ruta, con todos los clientes a visitar en orden de recorrido.',
             style: AppTextStyles.desktopSubtitle,
           ),
           const SizedBox(height: 20),
@@ -290,6 +311,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
           else
             for (final hoja in hojas) ...[
               _HojaRutaCard(
+                key: ValueKey('${hoja.choferNombre}#${hoja.idRuta}'),
                 hoja: hoja,
                 clienteNombre: _clienteNombre,
                 domicilio: _domicilio,
@@ -353,13 +375,14 @@ class _FiltroBar extends StatelessWidget {
   }
 }
 
-class _HojaRutaCard extends StatelessWidget {
+class _HojaRutaCard extends StatefulWidget {
   final _HojaRuta hoja;
   final String Function(VisitaModel) clienteNombre;
   final String Function(VisitaModel) domicilio;
   final String Function(VisitaModel) barrio;
 
   const _HojaRutaCard({
+    super.key,
     required this.hoja,
     required this.clienteNombre,
     required this.domicilio,
@@ -367,8 +390,17 @@ class _HojaRutaCard extends StatelessWidget {
   });
 
   @override
+  State<_HojaRutaCard> createState() => _HojaRutaCardState();
+}
+
+class _HojaRutaCardState extends State<_HojaRutaCard> {
+  bool _expandida = true;
+
+  @override
   Widget build(BuildContext context) {
+    final hoja = widget.hoja;
     return Container(
+      clipBehavior: Clip.antiAlias,
       width: double.infinity,
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -378,15 +410,26 @@ class _HojaRutaCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Encabezado(hoja: hoja),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: _Tabla(
-              visitas: hoja.visitas,
-              clienteNombre: clienteNombre,
-              domicilio: domicilio,
-              barrio: barrio,
-            ),
+          _Encabezado(
+            hoja: hoja,
+            expandida: _expandida,
+            onToggle: () => setState(() => _expandida = !_expandida),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expandida
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: _Tabla(
+                      visitas: hoja.visitas,
+                      clienteNombre: widget.clienteNombre,
+                      domicilio: widget.domicilio,
+                      barrio: widget.barrio,
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
           ),
         ],
       ),
@@ -396,64 +439,78 @@ class _HojaRutaCard extends StatelessWidget {
 
 class _Encabezado extends StatelessWidget {
   final _HojaRuta hoja;
+  final bool expandida;
+  final VoidCallback onToggle;
 
-  const _Encabezado({required this.hoja});
+  const _Encabezado({required this.hoja, required this.expandida, required this.onToggle});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: const BoxDecoration(
-        color: AppColors.steelBlue,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Material(
+      color: AppColors.steelBlue,
+      child: InkWell(
+        onTap: onToggle,
+        hoverColor: Colors.white.withOpacity(0.05),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.alt_route_outlined, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  hoja.zona,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 0.3,
+              Row(
+                children: [
+                  const Icon(Icons.alt_route_outlined, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hoja.zona,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${hoja.visitas.where((v) => VisitaEstadoMapper.esTerminadaEnCampo(v.estadoVisita)).length} de ${hoja.visitas.length} visitados',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: expandida ? 'Plegar lista' : 'Desplegar lista',
+                    child: AnimatedRotation(
+                      turns: expandida ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 220),
+                      child: const Icon(Icons.expand_more_rounded, color: Colors.white, size: 24),
+                    ),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${hoja.visitas.length} visita(s)',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 28,
+                runSpacing: 12,
+                children: [
+                  _DatoCabecera(label: 'Vendedor', valor: hoja.vendedor),
+                  _DatoCabecera(label: 'Acompañante', valor: hoja.acompanante),
+                  _DatoCabecera(label: 'Móvil', valor: hoja.movil),
+                  _DatoCabecera(label: 'Chofer', valor: hoja.choferNombre),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 28,
-            runSpacing: 12,
-            children: [
-              _DatoCabecera(label: 'Vendedor', valor: hoja.vendedor),
-              _DatoCabecera(label: 'Acompañante', valor: hoja.acompanante),
-              _DatoCabecera(label: 'Móvil', valor: hoja.movil),
-              _DatoCabecera(label: 'Chofer', valor: hoja.choferNombre),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

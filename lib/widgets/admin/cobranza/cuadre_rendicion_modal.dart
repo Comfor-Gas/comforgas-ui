@@ -111,6 +111,12 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
     });
   }
 
+  bool get _esDiaAnterior {
+    final hoy = DateTime.now();
+    final f = widget.fecha;
+    return DateTime(f.year, f.month, f.day).isBefore(DateTime(hoy.year, hoy.month, hoy.day));
+  }
+
   bool get _bloqueada =>
       _aprobadaLocal || (_cuadre?.rutaBloqueada ?? false) || (_cuadre?.aprobada ?? false);
 
@@ -159,7 +165,7 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
 
   Future<void> _aprobar() async {
     final cuadre = _cuadre;
-    if (_aprobando || _bloqueada || cuadre == null) return;
+    if (_aprobando || _bloqueada || _esDiaAnterior || cuadre == null) return;
     final diferencias = _diferencias;
     final conDiferencias = diferencias.isNotEmpty || cuadre.tieneDiferencias;
     if (!_justificacionCompleta(diferencias)) {
@@ -317,6 +323,8 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
           const _RendicionPendienteAviso()
         else if (_bloqueada)
           const _RutaCerradaAviso()
+        else if (_esDiaAnterior)
+          const _DiaAnteriorAviso()
         else ...[
           if (cuadre.bloqueosDuros.isNotEmpty) ...[
             _BloqueosAviso(bloqueos: cuadre.bloqueosDuros),
@@ -350,6 +358,35 @@ class _CuadreRendicionModalState extends State<CuadreRendicionModal> {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _DiaAnteriorAviso extends StatelessWidget {
+  const _DiaAnteriorAviso();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.steelBlue.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history_toggle_off, size: 18, color: AppColors.steelBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Es una rendición de un día anterior: solo se puede consultar. '
+              'La aprobación y el cierre se hacen únicamente el mismo día.',
+              style: AppTextStyles.link.copyWith(fontSize: 12.5, color: AppColors.graphiteGray),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

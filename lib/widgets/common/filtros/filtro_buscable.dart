@@ -6,8 +6,10 @@ import 'decoracion_filtro.dart';
 class OpcionFiltro {
   final String id;
   final String etiqueta;
+  final bool completado;
+  final String? tooltipCompletado;
 
-  const OpcionFiltro(this.id, this.etiqueta);
+  const OpcionFiltro(this.id, this.etiqueta, {this.completado = false, this.tooltipCompletado});
 }
 
 class FiltroBuscable extends StatefulWidget {
@@ -160,7 +162,9 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
                           return InkWell(
                             onTap: () => onSelected(o),
                             child: Container(
-                              color: resaltado ? AppColors.background : null,
+                              color: elegido
+                                  ? AppColors.orange.withOpacity(0.10)
+                                  : (resaltado ? AppColors.background : null),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               child: Row(
                                 children: [
@@ -172,11 +176,19 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
                                       style: TextStyle(
                                         fontSize: 13.5,
                                         fontWeight: elegido ? FontWeight.w800 : FontWeight.w500,
-                                        color: AppColors.steelBlue,
+                                        color: elegido ? AppColors.orange : AppColors.steelBlue,
                                       ),
                                     ),
                                   ),
-                                  if (elegido) const Icon(Icons.check, size: 16, color: AppColors.orange),
+                                  if (o.completado)
+                                    Tooltip(
+                                      message: o.tooltipCompletado ?? 'Completado',
+                                      child: const Icon(
+                                        Icons.check_circle,
+                                        size: 17,
+                                        color: AppColors.badgeGreen,
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),

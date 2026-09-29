@@ -45,13 +45,31 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   String? _aviso;
   bool _cerrando = false;
   bool _cerrado = false;
-  bool _reabriendo = false;
   late final RendicionAdminRepository _rendicionRepo;
   CuadreRendicion? _cuadre;
   bool _cargandoCuadre = false;
   bool _errorCuadre = false;
 
+  Set<String> _choferesCerrados = {};
+
+  Future<void> _cargarEstadosCierre() async {
+    final fecha = _fecha;
+    final choferes = _choferes;
+    if (choferes.isEmpty) return;
+    final resultados = await Future.wait(choferes.map((c) => _repo
+        .getArqueo(idUsuario: c.id, fecha: fecha)
+        .then((a) => a.cerrado ? c.id : null)
+        .catchError((_) => null)));
+    if (!mounted || fecha != _fecha) return;
+    setState(() => _choferesCerrados = resultados.whereType<String>().toSet());
+  }
+
   bool get _rendicionAprobada => _cuadre?.aprobadaORutaCerrada ?? false;
+
+  bool get _esHoy {
+    final hoy = DateTime.now();
+    return _fecha.year == hoy.year && _fecha.month == hoy.month && _fecha.day == hoy.day;
+  }
 
   @override
   void initState() {
@@ -74,6 +92,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
         }
       });
       if (_choferId != null) _cargarArqueo();
+      unawaited(_cargarEstadosCierre());
     } catch (_) {
       if (!mounted) return;
       setState(() => _choferes = const []);
@@ -161,8 +180,12 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   }
 
   void _cambiarFecha(DateTime fecha) {
-    setState(() => _fecha = fecha);
+    setState(() {
+      _fecha = fecha;
+      _choferesCerrados = {};
+    });
     _cargarArqueo();
+    unawaited(_cargarEstadosCierre());
   }
 
   int _totalSistema(String metodo) {
@@ -175,6 +198,13 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
   Future<void> _cerrarArqueo() async {
     final idUsuario = _choferId;
     if (idUsuario == null || _cerrando) return;
+    if (!_esHoy) {
+      AppFeedback.advertencia(
+        'Solo se puede cerrar el arqueo del día de hoy. Los días anteriores quedan solo para consulta.',
+        titulo: 'Día anterior',
+      );
+      return;
+    }
     if (!_rendicionAprobada && !_modoEjemplo) {
       AppFeedback.advertencia(
         'Primero revisá y aprobá la rendición del chofer. Después podés cerrar el arqueo.',
@@ -216,6 +246,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
       if (!mounted) return;
       setState(() {
         _cerrado = true;
+        _choferesCerrados = {..._choferesCerrados, idUsuario};
         _cerrando = false;
       });
       _snack('Arqueo cerrado y auditado.');
@@ -235,39 +266,6 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
       if (!mounted) return;
       setState(() => _cerrando = false);
       _snack('No se pudo cerrar el arqueo.', error: true);
-    }
-  }
-
-  Future<void> _reabrirArqueo() async {
-    final idUsuario = _choferId;
-    if (idUsuario == null || _reabriendo) return;
-
-    final motivo = await showDialog<String>(
-      context: context,
-      builder: (_) => const _ReaperturaArqueoDialog(),
-    );
-    if (motivo == null || !mounted) return;
-
-    setState(() => _reabriendo = true);
-    try {
-      if (!_modoEjemplo) {
-        await _repo.reabrirArqueo(idUsuario: idUsuario, fecha: _fecha, motivo: motivo);
-        if (!mounted) return;
-        await _cargarArqueo();
-      } else {
-        setState(() => _cerrado = false);
-      }
-      if (!mounted) return;
-      setState(() => _reabriendo = false);
-      _snack('Arqueo reabierto. Ya podés volver a auditarlo.');
-    } on CobranzaRepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() => _reabriendo = false);
-      _snack(e.message, error: true);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _reabriendo = false);
-      _snack('No se pudo reabrir el arqueo.', error: true);
     }
   }
 
@@ -297,13 +295,19 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
               _Filtros(
                 choferes: _choferes,
                 choferId: _choferId,
+                cerrados: _choferesCerrados,
                 fecha: _fecha,
                 onChofer: (id) {
                   setState(() => _choferId = id);
                   _cargarArqueo();
                 },
                 onFecha: _cambiarFecha,
-                onRefrescar: _choferId == null ? null : _cargarArqueo,
+                onRefrescar: _choferId == null
+                    ? null
+                    : () {
+                        _cargarArqueo();
+                        _cargarEstadosCierre();
+                      },
                 cargando: _loading,
               ),
               if (_aviso != null) ...[
@@ -383,7 +387,7 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
 
   Widget _resumen() {
     final arqueo = _arqueo!;
-    final puedeCerrar = _rendicionAprobada || _modoEjemplo;
+    final puedeCerrar = _esHoy && (_rendicionAprobada || _modoEjemplo);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -401,11 +405,11 @@ class _ArqueoCajaScreenState extends State<ArqueoCajaScreen> {
           totalVentaSocial: arqueo.totalVentaSocial,
           cerrado: _cerrado,
           cerrando: _cerrando,
-          reabriendo: _reabriendo,
           puedeCerrar: puedeCerrar,
-          avisoCierre: 'Para cerrar el arqueo primero tenés que aprobar la rendición del chofer (paso 1).',
+          avisoCierre: _esHoy
+              ? 'Para cerrar el arqueo primero tenés que aprobar la rendición del chofer (paso 1).'
+              : 'Es un día anterior: el arqueo y la rendición solo se pueden consultar, no cerrar ni aprobar.',
           onCerrar: _cerrarArqueo,
-          onReabrir: _reabrirArqueo,
         ),
       ],
     );
@@ -450,6 +454,7 @@ class _Cabecera extends StatelessWidget {
 class _Filtros extends StatelessWidget {
   final List<UsuarioModel> choferes;
   final String? choferId;
+  final Set<String> cerrados;
   final DateTime fecha;
   final ValueChanged<String> onChofer;
   final ValueChanged<DateTime> onFecha;
@@ -459,6 +464,7 @@ class _Filtros extends StatelessWidget {
   const _Filtros({
     required this.choferes,
     required this.choferId,
+    this.cerrados = const {},
     required this.fecha,
     required this.onChofer,
     required this.onFecha,
@@ -486,7 +492,12 @@ class _Filtros extends StatelessWidget {
               ancho: 260,
               opciones: [
                 for (final c in choferes)
-                  OpcionFiltro(c.id, c.fullName.isNotEmpty ? c.fullName : c.email),
+                  OpcionFiltro(
+                    c.id,
+                    c.fullName.isNotEmpty ? c.fullName : c.email,
+                    completado: cerrados.contains(c.id),
+                    tooltipCompletado: 'Rendición aprobada y arqueo cerrado',
+                  ),
               ],
               seleccion: choferId,
               onCambio: (id) {
@@ -789,83 +800,6 @@ class _FilaMontoArqueo extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ReaperturaArqueoDialog extends StatefulWidget {
-  const _ReaperturaArqueoDialog();
-
-  @override
-  State<_ReaperturaArqueoDialog> createState() => _ReaperturaArqueoDialogState();
-}
-
-class _ReaperturaArqueoDialogState extends State<_ReaperturaArqueoDialog> {
-  final _motivo = TextEditingController();
-
-  @override
-  void dispose() {
-    _motivo.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final texto = _motivo.text.trim();
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text('Reabrir arqueo', style: AppTextStyles.title),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'La reapertura queda registrada (quién y cuándo). Indicá el motivo. '
-              'Los cobros que hayan llegado después del cierre vuelven a contarse '
-              'en el arqueo.',
-              style: AppTextStyles.link.copyWith(fontSize: 12.5),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _motivo,
-              maxLines: 3,
-              maxLength: 500,
-              cursorColor: AppColors.orange,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Motivo de la reapertura',
-                isDense: true,
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.inputBorder),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.orange),
-                ),
-                floatingLabelStyle: TextStyle(color: AppColors.orange),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            'Cancelar',
-            style: AppTextStyles.button.copyWith(color: AppColors.graphiteGray),
-          ),
-        ),
-        TextButton(
-          onPressed: texto.isEmpty ? null : () => Navigator.of(context).pop(texto),
-          child: Text(
-            'Reabrir',
-            style: AppTextStyles.button.copyWith(
-              color: texto.isEmpty ? AppColors.badgeGray : AppColors.orange,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

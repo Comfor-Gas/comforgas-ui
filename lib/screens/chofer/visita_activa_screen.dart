@@ -64,6 +64,9 @@ import 'venta/registro_venta_screen.dart';
 import 'venta_social/finalizar_venta_social_screen.dart';
 import '../../core/feedback/app_feedback.dart';
 import '../../local/credito_local_service.dart';
+import '../../repositories/credito_cliente_repository.dart';
+import '../../local/cobro_offline_service.dart';
+import '../../models/metodo_pago.dart';
 
 const _uuid = Uuid();
 
@@ -1398,8 +1401,21 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   CreditoCliente get _creditoActual =>
       CreditoLocalService.instance.creditoActual(_visita.sucursalSnapshot, _idClienteExt);
 
-  Future<Object?> _abrirCobroCombinado(List<VentaEnVisita> ventas) {
-    final credito = _creditoActual;
+  Future<CreditoCliente> _creditoParaCobro() async {
+    final local = _creditoActual;
+    final idCliente = _idClienteExt;
+    if (idCliente == null || !_online) return local;
+    final enVivo = await CreditoClienteRepository(_apiClient).obtener(idCliente);
+    if (enVivo == null) return local;
+    final hayCargosSinSincronizar = CobroOfflineService.instance
+        .listarPendientes()
+        .any((c) => c.metodoPago == MetodoPago.cuentaCorriente.codigoBackend);
+    return hayCargosSinSincronizar ? enVivo.masRestrictivo(local) : enVivo;
+  }
+
+  Future<Object?> _abrirCobroCombinado(List<VentaEnVisita> ventas) async {
+    final credito = await _creditoParaCobro();
+    if (!mounted) return null;
     final idCliente = _idClienteExt;
     final refs = ventas
         .map((v) => CobroVentaRef(

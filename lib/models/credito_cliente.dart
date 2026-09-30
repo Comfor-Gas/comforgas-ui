@@ -28,6 +28,18 @@ class CreditoCliente {
 
   bool get tieneAlerta => moroso || limiteExcedido;
 
+  CreditoCliente masRestrictivo(CreditoCliente otro) {
+    if (!otro.tieneDatos) return this;
+    if (!tieneDatos) return otro;
+    final base = otro.disponible < disponible ? otro : this;
+    return CreditoCliente(
+      limiteCredito: base.limiteCredito,
+      saldoUsado: base.saldoUsado,
+      saldoDisponible: base.disponible,
+      moroso: moroso || otro.moroso,
+    );
+  }
+
   CreditoCliente conCargoLocal(num monto) {
     if (monto <= 0 || !tieneDatos) return this;
     return CreditoCliente(

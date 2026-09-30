@@ -80,5 +80,6 @@ class ApiConfig {
   static const String adminCanjesReportePath = '/api/admin/canjes/reporte';
   static const String adminDashboardKpisPath = '/api/admin/dashboard/kpis';
   static String choferMetasDiaPath(String idUsuario) => '/api/kpis/chofer/$idUsuario/metas-dia';
+  static String choferCreditoClientePath(int idClienteExt) => '/api/chofer/clientes/$idClienteExt/credito';
   static const String adminReportesPath = '/api/admin/reportes';
 }

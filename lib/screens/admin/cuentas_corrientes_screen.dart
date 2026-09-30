@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/responsive.dart';
 import '../../data/mock_cobranza_data.dart';
 import '../../models/cuenta_corriente_resumen.dart';
+import '../../models/vista_cuentas_corrientes.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/catalogo_repository.dart';
 import '../../repositories/cobranza_repository.dart';
@@ -14,6 +16,7 @@ import '../../utils/formato.dart';
 import '../../widgets/admin/cobranza/cuentas_corrientes_tabla.dart';
 import '../../widgets/admin/cobranza/editar_limite_dialog.dart';
 import '../../widgets/admin/cobranza/limites_credito_card.dart';
+import '../../widgets/admin/cobranza/vista_cuentas_selector.dart';
 import '../../widgets/admin/flota/flota_form_controls.dart';
 import '../../widgets/admin/flota/flota_stat_card.dart';
 import '../../widgets/common/aviso_regla_cuenta_corriente.dart';
@@ -38,8 +41,8 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   ReporteCuentasCorrientes _reporte = const ReporteCuentasCorrientes();
   bool _loading = true;
   bool _modoEjemplo = false;
-  bool _soloMorosos = false;
-  bool _soloConSaldo = false;
+  VistaCuentasCorrientes _vista = VistaCuentasCorrientes.cobranzas;
+  final Map<VistaCuentasCorrientes, int?> _contadores = {};
   String? _aviso;
 
   @override
@@ -64,10 +67,19 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
       _aviso = null;
     });
     try {
-      final reporte = await _repo.getReporteCuentasCorrientes(soloMorosos: _soloMorosos);
-      if (!mounted) return;
+      final vista = _vista;
+      final reporte = await _repo.getReporteCuentasCorrientes(
+        soloMorosos: vista.soloMorosos,
+        soloDeudores: vista.soloDeudores,
+      );
+      if (!mounted || vista != _vista) return;
       setState(() {
         _reporte = reporte;
+        _contadores[VistaCuentasCorrientes.cobranzas] = reporte.clientesConDeuda;
+        _contadores[VistaCuentasCorrientes.morosos] = reporte.clientesMorosos;
+        if (vista == VistaCuentasCorrientes.todas) {
+          _contadores[VistaCuentasCorrientes.todas] = reporte.totalClientes;
+        }
         _modoEjemplo = false;
         _loading = false;
       });
@@ -97,8 +109,8 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
   List<CuentaCorrienteResumen> get _clientesFiltrados {
     final query = _searchCtrl.text.trim().toLowerCase();
     return _reporte.clientes.where((c) {
-      if (_soloMorosos && !c.moroso) return false;
-      if (_soloConSaldo && c.saldoUsado <= 0) return false;
+      if (_vista.soloMorosos && !c.moroso) return false;
+      if (_vista.soloDeudores && c.saldoUsado <= 0) return false;
       if (query.isNotEmpty && !c.nombreCliente.toLowerCase().contains(query)) return false;
       return true;
     }).toList();
@@ -115,7 +127,7 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
         alignment: Alignment.centerRight,
         child: _DetallePanel(
           cliente: cliente,
-          onRegistrarPago: () => _registrarPago(cliente),
+          onRegistrarPago: () => _registrarPago(cliente, desdeDetalle: true),
           onEditarLimite: () {
             Navigator.of(context).pop();
             _editarLimite(cliente);
@@ -132,7 +144,13 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
     );
   }
 
-  Future<void> _registrarPago(CuentaCorrienteResumen cliente) async {
+  void _cambiarVista(VistaCuentasCorrientes vista) {
+    if (vista == _vista) return;
+    setState(() => _vista = vista);
+    _cargar();
+  }
+
+  Future<void> _registrarPago(CuentaCorrienteResumen cliente, {bool desdeDetalle = false}) async {
     if (_modoEjemplo) {
       _snack('En modo de ejemplo no se pueden registrar pagos.', error: true);
       return;
@@ -148,9 +166,11 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
         monto: datos.monto,
         referencia: datos.referencia,
         observacion: datos.observacion,
+        fechaPago: datos.fechaPago,
+        uuidOperacion: datos.uuidOperacion,
       );
       if (!mounted) return;
-      Navigator.of(context).pop();
+      if (desdeDetalle) Navigator.of(context).pop();
       _snack('Pago registrado. Saldo actualizado.');
       await _cargar();
     } on NetworkException {
@@ -231,6 +251,17 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
     }
   }
 
+  String get _mensajeVacioVista {
+    switch (_vista) {
+      case VistaCuentasCorrientes.cobranzas:
+        return 'No hay clientes con saldo pendiente para cobrar.';
+      case VistaCuentasCorrientes.morosos:
+        return 'No hay clientes morosos.';
+      case VistaCuentasCorrientes.todas:
+        return 'No hay clientes con cuenta corriente.';
+    }
+  }
+
   void _snack(String mensaje, {bool error = false}) {
     if (error) {
       AppFeedback.error(mensaje);
@@ -264,27 +295,17 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
               LimitesCreditoCard(
                 clientes: _reporte.clientes,
                 cargando: _loading || _guardandoLimite,
+                mostrarIndicadores: _vista == VistaCuentasCorrientes.todas,
                 onAsignar: () => _editarLimite(),
                 onEditar: _editarLimite,
               ),
               const SizedBox(height: 16),
               _Filtros(
                 searchCtrl: _searchCtrl,
-                soloMorosos: _soloMorosos,
-                soloConSaldo: _soloConSaldo,
-                onToggleConSaldo: (v) => setState(() => _soloConSaldo = v),
-                onToggleMorosos: (v) {
-                  setState(() => _soloMorosos = v);
-                  _cargar();
-                },
-                onLimpiar: () {
-                  _searchCtrl.clear();
-                  if (_soloConSaldo) setState(() => _soloConSaldo = false);
-                  if (_soloMorosos) {
-                    setState(() => _soloMorosos = false);
-                    _cargar();
-                  }
-                },
+                vista: _vista,
+                contadores: _contadores,
+                onVista: _cambiarVista,
+                onLimpiar: _searchCtrl.clear,
                 onRefrescar: _cargar,
                 cargando: _loading,
               ),
@@ -301,8 +322,9 @@ class _CuentasCorrientesScreenState extends State<CuentasCorrientesScreen> {
                         clientes: _clientesFiltrados,
                         onVerDetalle: _verDetalle,
                         onEditarLimite: _editarLimite,
+                        onRegistrarPago: _registrarPago,
                         mensajeVacio: _reporte.clientes.isEmpty
-                            ? 'No hay clientes con cuenta corriente.'
+                            ? _mensajeVacioVista
                             : 'No hay clientes que coincidan con los filtros.',
                       ),
               ),
@@ -371,13 +393,19 @@ class _Stats extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fila = constraints.maxWidth >= 560;
+        final fila = constraints.maxWidth >= 720;
         final cards = [
           FlotaStatCard(
             icon: Icons.account_balance_wallet_outlined,
             etiqueta: 'Total Deuda Clientes',
             valor: formatMoneda(reporte.totalDeuda),
             acento: AppColors.orange,
+          ),
+          FlotaStatCard(
+            icon: Icons.payments_outlined,
+            etiqueta: 'Clientes con Deuda',
+            valor: '${reporte.clientesConDeuda}',
+            acento: AppColors.steelBlue,
           ),
           FlotaStatCard(
             icon: Icons.person_off_outlined,
@@ -389,14 +417,20 @@ class _Stats extends StatelessWidget {
         if (fila) {
           return Row(
             children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 16),
-              Expanded(child: cards[1]),
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(width: 16),
+                Expanded(child: cards[i]),
+              ],
             ],
           );
         }
         return Column(
-          children: [cards[0], const SizedBox(height: 12), cards[1]],
+          children: [
+            for (var i = 0; i < cards.length; i++) ...[
+              if (i > 0) const SizedBox(height: 12),
+              cards[i],
+            ],
+          ],
         );
       },
     );
@@ -405,20 +439,18 @@ class _Stats extends StatelessWidget {
 
 class _Filtros extends StatelessWidget {
   final TextEditingController searchCtrl;
-  final bool soloMorosos;
-  final bool soloConSaldo;
-  final ValueChanged<bool> onToggleMorosos;
-  final ValueChanged<bool> onToggleConSaldo;
+  final VistaCuentasCorrientes vista;
+  final Map<VistaCuentasCorrientes, int?> contadores;
+  final ValueChanged<VistaCuentasCorrientes> onVista;
   final VoidCallback onLimpiar;
   final VoidCallback onRefrescar;
   final bool cargando;
 
   const _Filtros({
     required this.searchCtrl,
-    required this.soloMorosos,
-    required this.soloConSaldo,
-    required this.onToggleMorosos,
-    required this.onToggleConSaldo,
+    required this.vista,
+    required this.contadores,
+    required this.onVista,
     required this.onLimpiar,
     required this.onRefrescar,
     required this.cargando,
@@ -426,27 +458,21 @@ class _Filtros extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hayFiltros = searchCtrl.text.trim().isNotEmpty || soloMorosos || soloConSaldo;
+    final hayFiltros = searchCtrl.text.trim().isNotEmpty;
     return FiltrosPanel(
       filas: [
+        VistaCuentasSelector(
+          seleccion: vista,
+          contadores: contadores,
+          habilitado: !cargando,
+          onCambio: onVista,
+        ),
         FilaFiltros(
           children: [
             CampoBusquedaFiltro(
               controller: searchCtrl,
               etiqueta: 'Cliente',
               hint: 'Buscar cliente',
-            ),
-            ChipFiltro(
-              etiqueta: 'Solo morosos',
-              icono: soloMorosos ? Icons.check_box_outlined : Icons.check_box_outline_blank,
-              activo: soloMorosos,
-              onTap: () => onToggleMorosos(!soloMorosos),
-            ),
-            ChipFiltro(
-              etiqueta: 'Con saldo pendiente',
-              icono: soloConSaldo ? Icons.check_box_outlined : Icons.check_box_outline_blank,
-              activo: soloConSaldo,
-              onTap: () => onToggleConSaldo(!soloConSaldo),
             ),
             if (hayFiltros) BotonLimpiarFiltros(onPressed: onLimpiar),
             BotonActualizar(onPressed: onRefrescar, cargando: cargando),
@@ -658,8 +684,16 @@ class _DatosPago {
   final int monto;
   final String? referencia;
   final String? observacion;
+  final DateTime fechaPago;
+  final String uuidOperacion;
 
-  const _DatosPago({required this.monto, this.referencia, this.observacion});
+  const _DatosPago({
+    required this.monto,
+    required this.fechaPago,
+    required this.uuidOperacion,
+    this.referencia,
+    this.observacion,
+  });
 }
 
 class _RegistrarPagoDialog extends StatefulWidget {
@@ -674,6 +708,7 @@ class _RegistrarPagoDialog extends StatefulWidget {
 class _RegistrarPagoDialogState extends State<_RegistrarPagoDialog> {
   late final TextEditingController _monto;
   final _referencia = TextEditingController();
+  final String _uuidOperacion = const Uuid().v4();
   final _observacion = TextEditingController();
 
   @override
@@ -812,6 +847,8 @@ class _RegistrarPagoDialogState extends State<_RegistrarPagoDialog> {
           onPressed: valido
               ? () => Navigator.of(context).pop(_DatosPago(
                     monto: monto,
+                    fechaPago: DateTime.now(),
+                    uuidOperacion: _uuidOperacion,
                     referencia: _referencia.text,
                     observacion: _observacion.text,
                   ))

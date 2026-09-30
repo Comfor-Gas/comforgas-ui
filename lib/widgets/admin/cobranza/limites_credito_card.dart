@@ -11,6 +11,7 @@ class LimitesCreditoCard extends StatelessWidget {
   final VoidCallback? onAsignar;
   final ValueChanged<CuentaCorrienteResumen>? onEditar;
   final bool cargando;
+  final bool mostrarIndicadores;
 
   const LimitesCreditoCard({
     super.key,
@@ -18,6 +19,7 @@ class LimitesCreditoCard extends StatelessWidget {
     this.onAsignar,
     this.onEditar,
     this.cargando = false,
+    this.mostrarIndicadores = true,
   });
 
   List<CuentaCorrienteResumen> get _sinDisponible =>
@@ -98,6 +100,7 @@ class LimitesCreditoCard extends StatelessWidget {
               );
             },
           ),
+          if (mostrarIndicadores) ...[
           const SizedBox(height: 14),
           Wrap(
             spacing: 10,
@@ -120,7 +123,8 @@ class LimitesCreditoCard extends StatelessWidget {
               ),
             ],
           ),
-          if (agotados.isNotEmpty && onEditar != null) ...[
+          ],
+          if (mostrarIndicadores && agotados.isNotEmpty && onEditar != null) ...[
             const SizedBox(height: 14),
             Text(
               'Sin crédito disponible',

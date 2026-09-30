@@ -48,23 +48,29 @@ class CobranzaRepository {
 
   Future<ReporteCuentasCorrientes> getReporteCuentasCorrientes({
     bool soloMorosos = false,
+    bool soloDeudores = false,
   }) async {
-    final primera = await _paginaCuentasCorrientes(soloMorosos, 0);
+    final primera = await _paginaCuentasCorrientes(soloMorosos, soloDeudores, 0);
     if (primera.totalPaginas <= 1) return primera;
     final todos = [...primera.clientes];
     final ultima = primera.totalPaginas > _maxPaginasCuentas ? _maxPaginasCuentas : primera.totalPaginas;
     for (var pagina = 1; pagina < ultima; pagina++) {
-      final siguiente = await _paginaCuentasCorrientes(soloMorosos, pagina);
+      final siguiente = await _paginaCuentasCorrientes(soloMorosos, soloDeudores, pagina);
       if (siguiente.clientes.isEmpty) break;
       todos.addAll(siguiente.clientes);
     }
     return primera.conClientes(todos);
   }
 
-  Future<ReporteCuentasCorrientes> _paginaCuentasCorrientes(bool soloMorosos, int pagina) async {
+  Future<ReporteCuentasCorrientes> _paginaCuentasCorrientes(
+    bool soloMorosos,
+    bool soloDeudores,
+    int pagina,
+  ) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/clientes/cuentas-corrientes').replace(
       queryParameters: {
-        'soloMorosos': '$soloMorosos',
+        if (soloMorosos) 'soloMorosos': 'true',
+        if (soloDeudores) 'soloDeudores': 'true',
         'pagina': '$pagina',
         'tamanio': '$_tamanioPaginaCuentas',
       },
@@ -114,6 +120,8 @@ class CobranzaRepository {
     required int monto,
     String? referencia,
     String? observacion,
+    DateTime? fechaPago,
+    String? uuidOperacion,
   }) async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}/api/admin/clientes/$idCliente/cuenta-corriente/pagos',
@@ -128,7 +136,8 @@ class CobranzaRepository {
             headers: _jsonHeaders,
             body: jsonEncode({
               'monto': monto,
-              'uuidOperacion': const Uuid().v4(),
+              'fechaPago': (fechaPago ?? DateTime.now()).toUtc().toIso8601String(),
+              'uuidOperacion': uuidOperacion ?? const Uuid().v4(),
               if (ref != null && ref.isNotEmpty) 'referencia': ref,
               if (obs != null && obs.isNotEmpty) 'observacion': obs,
             }),

@@ -11,6 +11,7 @@ class CuentasCorrientesTabla extends StatelessWidget {
   final List<CuentaCorrienteResumen> clientes;
   final ValueChanged<CuentaCorrienteResumen> onVerDetalle;
   final ValueChanged<CuentaCorrienteResumen>? onEditarLimite;
+  final ValueChanged<CuentaCorrienteResumen>? onRegistrarPago;
   final String mensajeVacio;
 
   const CuentasCorrientesTabla({
@@ -18,6 +19,7 @@ class CuentasCorrientesTabla extends StatelessWidget {
     required this.clientes,
     required this.onVerDetalle,
     this.onEditarLimite,
+    this.onRegistrarPago,
     this.mensajeVacio = 'No hay clientes con cuenta corriente.',
   });
 
@@ -42,6 +44,7 @@ class CuentasCorrientesTabla extends StatelessWidget {
                   cliente: c,
                   onVer: () => onVerDetalle(c),
                   onEditar: onEditarLimite == null ? null : () => onEditarLimite!(c),
+                  onPagar: onRegistrarPago == null ? null : () => onRegistrarPago!(c),
                 ),
             ],
           );
@@ -60,6 +63,7 @@ class CuentasCorrientesTabla extends StatelessWidget {
                 cliente: c,
                 onVer: () => onVerDetalle(c),
                 onEditar: onEditarLimite == null ? null : () => onEditarLimite!(c),
+                onPagar: onRegistrarPago == null ? null : () => onRegistrarPago!(c),
               ),
           ],
         );
@@ -73,7 +77,7 @@ const _colEstado = 2;
 const _colLimite = 2;
 const _colSaldo = 2;
 const _colVencido = 2;
-const _colAcciones = 2;
+const _colAcciones = 3;
 
 class _Header extends StatelessWidget {
   const _Header();
@@ -128,8 +132,9 @@ class _Fila extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
   final VoidCallback onVer;
   final VoidCallback? onEditar;
+  final VoidCallback? onPagar;
 
-  const _Fila({required this.cliente, required this.onVer, this.onEditar});
+  const _Fila({required this.cliente, required this.onVer, this.onEditar, this.onPagar});
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +178,12 @@ class _Fila extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (onPagar != null && cliente.saldoUsado > 0)
+                    IconButton(
+                      onPressed: onPagar,
+                      tooltip: 'Registrar pago',
+                      icon: const Icon(Icons.payments_outlined, size: 20, color: AppColors.badgeGreen),
+                    ),
                   if (onEditar != null)
                     IconButton(
                       onPressed: onEditar,
@@ -230,8 +241,9 @@ class _ClienteCard extends StatelessWidget {
   final CuentaCorrienteResumen cliente;
   final VoidCallback onVer;
   final VoidCallback? onEditar;
+  final VoidCallback? onPagar;
 
-  const _ClienteCard({required this.cliente, required this.onVer, this.onEditar});
+  const _ClienteCard({required this.cliente, required this.onVer, this.onEditar, this.onPagar});
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +297,21 @@ class _ClienteCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (onPagar != null && cliente.saldoUsado > 0) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onPagar,
+                  icon: const Icon(Icons.payments_outlined, size: 18),
+                  label: const Text('Registrar pago'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.badgeGreen,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

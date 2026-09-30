@@ -37,6 +37,7 @@ class CuentaCorrienteResumen {
 class ReporteCuentasCorrientes {
   final int totalDeuda;
   final int clientesMorosos;
+  final int? clientesConDeudaBackend;
   final int totalClientes;
   final List<CuentaCorrienteResumen> clientes;
   final int totalPaginas;
@@ -44,15 +45,20 @@ class ReporteCuentasCorrientes {
   const ReporteCuentasCorrientes({
     this.totalDeuda = 0,
     this.clientesMorosos = 0,
+    this.clientesConDeudaBackend,
     this.totalClientes = 0,
     this.clientes = const [],
     this.totalPaginas = 1,
   });
 
+  int get clientesConDeuda =>
+      clientesConDeudaBackend ?? clientes.where((c) => c.saldoUsado > 0).length;
+
   ReporteCuentasCorrientes conClientes(List<CuentaCorrienteResumen> todos) {
     return ReporteCuentasCorrientes(
       totalDeuda: totalDeuda,
       clientesMorosos: clientesMorosos,
+      clientesConDeudaBackend: clientesConDeudaBackend,
       totalClientes: totalClientes,
       clientes: todos,
       totalPaginas: totalPaginas,
@@ -67,6 +73,7 @@ class ReporteCuentasCorrientes {
     return ReporteCuentasCorrientes(
       totalDeuda: parseInt(json['totalDeuda']) ?? 0,
       clientesMorosos: parseInt(json['clientesMorosos']) ?? 0,
+      clientesConDeudaBackend: parseInt(json['clientesConDeuda']),
       totalClientes: parseInt(json['totalClientes']) ?? clientes.length,
       clientes: clientes,
       totalPaginas: parseInt(json['totalPaginas']) ?? 1,

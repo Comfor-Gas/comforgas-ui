@@ -22,6 +22,9 @@ class ApiConfig {
   static const String mePath = '/api/auth/me';
   static const String registerPath = '/api/admin/usuarios';
   static const String usuariosPath = '/api/admin/usuarios';
+  static const String adminChoferesPath = '/api/admin/choferes';
+  static const String adminChoferesExternosPath = '/api/admin/choferes/externos';
+  static String adminChoferPath(String idUsuario) => '/api/admin/choferes/$idUsuario';
   static const String clientesPath = '/api/clientes';
   static const String rutasPath = '/api/rutas';
   static const String visitasPath = '/api/visitas';

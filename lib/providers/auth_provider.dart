@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/auth_result.dart';
 import '../models/auth_user.dart';
 import '../models/user_role.dart';
 import '../services/auth_api.dart';
@@ -74,13 +75,21 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  Future<bool> login({required String email, required String password}) {
+    return _iniciarSesion(() => _api.login(email: email, password: password));
+  }
+
+  Future<bool> loginChofer({required String usuario, required String password}) {
+    return _iniciarSesion(() => _api.loginChofer(usuario: usuario.trim(), password: password));
+  }
+
+  Future<bool> _iniciarSesion(Future<AuthResult> Function() llamada) async {
     _status = AuthStatus.authenticating;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final result = await _api.login(email: email, password: password);
+      final result = await llamada();
 
       await _storage.saveTokens(
         accessToken: result.accessToken,

@@ -8,10 +8,9 @@ import '../../widgets/logo_header.dart';
 import '../../widgets/labeled_text_field.dart';
 import '../../widgets/fingerprint_button.dart';
 import '../../widgets/primary_button.dart';
-import '../../widgets/forgot_password_link.dart';
 import '../../widgets/footer_decoration.dart';
+import '../../widgets/selector_tipo_acceso.dart';
 
-/// Login optimizado para Choferes en ruta (iOS / Android).
 class MobileLoginView extends StatefulWidget {
   const MobileLoginView({super.key});
 
@@ -20,12 +19,23 @@ class MobileLoginView extends StatefulWidget {
 }
 
 class _MobileLoginViewState extends State<MobileLoginView> {
-  // NOTA: el backend autentica por email (ver AuthApi.login). Este campo
-  // se muestra como "Usuario" en la UI del chofer, pero internamente se
-  // envía como email.
   final _userController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _localError;
+  TipoAcceso _tipo = TipoAcceso.chofer;
+
+  bool get _esChofer => _tipo == TipoAcceso.chofer;
+
+  void _cambiarTipo(TipoAcceso tipo) {
+    if (tipo == _tipo) return;
+    _userController.clear();
+    _passwordController.clear();
+    context.read<AuthProvider>().clearError();
+    setState(() {
+      _tipo = tipo;
+      _localError = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -39,14 +49,17 @@ class _MobileLoginViewState extends State<MobileLoginView> {
     final password = _passwordController.text;
 
     if (user.isEmpty || password.isEmpty) {
-      setState(() => _localError = 'Completá usuario y contraseña.');
+      setState(() => _localError =
+          _esChofer ? 'Completá usuario y contraseña.' : 'Completá correo y contraseña.');
       return;
     }
 
     setState(() => _localError = null);
 
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(email: user, password: password);
+    final ok = _esChofer
+        ? await auth.loginChofer(usuario: user, password: password)
+        : await auth.login(email: user, password: password);
 
     if (!mounted) return;
     if (ok) {
@@ -137,12 +150,19 @@ class _MobileLoginViewState extends State<MobileLoginView> {
                       style: AppTextStyles.title,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 22),
+                  SelectorTipoAcceso(
+                    seleccion: _tipo,
+                    habilitado: !isLoading,
+                    onCambio: _cambiarTipo,
+                  ),
+                  const SizedBox(height: 22),
                   LabeledTextField(
-                    key: const ValueKey('mobile_user_field'),
-                    label: 'Usuario',
-                    hint: 'Nombre de usuario',
-                    icon: Icons.person_outline,
+                    key: ValueKey('mobile_user_field_${_tipo.name}'),
+                    label: _esChofer ? 'Usuario' : 'Correo electrónico',
+                    hint: _esChofer ? 'ej: juan.garcia' : 'ej: admin@comforgas.com',
+                    icon: _esChofer ? Icons.person_outline : Icons.alternate_email_rounded,
+                    keyboardType: _esChofer ? TextInputType.text : TextInputType.emailAddress,
                     controller: _userController,
                     textInputAction: TextInputAction.next,
                     onChanged: (_) => _clearError(),
@@ -179,8 +199,6 @@ class _MobileLoginViewState extends State<MobileLoginView> {
                     isLoading: isLoading,
                     onPressed: _submit,
                   ),
-                  const SizedBox(height: 18),
-                  const Center(child: ForgotPasswordLink()),
                 ],
               ),
             ),

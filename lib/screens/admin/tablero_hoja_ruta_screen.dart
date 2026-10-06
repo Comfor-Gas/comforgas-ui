@@ -13,6 +13,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/admin/estado_visita_badge.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
+import '../../utils/orden_visitas.dart';
 
 class _HojaRuta {
   final String choferNombre;
@@ -188,7 +189,7 @@ class _TableroHojaRutaScreenState extends State<TableroHojaRutaScreen> {
 
     final hojas = <_HojaRuta>[];
     grupos.forEach((_, visitasGrupo) {
-      visitasGrupo.sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
+      ordenarVisitas(visitasGrupo);
       final chofer = visitasGrupo.first.nombreUsuario ?? 'Sin asignar';
       final idRuta = visitasGrupo.first.idRuta;
       final zona = _zona(idRuta);

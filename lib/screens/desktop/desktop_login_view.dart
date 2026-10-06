@@ -6,11 +6,10 @@ import '../../providers/auth_provider.dart';
 import '../../router/role_router.dart';
 import '../../widgets/labeled_text_field.dart';
 import '../../widgets/primary_button.dart';
-import '../../widgets/forgot_password_link.dart';
 import '../../widgets/desktop/desktop_side_panel.dart';
 import '../../widgets/desktop/desktop_footer.dart';
+import '../../widgets/selector_tipo_acceso.dart';
 
-/// Login corporativo para Administradores en Desktop/Web.
 class DesktopLoginView extends StatefulWidget {
   const DesktopLoginView({super.key});
 
@@ -22,6 +21,20 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _localError;
+  TipoAcceso _tipo = TipoAcceso.administracion;
+
+  bool get _esChofer => _tipo == TipoAcceso.chofer;
+
+  void _cambiarTipo(TipoAcceso tipo) {
+    if (tipo == _tipo) return;
+    _emailController.clear();
+    _passwordController.clear();
+    context.read<AuthProvider>().clearError();
+    setState(() {
+      _tipo = tipo;
+      _localError = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -35,14 +48,17 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      setState(() => _localError = 'Completá correo y contraseña.');
+      setState(() => _localError =
+          _esChofer ? 'Completá usuario y contraseña.' : 'Completá correo y contraseña.');
       return;
     }
 
     setState(() => _localError = null);
 
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(email: email, password: password);
+    final ok = _esChofer
+        ? await auth.loginChofer(usuario: email, password: password)
+        : await auth.login(email: email, password: password);
 
     if (!mounted) return;
     if (ok) {
@@ -57,10 +73,6 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
 
   @override
   Widget build(BuildContext context) {
-    // select() en vez de watch(): así SOLO este valor puntual dispara un
-    // rebuild, y no arrastra a los LabeledTextField de arriba (que en
-    // Flutter Web pueden perder el foco/input si su padre se reconstruye
-    // completo mientras el usuario está escribiendo).
     final isLoading = context.select<AuthProvider, bool>((a) => a.isLoading);
     final providerError =
         context.select<AuthProvider, String?>((a) => a.errorMessage);
@@ -98,22 +110,30 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              const Center(
+                              Center(
                                 child: Text(
-                                  'Ingrese sus credenciales de administrador '
-                                  'para continuar',
+                                  _esChofer
+                                      ? 'Ingrese su usuario y contraseña de GLP Gas'
+                                      : 'Ingrese sus credenciales de administrador '
+                                          'para continuar',
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.desktopSubtitle,
                                 ),
                               ),
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 24),
+                              SelectorTipoAcceso(
+                                seleccion: _tipo,
+                                habilitado: !isLoading,
+                                onCambio: _cambiarTipo,
+                              ),
+                              const SizedBox(height: 24),
                               LabeledTextField(
-                                key: const ValueKey('desktop_email_field'),
-                                label: 'Correo Electrónico',
-                                hint: 'administrador@gmail.com',
-                                icon: Icons.mail_outline,
+                                key: ValueKey('desktop_email_field_${_tipo.name}'),
+                                label: _esChofer ? 'Usuario' : 'Correo Electrónico',
+                                hint: _esChofer ? 'ej: juan.garcia' : 'administrador@gmail.com',
+                                icon: _esChofer ? Icons.person_outline : Icons.mail_outline,
                                 controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
+                                keyboardType: _esChofer ? TextInputType.text : TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
                                 onChanged: (_) => _clearError(),
                               ),
@@ -139,15 +159,9 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
                               ],
                               const SizedBox(height: 28),
                               PrimaryButton(
-                                text: 'Ingresar al panel',
+                                text: _esChofer ? 'Ingresar' : 'Ingresar al panel',
                                 isLoading: isLoading,
                                 onPressed: _submit,
-                              ),
-                              const SizedBox(height: 18),
-                              const Center(
-                                child: ForgotPasswordLink(
-                                  text: '¿Olvidó su contraseña?',
-                                ),
                               ),
                             ],
                           ),

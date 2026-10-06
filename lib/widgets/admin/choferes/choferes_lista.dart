@@ -109,7 +109,7 @@ class _FilaChofer extends StatelessWidget {
     );
     final boton = compacto
         ? IconButton(
-            tooltip: 'Editar correo o contraseña',
+            tooltip: 'Editar correo',
             onPressed: onEditar,
             icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.orange),
           )

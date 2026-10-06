@@ -26,6 +26,7 @@ import '../../widgets/chofer/comodato_badge.dart';
 import '../../widgets/chofer/ultima_bajada_indicator.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
+import '../../utils/orden_visitas.dart';
 
 const LatLng formosaCenter = LatLng(-26.1849, -58.1731);
 
@@ -327,7 +328,7 @@ class _SeguimientoTiempoRealScreenState
 
     final rutas = <_ChoferRuta>[];
     porChofer.forEach((idChofer, visitasChofer) {
-      visitasChofer.sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
+      ordenarVisitas(visitasChofer);
       final puntos = <LatLng>[];
       for (final v in visitasChofer) {
         final p = _posicionDe(v);

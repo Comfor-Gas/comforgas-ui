@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../../../config/api_config.dart';
 import '../../../core/responsive.dart';
 import '../../../models/evidencia_fotografica_model.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 
+const Set<String> _hostsLocales = {'localhost', '127.0.0.1', '0.0.0.0'};
+
 String urlEvidencia(String url) {
-  final partes = url.split('?');
-  final base = partes.first.replaceAll('%2F', '/').replaceAll('%2f', '/');
+  final partes = url.trim().split('?');
+  var base = partes.first.replaceAll('%2F', '/').replaceAll('%2f', '/');
+  base = _ajustarHost(base);
   return partes.length > 1 ? '$base?${partes.sublist(1).join('?')}' : base;
+}
+
+String _ajustarHost(String base) {
+  final api = Uri.tryParse(ApiConfig.baseUrl);
+  if (api == null || api.host.isEmpty) return base;
+  if (base.startsWith('/')) return '${api.scheme}://${api.authority}$base';
+  final uri = Uri.tryParse(base);
+  if (uri == null || !_hostsLocales.contains(uri.host) || uri.host == api.host) return base;
+  return '${api.scheme}://${api.authority}${uri.path}';
 }
 
 class GaleriaEvidenciasDialog extends StatefulWidget {

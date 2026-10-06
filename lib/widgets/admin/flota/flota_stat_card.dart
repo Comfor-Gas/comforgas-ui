@@ -61,6 +61,8 @@ class FlotaStatCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: AppColors.steelBlue,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

@@ -31,6 +31,8 @@ import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/primary_button.dart';
 import 'visita_activa_screen.dart';
 import '../../core/feedback/app_feedback.dart';
+import '../../widgets/chofer/agenda/seccion_visitas_desplegable.dart';
+import '../../utils/orden_visitas.dart';
 
 const List<String> _diasSemana = [
   'Lunes',
@@ -73,6 +75,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
   List<VisitaModel> _visitas = [];
   int? _recaudacionBackend;
   bool _visitadosExpanded = false;
+  bool _pendientesExpanded = true;
   bool _pausadasExpanded = false;
   bool _iniciandoVisita = false;
   bool _sincronizando = false;
@@ -126,9 +129,8 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         idUsuario: idUsuario,
         fecha: hoy,
       );
-      final data = agendaItems.map((item) => item.toVisitaModel(idUsuario)).toList()
-
-        ..sort((a, b) => a.ordenVisita.compareTo(b.ordenVisita));
+      final data = agendaItems.map((item) => item.toVisitaModel(idUsuario)).toList();
+      ordenarVisitas(data);
       final recaudacionBackend =
           agendaItems.fold(0, (a, item) => a + item.montoCobrado);
       if (!mounted) return;
@@ -406,6 +408,13 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
         .toDouble();
     final siguiente = _visitaAccionable;
     final huboFiltro = _searchCtrl.text.trim().isNotEmpty;
+    final destacada = siguiente != null &&
+            pendientes.any((v) => v.idAgendaItem == siguiente.idAgendaItem)
+        ? siguiente
+        : null;
+    final restoPendientes = destacada == null
+        ? pendientes
+        : pendientes.where((v) => v.idAgendaItem != destacada.idAgendaItem).toList();
     final sinResultados = pendientes.isEmpty &&
         pausadasVisibles.isEmpty &&
         completadasVisibles.isEmpty &&
@@ -439,7 +448,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                         ),
                         const SizedBox(height: 16),
                         _SearchField(controller: _searchCtrl),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         if (_mostrandoCache && _avisoCache != null) ...[
                           Container(
                             margin: const EdgeInsets.only(bottom: 12),
@@ -517,22 +526,57 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             ),
                           )
                         else ...[
-                          ...pendientes.map(
-                            (v) => VisitaClienteCard(
-                              visita: v,
-                              nombreCliente: _nombreCliente(v),
-                              direccionCliente: _direccionCliente(v),
-                              esSiguiente: siguiente != null && siguiente.idAgendaItem == v.idAgendaItem,
-                              etiquetaDestacada:
-                                  v.estadoVisita == VisitaEstado.enCurso ? 'EN CURSO' : 'NEXT',
-                              onTap: () => _handleCardTap(v),
+                          if (destacada != null) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4, bottom: 6),
+                              child: Text(
+                                destacada.estadoVisita == VisitaEstado.enCurso
+                                    ? 'VISITA EN CURSO'
+                                    : 'PRÓXIMA VISITA',
+                                style: AppTextStyles.footer.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.6,
+                                  color: AppColors.orange,
+                                ),
+                              ),
                             ),
-                          ),
+                            VisitaClienteCard(
+                              key: ValueKey('destacada-${destacada.idAgendaItem}'),
+                              visita: destacada,
+                              nombreCliente: _nombreCliente(destacada),
+                              direccionCliente: _direccionCliente(destacada),
+                              esSiguiente: true,
+                              etiquetaDestacada:
+                                  destacada.estadoVisita == VisitaEstado.enCurso ? 'EN CURSO' : 'NEXT',
+                              onTap: () => _handleCardTap(destacada),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (restoPendientes.isNotEmpty || (huboFiltro && destacada == null)) ...[
+                            SeccionVisitasDesplegable(
+                              titulo: 'Visitas pendientes',
+                              icono: Icons.route_outlined,
+                              acento: AppColors.orange,
+                              visitas: restoPendientes,
+                              expandido: _pendientesExpanded || huboFiltro,
+                              onToggle: (value) => setState(() => _pendientesExpanded = value),
+                              mensajeVacio: 'Ninguna visita pendiente coincide con la búsqueda.',
+                              itemBuilder: (v) => VisitaClienteCard(
+                                key: ValueKey('pendiente-${v.idAgendaItem}'),
+                                visita: v,
+                                nombreCliente: _nombreCliente(v),
+                                direccionCliente: _direccionCliente(v),
+                                esSiguiente: false,
+                                onTap: () => _handleCardTap(v),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           if (pausadasVisibles.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             VisitasPausadasSection(
                               pausadas: pausadasVisibles,
-                              expandido: _pausadasExpanded,
+                              expandido: _pausadasExpanded || huboFiltro,
                               onToggle: (value) => setState(() => _pausadasExpanded = value),
                               nombreCliente: _nombreCliente,
                               direccionCliente: _direccionCliente,
@@ -544,7 +588,7 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             const SizedBox(height: 4),
                             ClientesVisitadosSection(
                               visitados: completadasVisibles,
-                              expandido: _visitadosExpanded,
+                              expandido: _visitadosExpanded || (huboFiltro && completadasVisibles.isNotEmpty),
                               onToggle: (value) => setState(() => _visitadosExpanded = value),
                               nombreCliente: _nombreCliente,
                               direccionCliente: _direccionCliente,
@@ -733,27 +777,35 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
+    return SizedBox(
+      height: 42,
       child: TextField(
         controller: controller,
-        style: AppTextStyles.input,
+        style: AppTextStyles.input.copyWith(fontSize: 14),
+        textInputAction: TextInputAction.search,
+        cursorColor: AppColors.orange,
         decoration: InputDecoration(
-          hintText: 'Buscar cliente o dirección',
-          hintStyle: AppTextStyles.hint,
-          prefixIcon: const Icon(Icons.search, color: AppColors.inputHint),
+          hintText: 'Buscar visita por cliente o dirección',
+          hintStyle: AppTextStyles.hint.copyWith(fontSize: 13.5),
+          prefixIcon: const Icon(Icons.search, color: AppColors.inputHint, size: 20),
           suffixIcon: controller.text.isEmpty
               ? null
               : IconButton(
                   icon: const Icon(Icons.close, color: AppColors.inputHint, size: 18),
                   onPressed: controller.clear,
                 ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          filled: true,
+          fillColor: AppColors.white,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(22),
+            borderSide: const BorderSide(color: AppColors.inputBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(22),
+            borderSide: const BorderSide(color: AppColors.orange),
+          ),
         ),
       ),
     );

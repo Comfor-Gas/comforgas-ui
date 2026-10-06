@@ -16,6 +16,7 @@ import '../../local/venta_social_local_service.dart';
 import '../../models/canje_garrafa.dart';
 import '../../models/cliente_ficha.dart';
 import '../../models/control_comodato.dart';
+import '../../models/evidencia_fotografica_model.dart';
 import '../../models/evidencia_tipo.dart';
 import '../../models/motivo_sin_operar.dart';
 import '../../models/producto_sku.dart';
@@ -115,6 +116,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool _finalizando = false;
   bool _cancelando = false;
   bool _evidenciaExistente = false;
+  EvidenciaFotograficaModel? _fotoLlegadaServidor;
   bool _fotoPresenciaEnviada = false;
   bool _subiendoPresencia = false;
   bool _verificandoPresencia = false;
@@ -248,7 +250,12 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   bool get _tieneOperaciones =>
       _ventas.isNotEmpty || _canjes.isNotEmpty || _controlComodato != null || _yaTieneVentaSocial;
 
-  bool get _operacionesBloqueadas => _finalizando || !_presenciaRegistrada;
+  bool get _cerrandoVisita => _finalizando || _cancelando;
+
+  bool get _operacionesBloqueadas => _cerrandoVisita || !_presenciaRegistrada;
+
+  bool get _fotoEditable =>
+      !_cerrandoVisita && !_verificandoPresencia && _visita.estadoVisita != VisitaEstado.pausadaSocial;
 
   bool get _comodatoActivo =>
       (_contratoComodato?.tieneComodato ?? false) || _ficha.tieneComodatoActivo;
@@ -1036,13 +1043,17 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     unawaited(_hidratarVentas());
 
     final idVisita = _visita.idVisita;
-    if (idVisita == null || _presenciaRegistrada) return;
+    if (idVisita == null) return;
     setState(() => _verificandoPresencia = true);
     try {
       final evidencias = await _evidenciaRepo.listarPorVisita(idVisita);
       if (!mounted) return;
-      if (evidencias.any((e) => e.tipoEvidencia.toUpperCase() == EvidenciaTipo.fachada)) {
-        setState(() => _evidenciaExistente = true);
+      final ultima = _ultimaFotoLlegada(evidencias);
+      if (ultima != null) {
+        setState(() {
+          _evidenciaExistente = true;
+          if (_foto == null) _fotoLlegadaServidor = ultima;
+        });
       }
     } on NetworkException {
     } on EvidenciaRepositoryException {
@@ -1531,8 +1542,24 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     return uuidVenta;
   }
 
+  EvidenciaFotograficaModel? _ultimaFotoLlegada(List<EvidenciaFotograficaModel> evidencias) {
+    final fachadas = evidencias
+        .where((e) =>
+            e.tipoEvidencia.toUpperCase() == EvidenciaTipo.fachada && e.urlAlmacenamiento.trim().isNotEmpty)
+        .toList();
+    if (fachadas.isEmpty) return null;
+    DateTime fechaDe(EvidenciaFotograficaModel e) =>
+        e.timestampCaptura ?? e.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    fachadas.sort((a, b) {
+      final porFecha = fechaDe(a).compareTo(fechaDe(b));
+      if (porFecha != 0) return porFecha;
+      return (a.idFotografia ?? 0).compareTo(b.idFotografia ?? 0);
+    });
+    return fachadas.last;
+  }
+
   Future<void> _capturarFoto() async {
-    if (_presenciaRegistrada || _verificandoPresencia || _capturandoFoto || _subiendoPresencia) return;
+    if (!_fotoEditable || _capturandoFoto || _subiendoPresencia) return;
     setState(() => _capturandoFoto = true);
     File? archivo;
     try {
@@ -1543,18 +1570,20 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       if (mounted) setState(() => _capturandoFoto = false);
     }
     if (archivo == null || !mounted) return;
+    if (_cerrandoVisita) return;
+    final fotoAnterior = _foto;
     setState(() => _foto = archivo);
-    await _registrarFotoPresencia(archivo);
+    await _registrarFotoPresencia(archivo, fotoAnterior: fotoAnterior);
   }
 
-  Future<void> _registrarFotoPresencia(File archivo) async {
+  Future<void> _registrarFotoPresencia(File archivo, {File? fotoAnterior}) async {
     setState(() => _subiendoPresencia = true);
     final idVisita = await _asegurarIdVisita();
     if (!mounted) return;
 
     if (idVisita != null) {
       try {
-        await _evidenciaRepo.subirEvidencia(
+        final subida = await _evidenciaRepo.subirEvidencia(
           idVisita: idVisita,
           tipoEvidencia: EvidenciaTipo.fachada,
           archivo: archivo,
@@ -1563,6 +1592,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         setState(() {
           _fotoPresenciaEnviada = true;
           _subiendoPresencia = false;
+          _fotoLlegadaServidor = subida;
         });
         return;
       } on NetworkException {
@@ -1570,7 +1600,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         if (!mounted) return;
         setState(() {
           _subiendoPresencia = false;
-          _foto = null;
+          _foto = fotoAnterior;
         });
         _mostrarError(e.message);
         return;
@@ -1582,7 +1612,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
       if (!mounted) return;
       setState(() {
         _subiendoPresencia = false;
-        _foto = null;
+        _foto = fotoAnterior;
       });
       _mostrarError('No se pudo guardar la foto de llegada. Intentá de nuevo con conexión.');
       return;
@@ -1638,6 +1668,10 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
     var idVisita = _visita.idVisita;
     final idAgendaItem = _visita.idAgendaItem;
     if (_finalizando) return;
+    if (_capturandoFoto || _subiendoPresencia) {
+      _mostrarError('Esperá a que termine de guardarse la foto de llegada.');
+      return;
+    }
     if (!_presenciaRegistrada) {
       _mostrarError('Sacá la foto de llegada para poder finalizar la visita.');
       return;
@@ -2333,9 +2367,11 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             const SizedBox(height: 18),
             FotoLlegadaSeccion(
               foto: _foto,
+              urlRegistrada: _fotoLlegadaServidor?.urlAlmacenamiento,
               registrada: _presenciaRegistrada,
               verificando: _verificandoPresencia && !_presenciaRegistrada,
               cargando: _capturandoFoto || _subiendoPresencia,
+              editable: _fotoEditable,
               onCapturar: _capturarFoto,
             ),
             const SizedBox(height: 18),
@@ -2399,7 +2435,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             if (_hayFaltante) ...[
               _MotivoFaltanteCampo(
                 controller: _motivoFaltanteCtrl,
-                habilitado: !_finalizando,
+                habilitado: !_cerrandoVisita,
               ),
               const SizedBox(height: 14),
             ],
@@ -2408,7 +2444,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               isLoading: _finalizando,
               onPressed: (_presenciaRegistrada &&
                       _tieneOperaciones &&
-                      !_finalizando &&
+                      !_cerrandoVisita &&
+                      !_subiendoPresencia &&
+                      !_capturandoFoto &&
                       _visita.estadoVisita != VisitaEstado.pausadaSocial &&
                       _faltanteResuelto &&
                       !_auditoriaComodatoPendiente)
@@ -2419,7 +2457,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
             const SizedBox(height: 8),
             Center(
               child: TextButton.icon(
-                onPressed: (_finalizando || _cancelando || !_presenciaRegistrada)
+                onPressed: (_finalizando || _cancelando || _subiendoPresencia || _capturandoFoto || !_presenciaRegistrada)
                     ? null
                     : _cancelarVisita,
                 icon: _cancelando

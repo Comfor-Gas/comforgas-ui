@@ -8,26 +8,27 @@ import 'aviso_requisito_visita.dart';
 
 class FotoLlegadaSeccion extends StatelessWidget {
   final File? foto;
+  final String? urlRegistrada;
   final bool registrada;
   final bool verificando;
   final bool cargando;
+  final bool editable;
   final VoidCallback onCapturar;
 
   const FotoLlegadaSeccion({
     super.key,
     required this.foto,
     required this.registrada,
+    this.urlRegistrada,
     this.verificando = false,
     required this.cargando,
+    this.editable = true,
     required this.onCapturar,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (registrada && foto == null) {
-      return const _FotoRegistrada();
-    }
-    if (verificando) {
+    if (verificando && !registrada) {
       return Row(
         children: [
           const Icon(Icons.hourglass_top_rounded, size: 18, color: AppColors.steelBlue),
@@ -41,6 +42,7 @@ class FotoLlegadaSeccion extends StatelessWidget {
         ],
       );
     }
+    final tieneImagen = foto != null || (urlRegistrada != null && urlRegistrada!.trim().isNotEmpty);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -53,15 +55,23 @@ class FotoLlegadaSeccion extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        EvidenciaCapturaCard(
-          titulo: registrada ? 'Foto de llegada\nregistrada' : 'Sacá la foto de la fachada\n(obligatoria)',
-          foto: foto,
-          cargando: cargando,
-          onCapturar: onCapturar,
-        ),
+        if (registrada && !tieneImagen && !editable)
+          const SizedBox.shrink()
+        else
+          EvidenciaCapturaCard(
+            titulo: registrada
+                ? 'Foto de llegada registrada\nTocá para sacar otra'
+                : 'Sacá la foto de la fachada\n(obligatoria)',
+            foto: foto,
+            urlFoto: urlRegistrada,
+            cargando: cargando,
+            editable: editable,
+            etiquetaCambiar: 'Editar foto',
+            onCapturar: onCapturar,
+          ),
         const SizedBox(height: 10),
         if (registrada)
-          const _FotoRegistrada()
+          _FotoRegistrada(editable: editable)
         else
           const AvisoRequisitoVisita(
             icono: Icons.photo_camera_outlined,
@@ -73,17 +83,25 @@ class FotoLlegadaSeccion extends StatelessWidget {
 }
 
 class _FotoRegistrada extends StatelessWidget {
-  const _FotoRegistrada();
+  final bool editable;
+
+  const _FotoRegistrada({required this.editable});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.check_circle, size: 18, color: AppColors.badgeGreen),
+        Icon(
+          editable ? Icons.check_circle : Icons.lock_outline,
+          size: 18,
+          color: editable ? AppColors.badgeGreen : AppColors.steelBlue,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Foto de llegada registrada.',
+            editable
+                ? 'Foto de llegada registrada. Tocá el lápiz para cambiarla mientras la visita esté en curso.'
+                : 'Foto de llegada registrada. Ya no se puede modificar.',
             style: AppTextStyles.footer.copyWith(color: AppColors.graphiteGray, fontWeight: FontWeight.w600),
           ),
         ),

@@ -45,7 +45,6 @@ class GestionChoferesRepository {
 
   Future<ChoferCuenta?> crear({
     required String email,
-    required String password,
     required ChoferExterno chofer,
   }) async {
     final response = await _enviar(() => _client.post(
@@ -53,10 +52,9 @@ class GestionChoferesRepository {
           headers: _headers,
           body: jsonEncode({
             'email': email.trim(),
-            'password': password,
             'idChoferExterno': chofer.idChoferExterno,
             'nombre': chofer.nombre,
-            if (chofer.documento != null) 'documento': chofer.documento,
+            'documento': chofer.documento ?? chofer.idChoferExterno,
           }),
         ));
     return _cuenta(response.body);
@@ -64,16 +62,12 @@ class GestionChoferesRepository {
 
   Future<ChoferCuenta?> editar({
     required String idUsuario,
-    String? email,
-    String? password,
+    required String email,
   }) async {
     final response = await _enviar(() => _client.patch(
           _uri(ApiConfig.adminChoferPath(idUsuario)),
           headers: _headers,
-          body: jsonEncode({
-            if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
-            if (password != null && password.isNotEmpty) 'password': password,
-          }),
+          body: jsonEncode({'email': email.trim()}),
         ));
     return _cuenta(response.body);
   }

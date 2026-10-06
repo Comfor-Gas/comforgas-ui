@@ -17,14 +17,13 @@ class ApiConfig {
   }
 
   static const String loginPath = '/api/auth/login';
+  static const String choferLoginPath = '/api/auth/chofer/login';
   static const String refreshPath = '/api/auth/refresh';
   static const String logoutPath = '/api/auth/logout';
   static const String mePath = '/api/auth/me';
   static const String registerPath = '/api/admin/usuarios';
   static const String usuariosPath = '/api/admin/usuarios';
-  static const String adminChoferesPath = '/api/admin/choferes';
-  static const String adminChoferesExternosPath = '/api/admin/choferes/externos';
-  static String adminChoferPath(String idUsuario) => '/api/admin/choferes/$idUsuario';
+  static String usuarioPath(String idUsuario) => '/api/admin/usuarios/$idUsuario';
   static const String clientesPath = '/api/clientes';
   static const String rutasPath = '/api/rutas';
   static const String visitasPath = '/api/visitas';

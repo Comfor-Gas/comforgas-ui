@@ -3,79 +3,72 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/responsive.dart';
-import '../../../models/chofer_cuenta.dart';
-import '../../../models/chofer_externo.dart';
+import '../../../models/administrador_cuenta.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
-import '../../common/filtros/filtros.dart';
 
-class DatosCuentaChofer {
+class DatosAdministrador {
+  final String nombre;
   final String email;
-  final ChoferExterno? chofer;
+  final String password;
 
-  const DatosCuentaChofer({required this.email, this.chofer});
+  const DatosAdministrador({required this.nombre, required this.email, required this.password});
 }
 
-class ChoferCuentaDialog extends StatefulWidget {
-  final ChoferCuenta? cuenta;
-  final List<ChoferExterno> disponibles;
-  final String? avisoDisponibles;
+class AdministradorDialog extends StatefulWidget {
+  final AdministradorCuenta? cuenta;
 
-  const ChoferCuentaDialog({
-    super.key,
-    this.cuenta,
-    this.disponibles = const [],
-    this.avisoDisponibles,
-  });
+  const AdministradorDialog({super.key, this.cuenta});
 
-  static Future<DatosCuentaChofer?> crear(
-    BuildContext context, {
-    required List<ChoferExterno> disponibles,
-    String? aviso,
-  }) {
-    return showDialog<DatosCuentaChofer>(
+  static Future<DatosAdministrador?> crear(BuildContext context) {
+    return showDialog<DatosAdministrador>(
       context: context,
-      builder: (_) => ChoferCuentaDialog(disponibles: disponibles, avisoDisponibles: aviso),
+      builder: (_) => const AdministradorDialog(),
     );
   }
 
-  static Future<DatosCuentaChofer?> editar(BuildContext context, ChoferCuenta cuenta) {
-    return showDialog<DatosCuentaChofer>(
+  static Future<DatosAdministrador?> editar(BuildContext context, AdministradorCuenta cuenta) {
+    return showDialog<DatosAdministrador>(
       context: context,
-      builder: (_) => ChoferCuentaDialog(cuenta: cuenta),
+      builder: (_) => AdministradorDialog(cuenta: cuenta),
     );
   }
 
   @override
-  State<ChoferCuentaDialog> createState() => _ChoferCuentaDialogState();
+  State<AdministradorDialog> createState() => _AdministradorDialogState();
 }
 
-class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
+class _AdministradorDialogState extends State<AdministradorDialog> {
   static final RegExp _regexEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  static const int _minimoPassword = 8;
 
+  final _nombre = TextEditingController();
   final _email = TextEditingController();
-  String? _idSeleccionado;
+  final _password = TextEditingController();
+  final _confirmacion = TextEditingController();
+  bool _verPassword = false;
 
   bool get _esEdicion => widget.cuenta != null;
-
-  ChoferExterno? get _seleccionado {
-    for (final c in widget.disponibles) {
-      if (c.idChoferExterno == _idSeleccionado) return c;
-    }
-    return null;
-  }
 
   @override
   void initState() {
     super.initState();
     final cuenta = widget.cuenta;
-    if (cuenta != null) _email.text = cuenta.email;
-    _email.addListener(() => setState(() {}));
+    if (cuenta != null) {
+      _nombre.text = cuenta.nombre;
+      _email.text = cuenta.email;
+    }
+    for (final c in [_nombre, _email, _password, _confirmacion]) {
+      c.addListener(() => setState(() {}));
+    }
   }
 
   @override
   void dispose() {
+    _nombre.dispose();
     _email.dispose();
+    _password.dispose();
+    _confirmacion.dispose();
     super.dispose();
   }
 
@@ -85,18 +78,44 @@ class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
     return _regexEmail.hasMatch(v) ? null : 'Ingresá un correo válido.';
   }
 
-  bool get _valido {
-    final email = _email.text.trim();
-    if (email.isEmpty || _errorEmail != null) return false;
-    if (_esEdicion) return email.toLowerCase() != widget.cuenta!.email.trim().toLowerCase();
-    return _seleccionado != null;
+  String? get _errorPassword {
+    final v = _password.text;
+    if (v.isEmpty) return null;
+    return v.length >= _minimoPassword ? null : 'Mínimo $_minimoPassword caracteres.';
   }
+
+  String? get _errorConfirmacion {
+    final v = _confirmacion.text;
+    if (v.isEmpty) return null;
+    return v == _password.text ? null : 'Las contraseñas no coinciden.';
+  }
+
+  bool get _passwordValida {
+    if (_esEdicion && _password.text.isEmpty && _confirmacion.text.isEmpty) return true;
+    return _password.text.length >= _minimoPassword && _confirmacion.text == _password.text;
+  }
+
+  bool get _hayCambios {
+    final cuenta = widget.cuenta;
+    if (cuenta == null) return true;
+    return _nombre.text.trim() != cuenta.nombre.trim() ||
+        _email.text.trim().toLowerCase() != cuenta.email.trim().toLowerCase() ||
+        _password.text.isNotEmpty;
+  }
+
+  bool get _valido =>
+      _nombre.text.trim().isNotEmpty &&
+      _email.text.trim().isNotEmpty &&
+      _errorEmail == null &&
+      _passwordValida &&
+      _hayCambios;
 
   void _confirmar() {
     if (!_valido) return;
-    Navigator.of(context).pop(DatosCuentaChofer(
+    Navigator.of(context).pop(DatosAdministrador(
+      nombre: _nombre.text.trim(),
       email: _email.text.trim(),
-      chofer: _seleccionado,
+      password: _password.text,
     ));
   }
 
@@ -129,11 +148,22 @@ class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
     );
   }
 
+  Widget _ojo() {
+    return IconButton(
+      tooltip: _verPassword ? 'Ocultar' : 'Mostrar',
+      onPressed: () => setState(() => _verPassword = !_verPassword),
+      icon: Icon(
+        _verPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+        size: 19,
+        color: AppColors.graphiteGray,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final movil = Responsive.isMobileContext(context);
     final ancho = math.min(440.0, MediaQuery.sizeOf(context).width - 64);
-    final cuenta = widget.cuenta;
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: movil
@@ -158,7 +188,7 @@ class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              _esEdicion ? 'Editar correo' : 'Nuevo chofer',
+              _esEdicion ? 'Editar administrador' : 'Nuevo administrador',
               style: AppTextStyles.title.copyWith(fontSize: 18),
             ),
           ),
@@ -171,68 +201,53 @@ class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (cuenta != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.inputBorder),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.badge_outlined, size: 18, color: AppColors.steelBlue),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          cuenta.nombreMostrado,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.label.copyWith(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else ...[
-                Text('Chofer', style: AppTextStyles.label.copyWith(fontSize: 13)),
-                const SizedBox(height: 8),
-                FiltroBuscable(
-                  etiqueta: 'Chofer de la API',
-                  icono: Icons.badge_outlined,
-                  opciones: [
-                    for (final c in widget.disponibles)
-                      OpcionFiltro(
-                        c.idChoferExterno,
-                        c.documento == null ? c.nombre : '${c.nombre} · ${c.documento}',
-                      ),
-                  ],
-                  seleccion: _idSeleccionado,
-                  hint: widget.disponibles.isEmpty ? 'No hay choferes disponibles' : 'Elegí un chofer',
-                  obligatorio: true,
-                  habilitado: widget.disponibles.isNotEmpty,
-                  ancho: ancho,
-                  onCambio: (id) => setState(() => _idSeleccionado = id),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  widget.avisoDisponibles ??
-                      (widget.disponibles.isEmpty
-                          ? 'Todos los choferes de la API ya tienen una cuenta asignada.'
-                          : 'Solo aparecen los choferes que todavía no tienen cuenta.'),
-                  style: AppTextStyles.footer.copyWith(
-                    color: widget.avisoDisponibles != null ? AppColors.badgeAmber : AppColors.graphiteGray,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _nombre,
+                textCapitalization: TextCapitalization.words,
+                cursorColor: AppColors.orange,
+                decoration: _decoracion('Nombre completo', Icons.badge_outlined),
+              ),
+              const SizedBox(height: 14),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
                 cursorColor: AppColors.orange,
-                onSubmitted: (_) => _confirmar(),
                 decoration: _decoracion('Correo', Icons.alternate_email_rounded, error: _errorEmail),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _password,
+                obscureText: !_verPassword,
+                autocorrect: false,
+                enableSuggestions: false,
+                cursorColor: AppColors.orange,
+                decoration: _decoracion(
+                  _esEdicion ? 'Nueva contraseña' : 'Contraseña',
+                  Icons.lock_outline,
+                  error: _errorPassword,
+                  ayuda: _errorPassword == null
+                      ? (_esEdicion
+                          ? 'Dejala vacía para no cambiarla. Mínimo $_minimoPassword caracteres.'
+                          : 'Mínimo $_minimoPassword caracteres.')
+                      : null,
+                  sufijo: _ojo(),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _confirmacion,
+                obscureText: !_verPassword,
+                autocorrect: false,
+                enableSuggestions: false,
+                cursorColor: AppColors.orange,
+                onSubmitted: (_) => _confirmar(),
+                decoration: _decoracion(
+                  _esEdicion ? 'Repetir nueva contraseña' : 'Repetir contraseña',
+                  Icons.lock_outline,
+                  error: _errorConfirmacion,
+                ),
               ),
               const SizedBox(height: 14),
               Container(
@@ -248,9 +263,11 @@ class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'El chofer ingresa a la app con su usuario y contraseña de GLP Gas. '
-                        'Usá el mismo correo que tiene en GLP Gas: así, en su primer ingreso, '
-                        'la app lo vincula con esta cuenta en lugar de crear otra.',
+                        _esEdicion
+                            ? 'Si cambiás el correo o la contraseña, se cierran las sesiones abiertas '
+                                'de este administrador y tiene que volver a ingresar con los datos nuevos.'
+                            : 'El nuevo administrador ingresa al panel web con este correo y contraseña, '
+                                'en la pestaña "Administración".',
                         style: AppTextStyles.footer.copyWith(color: AppColors.steelBlue),
                       ),
                     ),
@@ -269,7 +286,7 @@ class _ChoferCuentaDialogState extends State<ChoferCuentaDialog> {
         TextButton(
           onPressed: _valido ? _confirmar : null,
           child: Text(
-            _esEdicion ? 'Guardar correo' : 'Crear cuenta',
+            _esEdicion ? 'Guardar cambios' : 'Crear administrador',
             style: AppTextStyles.button.copyWith(color: _valido ? AppColors.orange : AppColors.badgeGray),
           ),
         ),

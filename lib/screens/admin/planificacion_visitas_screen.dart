@@ -390,22 +390,37 @@ class _PlanificacionVisitasScreenState
       await _loadVisitas();
       if (!mounted) return;
 
-      if (result.insertadas > 0 && result.omitidas == 0) {
+      final hayErrores = result.errores.isNotEmpty;
+      if (hayErrores && result.insertadas == 0 && result.omitidas == 0) {
+        AppFeedback.error(
+          result.errores.join('\n'),
+          titulo: 'Error en la sincronización',
+        );
+      } else if (result.insertadas > 0 && result.omitidas == 0) {
         AppFeedback.exito(
           'Se cargaron ${result.insertadas} visita(s) para $quien el $fechaTexto.',
           titulo: 'Agenda sincronizada',
         );
-      } else if (result.insertadas == 0) {
+      } else if (result.insertadas == 0 && result.omitidas > 0) {
         AppFeedback.info(
-          'No hay visitas nuevas para $quien el $fechaTexto. '
-          'Lo que había ya estaba cargado en el sistema.',
-          titulo: 'Sin novedades',
+          'Se actualizaron ${result.omitidas} visita(s) existentes para $quien el $fechaTexto.',
+          titulo: 'Agenda actualizada',
+        );
+      } else if (result.insertadas == 0 && result.omitidas == 0) {
+        AppFeedback.info(
+          'No se encontraron visitas en la agenda para $quien el $fechaTexto.',
+          titulo: 'Sin visitas',
         );
       } else {
         AppFeedback.info(
-          'Se cargaron ${result.insertadas} visita(s) nuevas para $quien el $fechaTexto. '
-          'Las otras ${result.omitidas} ya se encontraban cargadas.',
+          'Se cargaron ${result.insertadas} visita(s) nuevas y se actualizaron ${result.omitidas} para $quien el $fechaTexto.',
           titulo: 'Agenda sincronizada parcialmente',
+        );
+      }
+      if (hayErrores && (result.insertadas > 0 || result.omitidas > 0)) {
+        AppFeedback.advertencia(
+          result.errores.join('\n'),
+          titulo: 'La sincronización tuvo errores',
         );
       }
     } on VisitaRepositoryException catch (e) {

@@ -3,41 +3,40 @@ import 'package:provider/provider.dart';
 
 import '../../core/feedback/app_feedback.dart';
 import '../../core/responsive.dart';
-import '../../models/chofer_cuenta.dart';
-import '../../models/chofer_externo.dart';
+import '../../models/administrador_cuenta.dart';
 import '../../providers/auth_provider.dart';
-import '../../repositories/gestion_choferes_repository.dart';
+import '../../repositories/gestion_administradores_repository.dart';
 import '../../repositories/network_exception.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
-import '../../widgets/admin/choferes/chofer_cuenta_dialog.dart';
-import '../../widgets/admin/choferes/choferes_lista.dart';
+import '../../widgets/admin/administradores/administrador_dialog.dart';
+import '../../widgets/admin/administradores/administradores_lista.dart';
+import '../../widgets/admin/administradores/confirmar_baja_administrador_dialog.dart';
 import '../../widgets/admin/flota/flota_stat_card.dart';
 import '../../widgets/common/carga/zona_carga.dart';
 import '../../widgets/common/filtros/filtros.dart';
 
-class GestionChoferesScreen extends StatefulWidget {
-  const GestionChoferesScreen({super.key});
+class GestionAdministradoresScreen extends StatefulWidget {
+  const GestionAdministradoresScreen({super.key});
 
   @override
-  State<GestionChoferesScreen> createState() => _GestionChoferesScreenState();
+  State<GestionAdministradoresScreen> createState() => _GestionAdministradoresScreenState();
 }
 
-class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
-  late final GestionChoferesRepository _repo;
+class _GestionAdministradoresScreenState extends State<GestionAdministradoresScreen> {
+  late final GestionAdministradoresRepository _repo;
   final _busqueda = TextEditingController();
 
-  List<ChoferCuenta> _cuentas = const [];
-  List<ChoferExterno> _externos = const [];
+  List<AdministradorCuenta> _cuentas = const [];
+  String? _idPrincipal;
   bool _cargando = true;
   bool _guardando = false;
   String? _error;
-  String? _avisoExternos;
 
   @override
   void initState() {
     super.initState();
-    _repo = GestionChoferesRepository(context.read<AuthProvider>().apiClient);
+    _repo = GestionAdministradoresRepository(context.read<AuthProvider>().apiClient);
     _busqueda.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _cargar();
@@ -55,30 +54,26 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
       _cargando = true;
       _error = null;
     });
-    String? avisoExternos;
-    final externosFuture = _repo.listarExternos().catchError((Object e) {
-      avisoExternos = e is GestionChoferesException && e.endpointNoDisponible
-          ? 'El backend todavía no expone la lista de choferes de la API.'
-          : 'No se pudo cargar la lista de choferes de la API.';
-      return <ChoferExterno>[];
-    });
     try {
-      final cuentas = await _repo.listarCuentas();
-      final externos = await externosFuture;
+      final cuentas = await _repo.listar();
       if (!mounted) return;
-      cuentas.sort((a, b) => a.nombreMostrado.toLowerCase().compareTo(b.nombreMostrado.toLowerCase()));
+      final principal = idAdministradorPrincipal(cuentas);
+      cuentas.sort((a, b) {
+        if (a.id == principal) return -1;
+        if (b.id == principal) return 1;
+        return a.nombreMostrado.toLowerCase().compareTo(b.nombreMostrado.toLowerCase());
+      });
       setState(() {
         _cuentas = cuentas;
-        _externos = externos;
-        _avisoExternos = avisoExternos;
+        _idPrincipal = principal;
         _cargando = false;
       });
     } on NetworkException {
-      _fallo('Sin conexión: no se pudieron cargar los choferes.');
-    } on GestionChoferesException catch (e) {
+      _fallo('Sin conexión: no se pudieron cargar los administradores.');
+    } on GestionAdministradoresException catch (e) {
       _fallo(e.message);
     } catch (_) {
-      _fallo('No se pudieron cargar los choferes.');
+      _fallo('No se pudieron cargar los administradores.');
     }
   }
 
@@ -90,23 +85,7 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
     });
   }
 
-  List<ChoferExterno> get _disponibles {
-    final idsAsignados = {
-      for (final c in _cuentas)
-        if (c.idChoferExterno != null) c.idChoferExterno!,
-    };
-    final nombresAsignados = {for (final c in _cuentas) normalizarNombreChofer(c.nombre)};
-    final lista = _externos
-        .where((e) =>
-            !e.asignado &&
-            !idsAsignados.contains(e.idChoferExterno) &&
-            !nombresAsignados.contains(e.claveNombre))
-        .toList()
-      ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
-    return lista;
-  }
-
-  List<ChoferCuenta> get _filtradas {
+  List<AdministradorCuenta> get _filtradas {
     final q = _busqueda.text.trim().toLowerCase();
     if (q.isEmpty) return _cuentas;
     return _cuentas
@@ -114,32 +93,65 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
         .toList();
   }
 
+  AdministradorCuenta? get _principal {
+    for (final c in _cuentas) {
+      if (c.id == _idPrincipal) return c;
+    }
+    return null;
+  }
+
   Future<void> _crear() async {
     if (_guardando) return;
-    final datos = await ChoferCuentaDialog.crear(
-      context,
-      disponibles: _disponibles,
-      aviso: _avisoExternos,
-    );
-    final chofer = datos?.chofer;
-    if (datos == null || chofer == null || !mounted) return;
-    await _guardar(
-      () => _repo.crear(email: datos.email, chofer: chofer),
-      'Cuenta creada para ${chofer.nombre}.',
-    );
-  }
-
-  Future<void> _editar(ChoferCuenta cuenta) async {
-    if (_guardando) return;
-    final datos = await ChoferCuentaDialog.editar(context, cuenta);
+    final datos = await AdministradorDialog.crear(context);
     if (datos == null || !mounted) return;
-    await _guardar(
-      () => _repo.editar(idUsuario: cuenta.idUsuario, email: datos.email),
-      'Cuenta de ${cuenta.nombreMostrado} actualizada.',
+    await _ejecutar(
+      () => _repo.crear(nombre: datos.nombre, email: datos.email, password: datos.password),
+      'Administrador ${datos.nombre} creado.',
     );
   }
 
-  Future<void> _guardar(Future<Object?> Function() accion, String exito) async {
+  Future<void> _editar(AdministradorCuenta cuenta) async {
+    if (_guardando) return;
+    final idActual = context.read<AuthProvider>().user?.id;
+    if (cuenta.id == _idPrincipal && idActual != _idPrincipal) {
+      AppFeedback.advertencia('Solo la cuenta principal puede editar sus propios datos.');
+      return;
+    }
+    final datos = await AdministradorDialog.editar(context, cuenta);
+    if (datos == null || !mounted) return;
+    final nombreCambio = datos.nombre.trim() != cuenta.nombre.trim();
+    final emailCambio = datos.email.trim().toLowerCase() != cuenta.email.trim().toLowerCase();
+    await _ejecutar(
+      () => _repo.editar(
+        idUsuario: cuenta.id,
+        nombre: nombreCambio ? datos.nombre : null,
+        email: emailCambio ? datos.email : null,
+        password: datos.password.isEmpty ? null : datos.password,
+      ),
+      'Datos de ${datos.nombre} actualizados.',
+    );
+  }
+
+  Future<void> _darDeBaja(AdministradorCuenta cuenta) async {
+    if (_guardando) return;
+    final idActual = context.read<AuthProvider>().user?.id;
+    if (cuenta.id == _idPrincipal) {
+      AppFeedback.advertencia('La cuenta principal no se puede dar de baja.');
+      return;
+    }
+    if (cuenta.id == idActual) {
+      AppFeedback.advertencia('No podés darte de baja a vos mismo.');
+      return;
+    }
+    final ok = await ConfirmarBajaAdministradorDialog.mostrar(context, cuenta);
+    if (!ok || !mounted) return;
+    await _ejecutar(
+      () => _repo.eliminar(cuenta.id),
+      '${cuenta.nombreMostrado} fue dado de baja.',
+    );
+  }
+
+  Future<void> _ejecutar(Future<void> Function() accion, String exito) async {
     setState(() => _guardando = true);
     try {
       await accion();
@@ -151,7 +163,7 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
       if (!mounted) return;
       setState(() => _guardando = false);
       AppFeedback.error('Sin conexión: no se guardaron los cambios.');
-    } on GestionChoferesException catch (e) {
+    } on GestionAdministradoresException catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
       AppFeedback.error(e.endpointNoDisponible
@@ -166,6 +178,7 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final idActual = context.watch<AuthProvider>().user?.id;
     return LayoutBuilder(
       builder: (context, constraints) {
         final movil = Responsive.isMobile(constraints);
@@ -184,14 +197,12 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
               ),
               const SizedBox(height: 18),
               _Indicadores(
-                cuentas: _cuentas.length,
-                sinCuenta: _disponibles.length,
-                externosDisponibles: _avisoExternos == null,
+                total: _cuentas.length,
+                principal: _principal?.nombreMostrado,
                 movil: movil,
               ),
               const SizedBox(height: 18),
               FiltrosPanel(
-                aviso: _avisoExternos,
                 filas: [
                   FilaFiltros(
                     children: [
@@ -223,7 +234,7 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
                       padding: EdgeInsets.fromLTRB(movil ? 14 : 20, 16, movil ? 14 : 20, 12),
                       child: Row(
                         children: [
-                          const Text('Choferes con cuenta', style: AppTextStyles.label),
+                          const Text('Administradores', style: AppTextStyles.label),
                           const SizedBox(width: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -248,12 +259,16 @@ class _GestionChoferesScreenState extends State<GestionChoferesScreen> {
                     else if (_error != null)
                       _ErrorCarga(mensaje: _error!, onReintentar: _cargar)
                     else
-                      ChoferesLista(
+                      AdministradoresLista(
                         cuentas: filtradas,
+                        idPrincipal: _idPrincipal,
+                        idActual: idActual,
+                        habilitado: !_guardando,
+                        onDarDeBaja: _darDeBaja,
                         onEditar: _editar,
                         mensajeVacio: _cuentas.isEmpty
-                            ? 'Todavía no hay choferes con cuenta. Creá la primera con "Nuevo chofer".'
-                            : 'Ningún chofer coincide con la búsqueda.',
+                            ? 'Todavía no hay administradores. Creá el primero con "Nuevo administrador".'
+                            : 'Ningún administrador coincide con la búsqueda.',
                       ),
                   ],
                 ),
@@ -279,12 +294,12 @@ class _Cabecera extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Gestión de Choferes',
+          'Gestión de Administradores',
           style: movil ? AppTextStyles.desktopTitle.copyWith(fontSize: 22) : AppTextStyles.desktopTitle,
         ),
         const SizedBox(height: 4),
         Text(
-          'Choferes de la API con cuenta en el sistema. Ingresan a la app con su usuario y contraseña de GLP Gas.',
+          'Cuentas con acceso al panel web. La cuenta principal no se puede dar de baja.',
           style: AppTextStyles.desktopSubtitle,
         ),
       ],
@@ -292,7 +307,7 @@ class _Cabecera extends StatelessWidget {
     final boton = ElevatedButton.icon(
       onPressed: habilitado ? onNuevo : null,
       icon: const Icon(Icons.person_add_alt_1_outlined, size: 19),
-      label: const Text('Nuevo chofer'),
+      label: const Text('Nuevo administrador'),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.orange,
         foregroundColor: AppColors.white,
@@ -322,31 +337,25 @@ class _Cabecera extends StatelessWidget {
 }
 
 class _Indicadores extends StatelessWidget {
-  final int cuentas;
-  final int sinCuenta;
-  final bool externosDisponibles;
+  final int total;
+  final String? principal;
   final bool movil;
 
-  const _Indicadores({
-    required this.cuentas,
-    required this.sinCuenta,
-    required this.externosDisponibles,
-    required this.movil,
-  });
+  const _Indicadores({required this.total, required this.principal, required this.movil});
 
   @override
   Widget build(BuildContext context) {
     final tarjetas = [
       FlotaStatCard(
-        icon: Icons.verified_user_outlined,
-        etiqueta: 'Choferes con cuenta',
-        valor: '$cuentas',
+        icon: Icons.admin_panel_settings_outlined,
+        etiqueta: 'Administradores activos',
+        valor: '$total',
         acento: AppColors.steelBlue,
       ),
       FlotaStatCard(
-        icon: Icons.person_add_alt_outlined,
-        etiqueta: 'Choferes de la API sin cuenta',
-        valor: externosDisponibles ? '$sinCuenta' : '—',
+        icon: Icons.star_outline_rounded,
+        etiqueta: 'Cuenta principal',
+        valor: principal ?? '—',
         acento: AppColors.orange,
       ),
     ];

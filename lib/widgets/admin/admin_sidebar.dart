@@ -22,7 +22,7 @@ const List<AdminNavItem> adminNavItems = [
   AdminNavItem(icon: Icons.point_of_sale_outlined, label: 'Ventas'),
   AdminNavItem(icon: Icons.assignment_outlined, label: 'Comodato'),
   AdminNavItem(icon: Icons.assignment_return_outlined, label: 'Devoluciones'),
-  AdminNavItem(icon: Icons.badge_outlined, label: 'Choferes'),
+  AdminNavItem(icon: Icons.admin_panel_settings_outlined, label: 'Administradores'),
   AdminNavItem(icon: Icons.settings_outlined, label: 'Configuración'),
 ];
 

@@ -64,7 +64,13 @@ class _EvidenciasVisitaBotonState extends State<EvidenciasVisitaBoton> {
       final fotos = await EvidenciaRepository(apiClient).listarPorVisita(idVisita);
       if (!mounted) return;
       setState(() {
-        _fotos = fotos.where((f) => f.urlAlmacenamiento.trim().isNotEmpty).toList();
+        _fotos = fotos.where((f) => f.urlAlmacenamiento.trim().isNotEmpty).toList()
+          ..sort((a, b) {
+            final fa = a.timestampCaptura ?? a.createdAt;
+            final fb = b.timestampCaptura ?? b.createdAt;
+            if (fa == null || fb == null) return (b.idFotografia ?? 0).compareTo(a.idFotografia ?? 0);
+            return fb.compareTo(fa);
+          });
         _cargando = false;
       });
     } on NetworkException {

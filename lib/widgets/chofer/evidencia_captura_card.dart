@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../common/evidencias/galeria_evidencias_dialog.dart';
 
-/// Tarjeta tipo "visor de cámara" para capturar la evidencia fotográfica
-/// (fachada, comodato) de una visita. Muestra el encuadre con esquinas
-/// mientras no hay foto, y la vista previa una vez capturada.
 class EvidenciaCapturaCard extends StatelessWidget {
   final String titulo;
   final File? foto;
+  final String? urlFoto;
   final bool cargando;
+  final bool editable;
+  final String? etiquetaCambiar;
   final VoidCallback onCapturar;
 
   const EvidenciaCapturaCard({
@@ -19,8 +20,13 @@ class EvidenciaCapturaCard extends StatelessWidget {
     required this.titulo,
     required this.onCapturar,
     this.foto,
+    this.urlFoto,
     this.cargando = false,
+    this.editable = true,
+    this.etiquetaCambiar,
   });
+
+  bool get _tieneImagen => foto != null || (urlFoto != null && urlFoto!.trim().isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +35,7 @@ class EvidenciaCapturaCard extends StatelessWidget {
       child: AspectRatio(
         aspectRatio: 4 / 3,
         child: InkWell(
-          onTap: cargando ? null : onCapturar,
+          onTap: cargando || !editable || (_tieneImagen && etiquetaCambiar != null) ? null : onCapturar,
           child: Ink(
             decoration: BoxDecoration(color: AppColors.graphiteGray.withOpacity(0.9)),
             child: Stack(
@@ -37,9 +43,70 @@ class EvidenciaCapturaCard extends StatelessWidget {
               children: [
                 if (foto != null)
                   Image.file(foto!, fit: BoxFit.cover)
+                else if (_tieneImagen)
+                  Image.network(
+                    urlEvidencia(urlFoto!),
+                    fit: BoxFit.cover,
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.orange),
+                      );
+                    },
+                    errorBuilder: (context, error, stack) => Container(
+                      color: const Color(0xFF3A4552),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.image_not_supported_outlined, color: Colors.white70, size: 30),
+                    ),
+                  )
                 else
                   Container(color: const Color(0xFF3A4552)),
-                if (foto == null) ...[
+                if (_tieneImagen && editable && etiquetaCambiar != null && !cargando)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Material(
+                      color: AppColors.orange,
+                      shape: const CircleBorder(),
+                      elevation: 3,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: onCapturar,
+                        child: Tooltip(
+                          message: etiquetaCambiar!,
+                          child: const Padding(
+                            padding: EdgeInsets.all(9),
+                            child: Icon(Icons.edit_rounded, size: 18, color: AppColors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_tieneImagen && !editable)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.steelBlue.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline, size: 14, color: AppColors.white),
+                          SizedBox(width: 5),
+                          Text(
+                            'Bloqueada',
+                            style: TextStyle(color: AppColors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (!_tieneImagen) ...[
                   Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,

@@ -28,6 +28,7 @@ dependencies:
   flutter_map_cancellable_tile_provider: ^3.0.2
   latlong2: ^0.9.1
   stomp_dart_client: ^3.0.1
+  http_parser: ^4.1.2
 
 dev_dependencies:
   flutter_test:

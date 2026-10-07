@@ -42,7 +42,7 @@ class VisitaCheckinCard extends StatelessWidget {
             border: Border.all(color: AppColors.inputBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -52,7 +52,7 @@ class VisitaCheckinCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: AppColors.steelBlue.withOpacity(0.1),
+                backgroundColor: AppColors.steelBlue.withValues(alpha: 0.1),
                 child: const Icon(Icons.storefront_outlined, color: AppColors.steelBlue),
               ),
               const SizedBox(width: 12),
@@ -76,7 +76,7 @@ class VisitaCheckinCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: AppColors.steelBlue.withOpacity(0.08),
+                              color: AppColors.steelBlue.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(

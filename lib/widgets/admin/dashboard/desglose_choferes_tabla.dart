@@ -213,7 +213,7 @@ class _DesgloseChoferesTablaState extends State<DesgloseChoferesTabla> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: alterna ? AppColors.background.withOpacity(0.5) : AppColors.white,
+        color: alterna ? AppColors.background.withValues(alpha: 0.5) : AppColors.white,
         border: const Border(bottom: BorderSide(color: AppColors.inputBorder, width: 0.6)),
       ),
       child: Row(

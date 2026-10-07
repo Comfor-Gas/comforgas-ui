@@ -37,7 +37,7 @@ class EvidenciaCapturaCard extends StatelessWidget {
         child: InkWell(
           onTap: cargando || !editable || (_tieneImagen && etiquetaCambiar != null) ? null : onCapturar,
           child: Ink(
-            decoration: BoxDecoration(color: AppColors.graphiteGray.withOpacity(0.9)),
+            decoration: BoxDecoration(color: AppColors.graphiteGray.withValues(alpha: 0.9)),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -90,7 +90,7 @@ class EvidenciaCapturaCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.steelBlue.withOpacity(0.9),
+                        color: AppColors.steelBlue.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Row(
@@ -128,7 +128,7 @@ class EvidenciaCapturaCard extends StatelessWidget {
                 ],
                 if (cargando)
                   Container(
-                    color: Colors.black.withOpacity(0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                     child: const Center(
                       child: SizedBox(
                         height: 30,

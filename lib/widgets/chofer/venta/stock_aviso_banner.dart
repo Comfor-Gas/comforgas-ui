@@ -18,9 +18,9 @@ class StockAvisoBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.12),
+        color: AppColors.badgeAmber.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

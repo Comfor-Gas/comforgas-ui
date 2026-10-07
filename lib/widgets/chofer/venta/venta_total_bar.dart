@@ -32,7 +32,7 @@ class VentaTotalBar extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),
@@ -109,9 +109,9 @@ class _AvisoInconsistencia extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.10),
+        color: AppColors.badgeAmber.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.45)),
       ),
       child: Row(
         children: [

@@ -221,7 +221,7 @@ class _EncabezadoProducto extends StatelessWidget {
           height: 48,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.orange.withOpacity(0.12),
+            color: AppColors.orange.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
           ),
           child: const Icon(
@@ -240,7 +240,7 @@ class _EncabezadoProducto extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: tipoColor.withOpacity(0.12),
+                  color: tipoColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -331,9 +331,9 @@ class _BannerError extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.10),
+        color: AppColors.badgeAmber.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.45)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

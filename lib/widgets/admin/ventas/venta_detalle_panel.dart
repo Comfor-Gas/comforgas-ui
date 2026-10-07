@@ -52,7 +52,7 @@ class _PanelVacio extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.receipt_long_outlined,
-              size: 44, color: AppColors.inputHint.withOpacity(0.7)),
+              size: 44, color: AppColors.inputHint.withValues(alpha: 0.7)),
           const SizedBox(height: 14),
           Text(
             'Seleccioná una venta',
@@ -281,7 +281,7 @@ class _ArticuloCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.orange.withOpacity(0.12),
+                  color: AppColors.orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(

@@ -42,7 +42,7 @@ class CanjeReporte {
       DateTime? ultimo;
       for (final e in items) {
         final u = e.ultimoCanje;
-        if (u != null && (ultimo == null || u.isAfter(ultimo!))) ultimo = u;
+        if (u != null && (ultimo == null || u.isAfter(ultimo))) ultimo = u;
       }
       items.sort((a, b) => b.cantidad.compareTo(a.cantidad));
       return CanjeReporteGrupo(

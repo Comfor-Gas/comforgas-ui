@@ -454,9 +454,9 @@ class _AgendaChoferScreenState extends State<AgendaChoferScreen> {
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: AppColors.badgeBlue.withOpacity(0.1),
+                              color: AppColors.badgeBlue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.badgeBlue.withOpacity(0.35)),
+                              border: Border.all(color: AppColors.badgeBlue.withValues(alpha: 0.35)),
                             ),
                             child: Row(
                               children: [
@@ -903,9 +903,9 @@ class _DetalleVisitaSheet extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.badgeAmber.withOpacity(0.12),
+                color: AppColors.badgeAmber.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
@@ -962,7 +962,7 @@ class _DetalleIdTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

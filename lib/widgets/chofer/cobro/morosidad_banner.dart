@@ -52,7 +52,7 @@ class MorosidadBanner extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.white.withOpacity(0.95),
+                    color: AppColors.white.withValues(alpha: 0.95),
                   ),
                 ),
               ],

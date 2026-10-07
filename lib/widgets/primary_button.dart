@@ -28,16 +28,16 @@ class _PrimaryButtonState extends State<PrimaryButton> {
 
     final Color backgroundColor;
     if (inactive) {
-      backgroundColor = AppColors.badgeGray.withOpacity(0.55);
+      backgroundColor = AppColors.badgeGray.withValues(alpha: 0.55);
     } else if (_pressed) {
       backgroundColor = const Color(0xFFD8611A);
     } else {
       backgroundColor =
-          AppColors.orange.withOpacity(widget.isLoading ? 0.7 : 1);
+          AppColors.orange.withValues(alpha: widget.isLoading ? 0.7 : 1);
     }
 
     final Color contentColor =
-        inactive ? Colors.white.withOpacity(0.9) : AppColors.white;
+        inactive ? Colors.white.withValues(alpha: 0.9) : AppColors.white;
 
     return MouseRegion(
       cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
@@ -57,7 +57,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
                 ? []
                 : [
                     BoxShadow(
-                      color: AppColors.orange.withOpacity(0.35),
+                      color: AppColors.orange.withValues(alpha: 0.35),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),

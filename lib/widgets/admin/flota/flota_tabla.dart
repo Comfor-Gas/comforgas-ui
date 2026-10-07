@@ -190,8 +190,8 @@ class _FilaCamion extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: seleccionado ? AppColors.orange.withOpacity(0.06) : Colors.transparent,
-        border: Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.6))),
+        color: seleccionado ? AppColors.orange.withValues(alpha: 0.06) : Colors.transparent,
+        border: Border(bottom: BorderSide(color: AppColors.inputBorder.withValues(alpha: 0.6))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -452,7 +452,7 @@ class _NotaEstadoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

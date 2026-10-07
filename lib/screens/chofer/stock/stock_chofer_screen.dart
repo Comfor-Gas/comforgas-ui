@@ -228,9 +228,9 @@ class _AvisoError extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.12),
+        color: AppColors.badgeAmber.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [

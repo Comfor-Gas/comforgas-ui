@@ -32,7 +32,7 @@ class HistorialRecargasPanel extends StatefulWidget {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Historial',
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       transitionDuration: const Duration(milliseconds: 260),
       pageBuilder: (_, __, ___) => Align(
         alignment: Alignment.centerRight,
@@ -256,7 +256,7 @@ class _ResumenAcumulado extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: AppColors.white.withOpacity(0.8),
+              color: AppColors.white.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 8),
@@ -291,7 +291,7 @@ class _ResumenAcumulado extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.white.withOpacity(0.12),
+              color: AppColors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -299,7 +299,7 @@ class _ResumenAcumulado extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: AppColors.white.withOpacity(0.9),
+                color: AppColors.white.withValues(alpha: 0.9),
               ),
             ),
           ),
@@ -366,10 +366,10 @@ class _FilaHistorial extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: primero ? AppColors.orange.withOpacity(0.06) : AppColors.white,
+                color: primero ? AppColors.orange.withValues(alpha: 0.06) : AppColors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: primero ? AppColors.orange.withOpacity(0.4) : AppColors.inputBorder,
+                  color: primero ? AppColors.orange.withValues(alpha: 0.4) : AppColors.inputBorder,
                 ),
               ),
               child: Column(
@@ -460,9 +460,9 @@ class _AvisoError extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.08),
+        color: AppColors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withOpacity(0.35)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [

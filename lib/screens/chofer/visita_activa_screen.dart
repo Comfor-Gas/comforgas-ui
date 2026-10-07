@@ -495,7 +495,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           _comodatoPendienteSync = false;
         });
         return;
-      } on NetworkException {}
+      } on NetworkException catch (_) {}
     }
 
     if (idAgendaItem == null) {
@@ -630,8 +630,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         final canjes = await _canjeRepo.getCanjesDeVisita(idVisita);
         if (!mounted) return;
         _canjesServidor = canjes.map(_draftDeCanje).toList();
-      } on NetworkException {
-      } on CanjeRepositoryException {}
+      } on NetworkException catch (_) {} on CanjeRepositoryException catch (_) {}
     }
     _recomputarCanjes();
   }
@@ -702,7 +701,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         _canjesServidor = [..._canjesServidor, draft];
         _recomputarCanjes();
         return;
-      } on NetworkException {}
+      } on NetworkException catch (_) {}
     }
 
     if (idAgendaItem == null) {
@@ -1055,9 +1054,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           if (_foto == null) _fotoLlegadaServidor = ultima;
         });
       }
-    } on NetworkException {
-    } on EvidenciaRepositoryException {
-    } catch (_) {
+    } on NetworkException catch (_) {} on EvidenciaRepositoryException catch (_) {} catch (_) {
     } finally {
       if (mounted) setState(() => _verificandoPresencia = false);
     }
@@ -1184,8 +1181,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         if (mounted) setState(() => _procesandoSocial = false);
         _mostrarErrorSocial(e.message);
         return false;
-      } on NetworkException {
-      } catch (_) {
+      } on NetworkException catch (_) {} catch (_) {
         if (mounted) setState(() => _procesandoSocial = false);
         _mostrarErrorSocial('No se pudo iniciar la Venta Social.');
         return false;
@@ -1297,8 +1293,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         if (mounted) setState(() => _procesandoSocial = false);
         _mostrarErrorSocial(e.message);
         return false;
-      } on NetworkException {
-      } catch (_) {
+      } on NetworkException catch (_) {} catch (_) {
         if (mounted) setState(() => _procesandoSocial = false);
         _mostrarErrorSocial('No se pudo finalizar la Venta Social.');
         return false;
@@ -1491,8 +1486,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           ));
         });
         return;
-      } on NetworkException {
-      }
+      } on NetworkException catch (_) {}
     }
 
     if (idAgendaItem == null) {
@@ -1595,8 +1589,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           _fotoLlegadaServidor = subida;
         });
         return;
-      } on NetworkException {
-      } on EvidenciaRepositoryException catch (e) {
+      } on NetworkException catch (_) {} on EvidenciaRepositoryException catch (e) {
         if (!mounted) return;
         setState(() {
           _subiendoPresencia = false;
@@ -1857,8 +1850,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         if (!mounted) return;
         Navigator.of(context).pop(cerrada.copyWith(idAgendaItem: _visita.idAgendaItem));
         return;
-      } on NetworkException {
-      } on VisitaRepositoryException catch (e) {
+      } on NetworkException catch (_) {} on VisitaRepositoryException catch (e) {
         if (!mounted) return;
         setState(() => _cancelando = false);
         _mostrarError(e.message);
@@ -2015,7 +2007,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         Navigator.of(context).pop(_visita);
       },
@@ -2057,9 +2049,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.badgeGreen.withOpacity(0.1),
+            color: AppColors.badgeGreen.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.badgeGreen.withOpacity(0.5)),
+            border: Border.all(color: AppColors.badgeGreen.withValues(alpha: 0.5)),
           ),
           child: Row(
             children: [
@@ -2117,7 +2109,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: esPausada ? AppColors.steelBlue.withOpacity(0.55) : AppColors.inputBorder,
+            color: esPausada ? AppColors.steelBlue.withValues(alpha: 0.55) : AppColors.inputBorder,
           ),
         ),
         child: Column(
@@ -2134,7 +2126,7 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: AppColors.steelBlue.withOpacity(0.12),
+                      color: AppColors.steelBlue.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -2333,9 +2325,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.badgeAmber.withOpacity(0.12),
+                  color: AppColors.badgeAmber.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                  border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
                 ),
                 child: const Row(
                   children: [
@@ -2406,9 +2398,9 @@ class _VisitaActivaScreenState extends State<VisitaActivaScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.steelBlue.withOpacity(0.08),
+                  color: AppColors.steelBlue.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: const [
@@ -2508,12 +2500,10 @@ String? detalleGarrafasDeVenta(VentaEnVisita venta) {
 class _FilaVentaRegistrada extends StatelessWidget {
   final VentaEnVisita venta;
   final bool online;
-  final VoidCallback? onCobrar;
 
   const _FilaVentaRegistrada({
     required this.venta,
     required this.online,
-    this.onCobrar,
   });
 
   @override
@@ -2526,7 +2516,7 @@ class _FilaVentaRegistrada extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borde.withOpacity(0.5)),
+        border: Border.all(color: borde.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2575,20 +2565,6 @@ class _FilaVentaRegistrada extends StatelessWidget {
           Row(
             children: [
               Expanded(child: _estado()),
-              if (onCobrar != null)
-                TextButton(
-                  onPressed: onCobrar,
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.orange,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    minimumSize: const Size(0, 0),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text(
-                    'Cobrar',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                  ),
-                ),
             ],
           ),
         ],
@@ -2647,9 +2623,9 @@ class _MotivoFaltanteCampo extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.10),
+        color: AppColors.badgeAmber.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2712,9 +2688,9 @@ class _AvisoVentaPausada extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.30)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.30)),
       ),
       child: Row(
         children: [

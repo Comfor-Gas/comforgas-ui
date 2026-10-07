@@ -36,7 +36,7 @@ class _AuditoriaComodatoTarjetaState extends State<AuditoriaComodatoTarjeta> {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: c.tieneFaltante ? AppColors.badgeRed.withOpacity(0.45) : AppColors.inputBorder,
+          color: c.tieneFaltante ? AppColors.badgeRed.withValues(alpha: 0.45) : AppColors.inputBorder,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -100,7 +100,7 @@ class _AuditoriaComodatoTarjetaState extends State<AuditoriaComodatoTarjeta> {
             ),
           ),
           if (_tieneObs) ...[
-            Container(height: 1, color: AppColors.inputBorder.withOpacity(0.6)),
+            Container(height: 1, color: AppColors.inputBorder.withValues(alpha: 0.6)),
             InkWell(
               onTap: () => setState(() => _expandido = !_expandido),
               child: Padding(

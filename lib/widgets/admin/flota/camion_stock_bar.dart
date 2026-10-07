@@ -63,7 +63,7 @@ class CamionStockBar extends StatelessWidget {
                 Container(
                   height: compacto ? 7 : 9,
                   decoration: BoxDecoration(
-                    color: AppColors.inputBorder.withOpacity(0.6),
+                    color: AppColors.inputBorder.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),

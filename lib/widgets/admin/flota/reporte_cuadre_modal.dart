@@ -16,7 +16,7 @@ class ReporteCuadreModal extends StatefulWidget {
   static Future<void> mostrar(BuildContext context, {required CargarCuadre cargar}) {
     return showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.45),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (_) => ReporteCuadreModal(cargar: cargar),
     );
   }
@@ -332,14 +332,13 @@ class _LineaTriple extends StatelessWidget {
   final int llenos;
   final int vacios;
   final int averiados;
-  final bool resaltarNoCero;
+  final bool resaltarNoCero = false;
 
   const _LineaTriple({
     required this.titulo,
     required this.llenos,
     required this.vacios,
     required this.averiados,
-    this.resaltarNoCero = false,
   });
 
   Color _color(int v) {
@@ -383,7 +382,7 @@ class _ChipCuadra extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -408,9 +407,9 @@ class _Aviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.12),
+        color: AppColors.badgeAmber.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [

@@ -567,9 +567,9 @@ class _AvisoPrecargado extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -609,9 +609,9 @@ class _RendicionEnviadaAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: AppColors.badgeGreen.withOpacity(0.12),
+        color: AppColors.badgeGreen.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.badgeGreen.withOpacity(0.45)),
+        border: Border.all(color: AppColors.badgeGreen.withValues(alpha: 0.45)),
       ),
       child: Row(
         children: [
@@ -653,9 +653,9 @@ class _AvisoPendiente extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.12),
+        color: AppColors.badgeAmber.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
@@ -785,7 +785,7 @@ class _ProductoPlegableState extends State<_ProductoPlegable> {
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: total > 0 ? AppColors.orange.withOpacity(0.4) : AppColors.inputBorder,
+          color: total > 0 ? AppColors.orange.withValues(alpha: 0.4) : AppColors.inputBorder,
         ),
       ),
       child: Column(
@@ -972,9 +972,9 @@ class _Resumen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.06),
+        color: AppColors.steelBlue.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.30)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.30)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

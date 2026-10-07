@@ -244,8 +244,8 @@ class _TendenciaChartCardState extends State<TendenciaChartCard> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    DashboardPaleta.serieNaranja.withOpacity(0.18),
-                    DashboardPaleta.serieNaranja.withOpacity(0.0),
+                    DashboardPaleta.serieNaranja.withValues(alpha: 0.18),
+                    DashboardPaleta.serieNaranja.withValues(alpha: 0.0),
                   ],
                 ),
               ),

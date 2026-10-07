@@ -258,7 +258,7 @@ class SelectorFechaUnica extends StatelessWidget {
             onTap: () => onCambio(o.$2),
           ),
         ChipFiltro(
-          etiqueta: coincide || actual == null ? 'Otra fecha' : formatFechaFiltro(actual),
+          etiqueta: actual == null || coincide ? 'Otra fecha' : formatFechaFiltro(actual),
           icono: Icons.calendar_today_outlined,
           activo: !coincide,
           onTap: () async {

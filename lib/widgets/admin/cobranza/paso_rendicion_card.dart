@@ -72,7 +72,7 @@ class PasoRendicionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: destacado ? AppColors.orange.withOpacity(0.5) : AppColors.inputBorder),
+        border: Border.all(color: destacado ? AppColors.orange.withValues(alpha: 0.5) : AppColors.inputBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -86,7 +86,7 @@ class PasoRendicionCard extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icono, color: color, size: 20),

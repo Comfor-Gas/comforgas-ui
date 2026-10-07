@@ -82,7 +82,7 @@ class _BotonExport extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       decoration: BoxDecoration(
-        color: cargando ? fondo.withOpacity(0.75) : fondo,
+        color: cargando ? fondo.withValues(alpha: 0.75) : fondo,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(

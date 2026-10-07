@@ -176,7 +176,7 @@ class _AdministradorDialogState extends State<AdministradorDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.orange.withOpacity(0.12),
+              color: AppColors.orange.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -253,7 +253,7 @@ class _AdministradorDialogState extends State<AdministradorDialog> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.steelBlue.withOpacity(0.06),
+                  color: AppColors.steelBlue.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(

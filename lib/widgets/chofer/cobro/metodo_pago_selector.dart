@@ -50,7 +50,7 @@ class _MetodoChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: activo ? AppColors.orange.withOpacity(0.08) : AppColors.white,
+          color: activo ? AppColors.orange.withValues(alpha: 0.08) : AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color, width: activo ? 1.6 : 1),
         ),

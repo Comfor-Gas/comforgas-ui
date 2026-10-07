@@ -126,7 +126,7 @@ class _ChoferPerfilTabState extends State<_ChoferPerfilTab> {
             const SizedBox(height: 20),
             CircleAvatar(
               radius: 36,
-              backgroundColor: AppColors.steelBlue.withOpacity(0.1),
+              backgroundColor: AppColors.steelBlue.withValues(alpha: 0.1),
               child: const Icon(Icons.person, size: 36, color: AppColors.steelBlue),
             ),
             const SizedBox(height: 16),
@@ -159,7 +159,7 @@ class _ChoferPerfilTabState extends State<_ChoferPerfilTab> {
                 child: SwitchListTile.adaptive(
                   value: _biometricEnabled,
                   onChanged: _togglingBiometric ? null : _onBiometricToggle,
-                  activeColor: AppColors.orange,
+                  activeThumbColor: AppColors.orange,
                   title: const Text('Ingreso con huella o PIN', style: AppTextStyles.label),
                   subtitle: const Text(
                     'Usá tu huella, rostro o el código del celular para entrar más rápido.',

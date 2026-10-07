@@ -470,7 +470,7 @@ class _Encabezado extends StatelessWidget {
       color: AppColors.steelBlue,
       child: InkWell(
         onTap: onToggle,
-        hoverColor: Colors.white.withOpacity(0.05),
+        hoverColor: Colors.white.withValues(alpha: 0.05),
         child: Container(
           padding: EdgeInsets.all(mobile ? 14 : 18),
           child: Column(
@@ -495,7 +495,7 @@ class _Encabezado extends StatelessWidget {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: mobile ? 8 : 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -563,7 +563,7 @@ class _DatoCabecera extends StatelessWidget {
           style: TextStyle(
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
-            color: Colors.white.withOpacity(0.65),
+            color: Colors.white.withValues(alpha: 0.65),
             letterSpacing: 0.6,
           ),
         ),
@@ -813,7 +813,7 @@ class _OrdenChip extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.orange.withOpacity(0.1),
+        color: AppColors.orange.withValues(alpha: 0.1),
         border: Border.all(color: AppColors.orange, width: 1.4),
       ),
       child: Text(

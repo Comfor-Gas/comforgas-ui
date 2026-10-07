@@ -549,9 +549,9 @@ class _AvisoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -702,7 +702,7 @@ class _CierreArqueoDialogState extends State<_CierreArqueoDialog> {
                   enabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: _hayDiferencia && _observacion.text.trim().isEmpty
-                          ? AppColors.orange.withOpacity(0.6)
+                          ? AppColors.orange.withValues(alpha: 0.6)
                           : AppColors.inputBorder,
                     ),
                   ),
@@ -771,7 +771,7 @@ class _FilaMontoArqueo extends StatelessWidget {
     final colorDif = dif == 0 ? AppColors.badgeGreen : (dif > 0 ? AppColors.steelBlue : AppColors.error);
     final borde = ultima
         ? null
-        : Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.7)));
+        : Border(bottom: BorderSide(color: AppColors.inputBorder.withValues(alpha: 0.7)));
     if (Responsive.isMobileContext(context)) {
       if (esEncabezado) return const SizedBox.shrink();
       return Container(

@@ -67,7 +67,7 @@ class MiniaturaEvidencias extends StatelessWidget {
         child: Container(
           width: tamanio,
           height: tamanio,
-          decoration: _caja(borde: AppColors.orange.withOpacity(0.6), ancho: 1.4),
+          decoration: _caja(borde: AppColors.orange.withValues(alpha: 0.6), ancho: 1.4),
           child: Stack(
             fit: StackFit.expand,
             children: [

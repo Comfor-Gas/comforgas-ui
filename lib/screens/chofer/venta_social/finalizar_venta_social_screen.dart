@@ -143,7 +143,7 @@ class _FinalizarVentaSocialScreenState extends State<FinalizarVentaSocialScreen>
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: cuadra ? AppColors.badgeGreen.withOpacity(0.5) : AppColors.inputBorder,
+          color: cuadra ? AppColors.badgeGreen.withValues(alpha: 0.5) : AppColors.inputBorder,
         ),
       ),
       child: Column(
@@ -237,7 +237,7 @@ class _Encabezado extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -274,9 +274,9 @@ class _AvisoCuadre extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [

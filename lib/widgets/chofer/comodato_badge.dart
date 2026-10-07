@@ -20,9 +20,9 @@ class ComodatoBadge extends StatelessWidget {
         vertical: compacto ? 5 : 6,
       ),
       decoration: BoxDecoration(
-        color: AppColors.orange.withOpacity(0.12),
+        color: AppColors.orange.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.orange.withOpacity(0.55), width: 1.2),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.55), width: 1.2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

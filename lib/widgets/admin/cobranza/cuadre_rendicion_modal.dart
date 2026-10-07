@@ -373,9 +373,9 @@ class _DiaAnteriorAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -402,9 +402,9 @@ class _RendicionPendienteAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.12),
+        color: AppColors.badgeAmber.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
@@ -490,9 +490,9 @@ class _EstadoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         texto,
@@ -594,9 +594,9 @@ class _BadgeEstado extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.45)),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -790,9 +790,9 @@ class _BadgeDif extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.45)),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -829,7 +829,7 @@ class _BloqueEnvaseState extends State<_BloqueEnvase> {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: linea.cuadra ? AppColors.inputBorder : AppColors.badgeRed.withOpacity(0.5),
+          color: linea.cuadra ? AppColors.inputBorder : AppColors.badgeRed.withValues(alpha: 0.5),
         ),
       ),
       child: Column(
@@ -944,7 +944,7 @@ class _PanelAcciones extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.badgeGreen,
               foregroundColor: AppColors.white,
-              disabledBackgroundColor: AppColors.badgeGreen.withOpacity(0.35),
+              disabledBackgroundColor: AppColors.badgeGreen.withValues(alpha: 0.35),
               disabledForegroundColor: AppColors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -998,9 +998,9 @@ class _RutaCerradaAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.badgeGreen.withOpacity(0.12),
+        color: AppColors.badgeGreen.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeGreen.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeGreen.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
@@ -1031,9 +1031,9 @@ class _BloqueosAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.12),
+        color: AppColors.badgeAmber.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.45)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1093,9 +1093,9 @@ class _AvisoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [

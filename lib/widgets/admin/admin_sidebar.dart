@@ -32,8 +32,8 @@ class SidebarPaleta {
   static const Color lienzo = AppColors.sidebarBackground;
   static const Color lienzoAcento = Color(0xFF3D5470);
   static const Color hover = Color(0xFF3A4E66);
-  static final Color texto = Colors.white.withOpacity(0.72);
-  static final Divider divisor = Divider(color: Colors.white.withOpacity(0.14), height: 1);
+  static final Color texto = Colors.white.withValues(alpha: 0.72);
+  static final Divider divisor = Divider(color: Colors.white.withValues(alpha: 0.14), height: 1);
 }
 
 class AdminSidebar extends StatelessWidget {
@@ -59,7 +59,7 @@ class AdminSidebar extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppColors.steelBlue.withOpacity(0.18),
+              color: AppColors.steelBlue.withValues(alpha: 0.18),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -81,13 +81,13 @@ class AdminSidebar extends StatelessWidget {
         ),
         selectedItemDecoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.orange.withOpacity(0.45)),
+          border: Border.all(color: AppColors.orange.withValues(alpha: 0.45)),
           gradient: const LinearGradient(
             colors: [SidebarPaleta.lienzoAcento, SidebarPaleta.lienzo],
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.28),
+              color: Colors.black.withValues(alpha: 0.28),
               blurRadius: 30,
             ),
           ],
@@ -168,7 +168,7 @@ class _LogoCircular extends StatelessWidget {
         border: Border.all(color: AppColors.orange, width: 2),
         boxShadow: [
           BoxShadow(
-            color: AppColors.orange.withOpacity(0.35),
+            color: AppColors.orange.withValues(alpha: 0.35),
             blurRadius: 12,
           ),
         ],

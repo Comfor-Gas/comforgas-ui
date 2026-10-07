@@ -16,9 +16,9 @@ class SyncEstadoBadge extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.badgeGreen.withOpacity(0.12),
+            color: AppColors.badgeGreen.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.badgeGreen.withOpacity(0.4)),
+            border: Border.all(color: AppColors.badgeGreen.withValues(alpha: 0.4)),
           ),
           child: const Text(
             'CONSISTENTE',

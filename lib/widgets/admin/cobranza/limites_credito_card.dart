@@ -48,7 +48,7 @@ class LimitesCreditoCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.orange.withOpacity(0.12),
+                      color: AppColors.orange.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.tune_rounded, color: AppColors.orange, size: 22),
@@ -77,7 +77,7 @@ class LimitesCreditoCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.orange,
                   foregroundColor: AppColors.white,
-                  disabledBackgroundColor: AppColors.orange.withOpacity(0.4),
+                  disabledBackgroundColor: AppColors.orange.withValues(alpha: 0.4),
                   disabledForegroundColor: AppColors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -145,7 +145,7 @@ class LimitesCreditoCard extends StatelessWidget {
                     label: Text(c.nombreMostrado, overflow: TextOverflow.ellipsis),
                     onPressed: () => onEditar!(c),
                     backgroundColor: AppColors.background,
-                    side: BorderSide(color: AppColors.orange.withOpacity(0.35)),
+                    side: BorderSide(color: AppColors.orange.withValues(alpha: 0.35)),
                     labelStyle: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -181,7 +181,7 @@ class _Indicador extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

@@ -26,7 +26,7 @@ class FlotaBotonPrimario extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: habilitado ? AppColors.orange : AppColors.badgeGray.withOpacity(0.5),
+          color: habilitado ? AppColors.orange : AppColors.badgeGray.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
         ),
         child: cargando

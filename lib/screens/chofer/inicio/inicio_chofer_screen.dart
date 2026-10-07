@@ -249,9 +249,9 @@ class _Aviso extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.25)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [

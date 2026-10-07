@@ -680,7 +680,7 @@ class _WebSocketStatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -896,7 +896,7 @@ class _ZoomControls extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -950,7 +950,7 @@ class _ChoferMarker extends StatelessWidget {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(color: AppColors.white, width: 3),
-            boxShadow: [BoxShadow(color: color.withOpacity(0.35), blurRadius: 5)],
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 5)],
           ),
           child: const Icon(Icons.local_shipping, color: AppColors.white, size: 18),
         ),
@@ -993,7 +993,7 @@ class _ClusterMarker extends StatelessWidget {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(color: AppColors.white, width: 2.5),
-            boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 6)],
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 6)],
           ),
           child: Text(
             cantidad > 9 ? '9+' : '$cantidad',
@@ -1040,7 +1040,7 @@ class _VisitaMarker extends StatelessWidget {
                 color: color,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: selected ? 3 : 2),
-                boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: selected ? 10 : 4)],
+                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: selected ? 10 : 4)],
               ),
               child: Icon(icon, color: Colors.white, size: selected ? 18 : 14),
             ),
@@ -1125,10 +1125,10 @@ class _Leyenda extends StatelessWidget {
           ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
           : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: limitado ? SingleChildScrollView(child: columna) : columna,
@@ -1158,7 +1158,7 @@ class _VisitaInfoPanel extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
@@ -1167,7 +1167,7 @@ class _VisitaInfoPanel extends StatelessWidget {
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 10),
@@ -1231,7 +1231,7 @@ class _VisitaInfoPanel extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
@@ -1240,7 +1240,7 @@ class _VisitaInfoPanel extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
             child: Icon(icon, color: color),
           ),
           const SizedBox(width: 12),
@@ -1500,7 +1500,7 @@ class _VisitaRow extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? AppColors.steelBlue.withOpacity(0.06) : AppColors.background,
+          color: selected ? AppColors.steelBlue.withValues(alpha: 0.06) : AppColors.background,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected ? AppColors.steelBlue : Colors.transparent,

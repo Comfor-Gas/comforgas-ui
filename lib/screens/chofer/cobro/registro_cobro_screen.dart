@@ -698,7 +698,7 @@ class _RegistroCobroScreenState extends State<RegistroCobroScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.steelBlue.withOpacity(0.06),
+            color: AppColors.steelBlue.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -747,7 +747,7 @@ class _CanjesResumen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.orange.withOpacity(0.4)),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -813,7 +813,7 @@ class _NotaDebitoResumenCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.4)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -960,9 +960,9 @@ class _CreditoDisponibleHint extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -1078,9 +1078,9 @@ class _ResultadoFila extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: colorEstado.withOpacity(0.12),
+                  color: colorEstado.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorEstado.withOpacity(0.4)),
+                  border: Border.all(color: colorEstado.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   estado,
@@ -1121,7 +1121,7 @@ class _ClienteHeader extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: AppColors.steelBlue.withOpacity(0.1),
+            backgroundColor: AppColors.steelBlue.withValues(alpha: 0.1),
             child: const Icon(Icons.person_outline, color: AppColors.steelBlue),
           ),
           const SizedBox(width: 12),
@@ -1154,9 +1154,9 @@ class _SinConexionAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.14),
+        color: AppColors.badgeAmber.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.5)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
@@ -1182,9 +1182,9 @@ class _VentaPendienteAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.badgeAmber.withOpacity(0.14),
+        color: AppColors.badgeAmber.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.badgeAmber.withOpacity(0.5)),
+        border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [

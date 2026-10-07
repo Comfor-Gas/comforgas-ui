@@ -143,7 +143,7 @@ class _BotonRedondo extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool activo = onTap != null;
     return Material(
-      color: activo ? AppColors.orange : AppColors.badgeGray.withOpacity(0.4),
+      color: activo ? AppColors.orange : AppColors.badgeGray.withValues(alpha: 0.4),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,

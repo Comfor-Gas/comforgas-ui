@@ -69,10 +69,10 @@ class _CeldaNumeroStockState extends State<CeldaNumeroStock> {
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: widget.valor > 0 ? widget.acento.withOpacity(0.08) : AppColors.white,
+        color: widget.valor > 0 ? widget.acento.withValues(alpha: 0.08) : AppColors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: widget.valor > 0 ? widget.acento.withOpacity(0.6) : AppColors.inputBorder,
+          color: widget.valor > 0 ? widget.acento.withValues(alpha: 0.6) : AppColors.inputBorder,
         ),
       ),
       child: Row(

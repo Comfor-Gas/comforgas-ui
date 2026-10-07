@@ -83,9 +83,7 @@ class CanjeSyncManager {
             await _queue.registrarError(entry.key, entry.value);
             await _queue.eliminar(entry.key);
           }
-        } on NetworkException {
-        } on CanjeRepositoryException {
-        }
+        } on NetworkException catch (_) {} on CanjeRepositoryException catch (_) {}
       }
     } finally {
       _sincronizando = false;

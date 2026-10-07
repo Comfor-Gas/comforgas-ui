@@ -73,7 +73,7 @@ class _ReporteCanjeTarjetaState extends State<ReporteCanjeTarjeta> {
             ),
           ),
           if (_expandido) ...[
-            Container(height: 1, color: AppColors.inputBorder.withOpacity(0.6)),
+            Container(height: 1, color: AppColors.inputBorder.withValues(alpha: 0.6)),
             DetalleCanjeGrupo(grupo: g, compacto: true),
           ],
         ],

@@ -147,7 +147,7 @@ class JustificacionDiferenciasPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: completas ? AppColors.inputBorder : AppColors.orange.withOpacity(0.45)),
+        border: Border.all(color: completas ? AppColors.inputBorder : AppColors.orange.withValues(alpha: 0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -170,7 +170,7 @@ class JustificacionDiferenciasPanel extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: (completas ? AppColors.badgeGreen : AppColors.orange).withOpacity(0.12),
+                  color: (completas ? AppColors.badgeGreen : AppColors.orange).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -241,7 +241,7 @@ class _FilaJustificacion extends StatelessWidget {
         : Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -299,7 +299,7 @@ class _FilaJustificacion extends StatelessWidget {
                   : null,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: vacio ? AppColors.orange.withOpacity(0.5) : AppColors.inputBorder),
+                borderSide: BorderSide(color: vacio ? AppColors.orange.withValues(alpha: 0.5) : AppColors.inputBorder),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),

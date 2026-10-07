@@ -12,9 +12,9 @@ class BadgeCantidadCanje extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compacto ? 9 : 11, vertical: compacto ? 4 : 6),
       decoration: BoxDecoration(
-        color: AppColors.orange.withOpacity(0.12),
+        color: AppColors.orange.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.orange.withOpacity(0.45)),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.45)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

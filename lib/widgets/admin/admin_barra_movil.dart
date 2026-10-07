@@ -15,7 +15,7 @@ class AdminBarraMovil extends StatelessWidget {
     return Material(
       color: SidebarPaleta.lienzo,
       elevation: 3,
-      shadowColor: Colors.black.withOpacity(0.25),
+      shadowColor: Colors.black.withValues(alpha: 0.25),
       child: SafeArea(
         bottom: false,
         child: SizedBox(
@@ -72,7 +72,7 @@ class AdminBarraMovil extends StatelessWidget {
               if (item != null)
                 Padding(
                   padding: const EdgeInsets.only(right: 16),
-                  child: Icon(item.icon, color: Colors.white.withOpacity(0.7), size: 20),
+                  child: Icon(item.icon, color: Colors.white.withValues(alpha: 0.7), size: 20),
                 ),
             ],
           ),

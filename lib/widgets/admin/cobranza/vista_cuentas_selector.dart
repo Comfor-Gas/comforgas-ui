@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../models/vista_cuentas_corrientes.dart';
 import '../../../theme/app_colors.dart';
-import '../../../theme/app_text_styles.dart';
 
 class VistaCuentasSelector extends StatelessWidget {
   final VistaCuentasCorrientes seleccion;
@@ -108,7 +107,7 @@ class _Pestania extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                   decoration: BoxDecoration(
-                    color: activa ? AppColors.white.withOpacity(0.25) : acento.withOpacity(0.12),
+                    color: activa ? AppColors.white.withValues(alpha: 0.25) : acento.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(

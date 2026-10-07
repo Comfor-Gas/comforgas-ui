@@ -161,7 +161,7 @@ class _EditarLimiteDialogState extends State<EditarLimiteDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.orange.withOpacity(0.12),
+              color: AppColors.orange.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.tune_rounded, size: 20, color: AppColors.orange),
@@ -246,7 +246,7 @@ class _EditarLimiteDialogState extends State<EditarLimiteDialog> {
                       label: Text(formatMoneda(monto)),
                       selected: limite == monto,
                       onSelected: hayCliente && monto >= _saldoUsado ? (_) => _usarSugerido(monto) : null,
-                      selectedColor: AppColors.orange.withOpacity(0.16),
+                      selectedColor: AppColors.orange.withValues(alpha: 0.16),
                       backgroundColor: AppColors.background,
                       side: BorderSide(
                         color: limite == monto ? AppColors.orange : AppColors.inputBorder,
@@ -265,7 +265,7 @@ class _EditarLimiteDialogState extends State<EditarLimiteDialog> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.steelBlue.withOpacity(0.06),
+                    color: AppColors.steelBlue.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(

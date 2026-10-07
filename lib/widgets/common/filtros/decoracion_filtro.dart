@@ -35,9 +35,9 @@ InputDecoration decoracionFiltro({
     suffixIcon: sufijo,
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     filled: true,
-    fillColor: activo ? AppColors.orange.withOpacity(0.06) : AppColors.background,
+    fillColor: activo ? AppColors.orange.withValues(alpha: 0.06) : AppColors.background,
     border: borde(AppColors.inputBorder),
-    enabledBorder: borde(activo ? AppColors.orange.withOpacity(0.5) : AppColors.inputBorder),
+    enabledBorder: borde(activo ? AppColors.orange.withValues(alpha: 0.5) : AppColors.inputBorder),
     disabledBorder: borde(AppColors.inputBorder),
     focusedBorder: borde(AppColors.orange, 1.4),
   );

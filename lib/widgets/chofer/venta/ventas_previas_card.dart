@@ -15,9 +15,9 @@ class VentasPreviasCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.06),
+        color: AppColors.steelBlue.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

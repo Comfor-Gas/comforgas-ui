@@ -30,7 +30,7 @@ class ControlComodatoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _auditado
-              ? AppColors.badgeGreen.withOpacity(0.5)
+              ? AppColors.badgeGreen.withValues(alpha: 0.5)
               : AppColors.inputBorder,
         ),
       ),
@@ -153,9 +153,9 @@ class ControlComodatoCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.orange.withOpacity(0.12),
+                color: AppColors.orange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.orange.withOpacity(0.5)),
+                border: Border.all(color: AppColors.orange.withValues(alpha: 0.5)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -211,7 +211,7 @@ class ControlComodatoCard extends StatelessWidget {
                     Text(
                       'Auditoría física de cilindros prestados',
                       style: AppTextStyles.footer.copyWith(
-                        color: AppColors.white.withOpacity(0.9),
+                        color: AppColors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],

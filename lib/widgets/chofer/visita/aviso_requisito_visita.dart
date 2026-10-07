@@ -14,9 +14,9 @@ class AvisoRequisitoVisita extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.orange.withOpacity(0.08),
+        color: AppColors.orange.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.orange.withOpacity(0.4)),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [

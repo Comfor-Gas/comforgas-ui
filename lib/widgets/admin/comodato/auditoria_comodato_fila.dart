@@ -36,7 +36,7 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
   @override
   Widget build(BuildContext context) {
     final c = widget.control;
-    final fondo = widget.par ? AppColors.white : AppColors.background.withOpacity(0.5);
+    final fondo = widget.par ? AppColors.white : AppColors.background.withValues(alpha: 0.5);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -86,7 +86,7 @@ class _AuditoriaComodatoFilaState extends State<AuditoriaComodatoFila> {
           ),
         ),
         if (_expandido && _tieneObs) _buildDetalle(c),
-        Container(height: 1, color: AppColors.inputBorder.withOpacity(0.6)),
+        Container(height: 1, color: AppColors.inputBorder.withValues(alpha: 0.6)),
       ],
     );
   }

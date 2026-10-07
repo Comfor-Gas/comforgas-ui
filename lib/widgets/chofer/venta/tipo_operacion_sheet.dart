@@ -172,7 +172,7 @@ class _OpcionOperacion extends StatelessWidget {
                           : info.descripcion,
                       style: AppTextStyles.footer.copyWith(
                         color: activo
-                            ? AppColors.white.withOpacity(0.9)
+                            ? AppColors.white.withValues(alpha: 0.9)
                             : AppColors.graphiteGray,
                       ),
                     ),

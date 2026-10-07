@@ -26,7 +26,7 @@ class _ReporteCanjeFilaState extends State<ReporteCanjeFila> {
   @override
   Widget build(BuildContext context) {
     final g = widget.grupo;
-    final fondo = widget.par ? AppColors.white : AppColors.background.withOpacity(0.5);
+    final fondo = widget.par ? AppColors.white : AppColors.background.withValues(alpha: 0.5);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -61,7 +61,7 @@ class _ReporteCanjeFilaState extends State<ReporteCanjeFila> {
           ),
         ),
         if (_expandido) DetalleCanjeGrupo(grupo: g),
-        Container(height: 1, color: AppColors.inputBorder.withOpacity(0.6)),
+        Container(height: 1, color: AppColors.inputBorder.withValues(alpha: 0.6)),
       ],
     );
   }

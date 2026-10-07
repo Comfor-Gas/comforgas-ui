@@ -239,7 +239,7 @@ class _GestionAdministradoresScreenState extends State<GestionAdministradoresScr
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                             decoration: BoxDecoration(
-                              color: AppColors.steelBlue.withOpacity(0.10),
+                              color: AppColors.steelBlue.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -311,7 +311,7 @@ class _Cabecera extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.orange,
         foregroundColor: AppColors.white,
-        disabledBackgroundColor: AppColors.orange.withOpacity(0.4),
+        disabledBackgroundColor: AppColors.orange.withValues(alpha: 0.4),
         disabledForegroundColor: AppColors.white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),

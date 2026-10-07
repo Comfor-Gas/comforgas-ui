@@ -26,7 +26,7 @@ class ConfirmarBajaAdministradorDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.10),
+              color: AppColors.error.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.person_remove_outlined, size: 20, color: AppColors.error),

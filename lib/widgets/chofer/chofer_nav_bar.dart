@@ -24,7 +24,7 @@ class ChoferNavBar extends StatelessWidget {
         border: const Border(top: BorderSide(color: AppColors.inputBorder)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.steelBlue.withOpacity(0.08),
+            color: AppColors.steelBlue.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),
@@ -42,9 +42,9 @@ class ChoferNavBar extends StatelessWidget {
             iconSize: 22,
             color: AppColors.graphiteGray,
             activeColor: AppColors.orange,
-            tabBackgroundColor: AppColors.orange.withOpacity(0.12),
-            rippleColor: AppColors.orange.withOpacity(0.10),
-            hoverColor: AppColors.steelBlue.withOpacity(0.06),
+            tabBackgroundColor: AppColors.orange.withValues(alpha: 0.12),
+            rippleColor: AppColors.orange.withValues(alpha: 0.10),
+            hoverColor: AppColors.steelBlue.withValues(alpha: 0.06),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,

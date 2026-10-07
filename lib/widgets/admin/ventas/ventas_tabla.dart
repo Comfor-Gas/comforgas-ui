@@ -152,11 +152,11 @@ class _FilaTablaState extends State<_FilaTabla> {
 
     Color fondo;
     if (widget.seleccionada) {
-      fondo = AppColors.orange.withOpacity(0.08);
+      fondo = AppColors.orange.withValues(alpha: 0.08);
     } else if (_hover) {
-      fondo = AppColors.steelBlue.withOpacity(0.05);
+      fondo = AppColors.steelBlue.withValues(alpha: 0.05);
     } else {
-      fondo = widget.esPar ? AppColors.white : AppColors.background.withOpacity(0.5);
+      fondo = widget.esPar ? AppColors.white : AppColors.background.withValues(alpha: 0.5);
     }
 
     return MouseRegion(
@@ -278,7 +278,7 @@ class _TarjetaVenta extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: seleccionada ? AppColors.orange.withOpacity(0.06) : AppColors.background,
+          color: seleccionada ? AppColors.orange.withValues(alpha: 0.06) : AppColors.background,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: seleccionada ? AppColors.orange : AppColors.inputBorder,
@@ -391,7 +391,7 @@ class _SinResultados extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.search_off, size: 40, color: AppColors.inputHint.withOpacity(0.7)),
+          Icon(Icons.search_off, size: 40, color: AppColors.inputHint.withValues(alpha: 0.7)),
           const SizedBox(height: 12),
           Text(
             mensaje,

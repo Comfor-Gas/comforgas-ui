@@ -46,8 +46,8 @@ class _EstadoConexionBadgeState extends State<EstadoConexionBadge> {
     final icono = online ? Icons.wifi : Icons.wifi_off;
 
     final fondo = widget.claro
-        ? AppColors.white.withOpacity(0.16)
-        : color.withOpacity(0.12);
+        ? AppColors.white.withValues(alpha: 0.16)
+        : color.withValues(alpha: 0.12);
     final colorContenido = widget.claro ? AppColors.white : color;
 
     return Container(
@@ -60,8 +60,8 @@ class _EstadoConexionBadgeState extends State<EstadoConexionBadge> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: widget.claro
-              ? AppColors.white.withOpacity(0.4)
-              : color.withOpacity(0.45),
+              ? AppColors.white.withValues(alpha: 0.4)
+              : color.withValues(alpha: 0.45),
         ),
       ),
       child: Row(

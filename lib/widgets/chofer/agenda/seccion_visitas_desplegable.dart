@@ -51,7 +51,7 @@ class _SeccionVisitasDesplegableState extends State<SeccionVisitasDesplegable> {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: widget.acento.withOpacity(0.35)),
+        border: Border.all(color: widget.acento.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -76,7 +76,7 @@ class _SeccionVisitasDesplegableState extends State<SeccionVisitasDesplegable> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
                     decoration: BoxDecoration(
-                      color: widget.acento.withOpacity(0.12),
+                      color: widget.acento.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(

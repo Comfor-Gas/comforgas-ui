@@ -213,8 +213,8 @@ class _FilaAdministrador extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compacto ? 14 : 20, vertical: 12),
       decoration: BoxDecoration(
-        color: par ? AppColors.white : AppColors.background.withOpacity(0.5),
-        border: Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.6))),
+        color: par ? AppColors.white : AppColors.background.withValues(alpha: 0.5),
+        border: Border(bottom: BorderSide(color: AppColors.inputBorder.withValues(alpha: 0.6))),
       ),
       child: Row(
         children: [
@@ -266,7 +266,7 @@ class _Etiqueta extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -302,9 +302,9 @@ class _Avatar extends StatelessWidget {
       height: 36,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         _iniciales,

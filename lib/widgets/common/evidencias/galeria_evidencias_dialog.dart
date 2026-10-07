@@ -34,7 +34,7 @@ class GaleriaEvidenciasDialog extends StatefulWidget {
     if (fotos.isEmpty) return Future.value();
     return showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.55),
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (_) => GaleriaEvidenciasDialog(fotos: fotos, titulo: titulo),
     );
   }
@@ -191,7 +191,7 @@ class GaleriaEvidenciasDialogState extends State<GaleriaEvidenciasDialog> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.orange.withOpacity(0.12),
+                              color: AppColors.orange.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -244,7 +244,7 @@ class _FlechaGaleria extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: onTap == null ? AppColors.white.withOpacity(0.4) : AppColors.white,
+      color: onTap == null ? AppColors.white.withValues(alpha: 0.4) : AppColors.white,
       shape: const CircleBorder(),
       elevation: onTap == null ? 0 : 2,
       child: InkWell(

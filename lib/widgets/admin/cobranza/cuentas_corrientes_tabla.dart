@@ -141,7 +141,7 @@ class _Fila extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.inputBorder.withOpacity(0.6))),
+        border: Border(bottom: BorderSide(color: AppColors.inputBorder.withValues(alpha: 0.6))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

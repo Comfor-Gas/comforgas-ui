@@ -17,9 +17,9 @@ class ResumenSocialBar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.steelBlue.withOpacity(0.08),
+          color: AppColors.steelBlue.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.steelBlue.withOpacity(0.3)),
+          border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [

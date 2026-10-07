@@ -76,9 +76,9 @@ class ArqueoResumenCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.badgeAmber.withOpacity(0.12),
+                  color: AppColors.badgeAmber.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                  border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -126,9 +126,9 @@ class _LineaVentaSocial extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.steelBlue.withOpacity(0.08),
+        color: AppColors.steelBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.steelBlue.withOpacity(0.30)),
+        border: Border.all(color: AppColors.steelBlue.withValues(alpha: 0.30)),
       ),
       child: Row(
         children: [
@@ -184,9 +184,9 @@ class _ArqueoCerradoAviso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.badgeGreen.withOpacity(0.12),
+        color: AppColors.badgeGreen.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.badgeGreen.withOpacity(0.4)),
+        border: Border.all(color: AppColors.badgeGreen.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [

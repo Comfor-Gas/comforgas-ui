@@ -51,7 +51,7 @@ class VisitaClienteCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -193,8 +193,8 @@ class _OrdenIndicator extends StatelessWidget {
               width: 1.6,
             ),
             color: completada
-                ? AppColors.badgeGreen.withOpacity(0.08)
-                : (esSiguiente ? AppColors.orange : AppColors.steelBlue).withOpacity(0.08),
+                ? AppColors.badgeGreen.withValues(alpha: 0.08)
+                : (esSiguiente ? AppColors.orange : AppColors.steelBlue).withValues(alpha: 0.08),
           ),
           child: completada
               ? const Icon(Icons.check, color: AppColors.badgeGreen, size: 20)

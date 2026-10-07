@@ -17,7 +17,7 @@ class ChoferResumenTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       decoration: BoxDecoration(
-        color: alterna ? AppColors.background.withOpacity(0.5) : AppColors.white,
+        color: alterna ? AppColors.background.withValues(alpha: 0.5) : AppColors.white,
         border: const Border(bottom: BorderSide(color: AppColors.inputBorder, width: 0.6)),
       ),
       child: Column(

@@ -497,12 +497,12 @@ class _PlanificacionVisitasScreenState
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: hay
-                ? AppColors.orange.withOpacity(0.08)
+                ? AppColors.orange.withValues(alpha: 0.08)
                 : AppColors.background,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: hay
-                  ? AppColors.orange.withOpacity(0.4)
+                  ? AppColors.orange.withValues(alpha: 0.4)
                   : AppColors.inputBorder,
             ),
           ),
@@ -893,7 +893,7 @@ Widget _buildTable(BuildContext context) {
                     dataRowMaxHeight: 60,
                     sortColumnIndex: sortColumnIndex,
                     sortAscending: sortAsc,
-                    headingRowColor: MaterialStateProperty.all(AppColors.background),
+                    headingRowColor: WidgetStateProperty.all(AppColors.background),
                     columns: [
                       DataColumn(
                         label: const Text('Chofer'),
@@ -923,7 +923,7 @@ Widget _buildTable(BuildContext context) {
                           children: [
                             CircleAvatar(
                               radius: 13,
-                              backgroundColor: AppColors.steelBlue.withOpacity(0.12),
+                              backgroundColor: AppColors.steelBlue.withValues(alpha: 0.12),
                               child: Text(
                                 initialsOf(nombreChofer),
                                 style: const TextStyle(
@@ -1055,7 +1055,7 @@ Widget _buildTable(BuildContext context) {
             children: [
               CircleAvatar(
                 radius: 14,
-                backgroundColor: AppColors.steelBlue.withOpacity(0.12),
+                backgroundColor: AppColors.steelBlue.withValues(alpha: 0.12),
                 child: Text(
                   initialsOf(nombreChofer),
                   style: const TextStyle(
@@ -1168,7 +1168,7 @@ class _FormularioCard extends StatelessWidget {
   final VoidCallback onGuardar;
   final VoidCallback onSincronizar;
   final bool sincronizando;
-  final bool camposHabilitados;
+  final bool camposHabilitados = false;
 
   const _FormularioCard({
     required this.chofer,
@@ -1189,7 +1189,6 @@ class _FormularioCard extends StatelessWidget {
     required this.onGuardar,
     required this.onSincronizar,
     this.sincronizando = false,
-    this.camposHabilitados = false,
   });
 
   @override
@@ -1236,7 +1235,7 @@ class _FormularioCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.steelBlue.withOpacity(0.06),
+              color: AppColors.steelBlue.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -1310,9 +1309,9 @@ class _FormularioCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.badgeAmber.withOpacity(0.12),
+                  color: AppColors.badgeAmber.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.badgeAmber.withOpacity(0.4)),
+                  border: Border.all(color: AppColors.badgeAmber.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -1391,8 +1390,8 @@ class _DatePickerField extends StatelessWidget {
   final String hint;
   final DateTime? value;
   final ValueChanged<DateTime?> onChanged;
-  final bool clearable;
-  final bool permitirPasado;
+  final bool clearable = false;
+  final bool permitirPasado = false;
 
   const _DatePickerField({
     required this.label,
@@ -1400,8 +1399,6 @@ class _DatePickerField extends StatelessWidget {
     required this.hint,
     required this.value,
     required this.onChanged,
-    this.clearable = false,
-    this.permitirPasado = false,
   });
 
   @override
@@ -1709,7 +1706,7 @@ class _SearchablePanelState<T> extends State<_SearchablePanel<T>> {
               itemCount: filtrados.length,
               separatorBuilder: (_, __) => Divider(
                 height: 1,
-                color: AppColors.inputBorder.withOpacity(0.5),
+                color: AppColors.inputBorder.withValues(alpha: 0.5),
               ),
               itemBuilder: (ctx, i) {
                 final item = filtrados[i];
@@ -1720,7 +1717,7 @@ class _SearchablePanelState<T> extends State<_SearchablePanel<T>> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     color: isSel
-                        ? AppColors.steelBlue.withOpacity(0.08)
+                        ? AppColors.steelBlue.withValues(alpha: 0.08)
                         : Colors.transparent,
                     child: Row(
                       children: [

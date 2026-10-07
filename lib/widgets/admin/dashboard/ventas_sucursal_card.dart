@@ -217,7 +217,7 @@ class _FilaSucursalState extends State<_FilaSucursal> {
             decoration: BoxDecoration(
               color: _hover
                   ? DashboardPaleta.serieAzul
-                  : DashboardPaleta.serieAzul.withOpacity(0.85),
+                  : DashboardPaleta.serieAzul.withValues(alpha: 0.85),
               borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
             ),
           ),

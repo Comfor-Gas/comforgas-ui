@@ -119,7 +119,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             key: _scaffoldKey,
             backgroundColor: AppColors.background,
             drawerEdgeDragWidth: 24,
-            drawerScrimColor: Colors.black.withOpacity(0.45),
+            drawerScrimColor: Colors.black.withValues(alpha: 0.45),
             drawer: Drawer(
               width: AdminSidebar.anchoExpandido + 12,
               backgroundColor: SidebarPaleta.lienzo,

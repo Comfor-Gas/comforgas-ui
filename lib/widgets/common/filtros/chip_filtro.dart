@@ -24,9 +24,9 @@ class ChipFiltro extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: activo ? AppColors.orange.withOpacity(0.1) : AppColors.background,
+          color: activo ? AppColors.orange.withValues(alpha: 0.1) : AppColors.background,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: activo ? AppColors.orange.withOpacity(0.6) : AppColors.inputBorder),
+          border: Border.all(color: activo ? AppColors.orange.withValues(alpha: 0.6) : AppColors.inputBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

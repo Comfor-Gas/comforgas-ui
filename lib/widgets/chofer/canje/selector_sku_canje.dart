@@ -61,7 +61,7 @@ class _TileProducto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color borde = activo ? AppColors.orange : AppColors.inputBorder;
-    final Color fondo = activo ? AppColors.orange.withOpacity(0.08) : AppColors.white;
+    final Color fondo = activo ? AppColors.orange.withValues(alpha: 0.08) : AppColors.white;
 
     return InkWell(
       onTap: onTap,

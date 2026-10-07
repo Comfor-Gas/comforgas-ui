@@ -124,7 +124,7 @@ class _VendedorDrawer extends StatelessWidget {
                             Text(
                               'Vendedor Local',
                               style: AppTextStyles.footer.copyWith(
-                                color: AppColors.white.withOpacity(0.8),
+                                color: AppColors.white.withValues(alpha: 0.8),
                               ),
                             ),
                           ],
@@ -184,7 +184,7 @@ class _DrawerItem extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color:
-            selected ? AppColors.orange.withOpacity(0.10) : Colors.transparent,
+            selected ? AppColors.orange.withValues(alpha: 0.10) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
       child: ListTile(
@@ -219,7 +219,7 @@ class _SectionBody extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),

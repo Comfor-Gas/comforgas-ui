@@ -41,7 +41,7 @@ class CobroPendienteIndicator extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.white.withOpacity(0.95),
+                        color: AppColors.white.withValues(alpha: 0.95),
                       ),
                     ),
                   ],
@@ -54,7 +54,7 @@ class CobroPendienteIndicator extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.white.withOpacity(0.18),
+                color: AppColors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(

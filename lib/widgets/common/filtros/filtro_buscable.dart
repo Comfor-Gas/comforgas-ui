@@ -175,7 +175,7 @@ class _FiltroBuscableState extends State<FiltroBuscable> {
                             onTap: () => onSelected(o),
                             child: Container(
                               color: elegido
-                                  ? AppColors.orange.withOpacity(0.10)
+                                  ? AppColors.orange.withValues(alpha: 0.10)
                                   : (resaltado ? AppColors.background : null),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               child: Row(

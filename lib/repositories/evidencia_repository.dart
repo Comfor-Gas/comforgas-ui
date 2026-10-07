@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../models/evidencia_fotografica_model.dart';
+import '../utils/tipo_imagen.dart';
 import 'network_exception.dart';
 
 class EvidenciaRepositoryException implements Exception {
@@ -73,7 +74,11 @@ class EvidenciaRepository {
     }
 
     try {
-      request.files.add(await http.MultipartFile.fromPath('archivo', archivo.path));
+      request.files.add(await http.MultipartFile.fromPath(
+        'archivo',
+        archivo.path,
+        contentType: tipoImagenDeArchivo(archivo),
+      ));
     } catch (_) {
       throw EvidenciaRepositoryException('No se pudo leer la foto capturada.');
     }

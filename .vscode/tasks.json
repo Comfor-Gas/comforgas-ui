@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Deploy Web -> VPS",
+      "type": "process",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\scripts\\deploy-web.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Rollback Web",
+      "type": "process",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\scripts\\rollback-web.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build + publicar APK",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\scripts\\deploy-apk.ps1",
+        "-Version", "${input:apkVersion}", "-Build", "${input:apkBuild}", "-Publish"
+      ],
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    { "id": "apkVersion", "type": "promptString", "description": "Version (ej. 1.0.1)" },
+    { "id": "apkBuild", "type": "promptString", "description": "Build number (entero, mayor al anterior)" }
+  ]
+}

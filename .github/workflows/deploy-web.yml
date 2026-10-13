@@ -1,0 +1,86 @@
+name: Deploy Web -> VPS
+
+on:
+  push:
+    branches: [main]          # cambiar si la rama de produccion tiene otro nombre
+  workflow_dispatch:          # boton "Run workflow" para desplegar a mano
+
+concurrency:
+  group: deploy-web-prod
+  cancel-in-progress: false   # nunca cortar un deploy a la mitad
+
+env:
+  REMOTE_BASE: /var/www/comfor-web
+  KEEP_RELEASES: 5
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.8   # misma version que en la PC de desarrollo
+          cache: true
+
+      - name: Crear env.prod.json
+        run: |
+          test -n "${{ vars.API_URL }}" || { echo "Falta la variable API_URL en GitHub"; exit 1; }
+          echo '{ "API_URL": "${{ vars.API_URL }}" }' > env.prod.json
+          cat env.prod.json
+
+      - name: Build web
+        run: |
+          flutter pub get
+          flutter build web --release --dart-define-from-file=env.prod.json
+          test -f build/web/index.html
+
+      - name: Configurar SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName ${{ secrets.VPS_HOST }}
+            User ${{ secrets.VPS_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+          EOF
+
+      - name: Subir y activar release
+        run: |
+          RELEASE=$(TZ=America/Argentina/Buenos_Aires date +%Y%m%d-%H%M%S)
+          tar -czf /tmp/comfor-web-$RELEASE.tar.gz -C build/web .
+          scp /tmp/comfor-web-$RELEASE.tar.gz vps:/tmp/
+          ssh vps "bash -s" <<EOF
+          set -e
+          R='${REMOTE_BASE}'
+          REL='$RELEASE'
+          mkdir -p "\$R/releases/\$REL"
+          tar -xzf "/tmp/comfor-web-\$REL.tar.gz" -C "\$R/releases/\$REL"
+          rm -f "/tmp/comfor-web-\$REL.tar.gz"
+          test -f "\$R/releases/\$REL/index.html"
+          chmod -R a+rX "\$R/releases/\$REL"
+          ln -sfn "\$R/releases/\$REL" "\$R/current"
+          cd "\$R/releases" && ls -1 | sort -r | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf
+          echo "Release activa: \$(readlink -f \$R/current)"
+          EOF
+
+      - name: Verificar sitio
+        run: |
+          sleep 2
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://${{ secrets.VPS_HOST }}/"
+
+      - name: Limpiar llave
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

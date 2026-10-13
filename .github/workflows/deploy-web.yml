@@ -79,7 +79,7 @@ jobs:
       - name: Verificar sitio
         run: |
           sleep 2
-          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://${{ secrets.VPS_HOST }}/"
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "${{ vars.API_URL }}/"
 
       - name: Limpiar llave
         if: always()

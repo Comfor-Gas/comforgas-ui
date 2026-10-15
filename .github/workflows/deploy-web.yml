@@ -52,6 +52,7 @@ jobs:
           cat > ~/.ssh/config <<EOF
           Host vps
             HostName ${{ secrets.VPS_HOST }}
+            Port 5392
             User ${{ secrets.VPS_USER }}
             IdentityFile ~/.ssh/deploy_key
             IdentitiesOnly yes
@@ -79,7 +80,7 @@ jobs:
       - name: Verificar sitio
         run: |
           sleep 2
-          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "${{ vars.API_URL }}/"
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://turbocar.com.ar:8080/"
 
       - name: Limpiar llave
         if: always()

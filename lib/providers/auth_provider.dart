@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/auth_result.dart';
 import '../models/auth_user.dart';
 import '../models/user_role.dart';
+import '../repositories/network_exception.dart';
 import '../services/auth_api.dart';
 import '../services/auth_http_client.dart';
 import '../services/biometric_service.dart';
@@ -60,11 +61,31 @@ class AuthProvider extends ChangeNotifier {
         refreshToken: result.refreshToken,
         role: result.user.role.name,
         email: result.user.email,
+        userId: result.user.id,
+        fullName: result.user.fullName,
       );
 
       _accessToken = result.accessToken;
       _user = result.user;
       _status = AuthStatus.authenticated;
+    } on NetworkException {
+      // Sin señal: se mantiene la sesión guardada para poder trabajar offline.
+      // Cuando vuelva la conexión, AuthHttpClient renueva el token solo.
+      final userId = await _storage.readUserId();
+      if (userId != null && userId.isNotEmpty) {
+        _accessToken = await _storage.readAccessToken();
+        _user = AuthUser(
+          id: userId,
+          email: await _storage.readSessionEmail() ?? '',
+          fullName: await _storage.readFullName(),
+          role: UserRoleMapper.fromValue(await _storage.readRole()),
+        );
+        _status = AuthStatus.authenticated;
+      } else {
+        // Sesión guardada por una versión anterior (sin id de usuario):
+        // no se puede reconstruir, pero tampoco se borra.
+        _status = AuthStatus.unauthenticated;
+      }
     } catch (_) {
       await _storage.clear();
       _accessToken = null;
@@ -96,6 +117,8 @@ class AuthProvider extends ChangeNotifier {
         refreshToken: result.refreshToken,
         role: result.user.role.name,
         email: result.user.email,
+        userId: result.user.id,
+        fullName: result.user.fullName,
       );
 
       _accessToken = result.accessToken;

@@ -16,6 +16,8 @@ class SecureStorageService {
   static const String _kRefreshToken = 'refresh_token';
   static const String _kRole = 'user_role';
   static const String _kSessionEmail = 'session_email';
+  static const String _kUserId = 'user_id';
+  static const String _kFullName = 'user_full_name';
   static const String _kBiometricEnabled = 'biometric_enabled';
   static const String _kBiometricOwnerEmail = 'biometric_owner_email';
 
@@ -61,6 +63,8 @@ class SecureStorageService {
     required String refreshToken,
     String? role,
     String? email,
+    String? userId,
+    String? fullName,
   }) async {
     await _write(_kAccessToken, accessToken);
     await _write(_kRefreshToken, refreshToken);
@@ -70,6 +74,12 @@ class SecureStorageService {
     if (email != null && email.isNotEmpty) {
       await _write(_kSessionEmail, email);
     }
+    if (userId != null && userId.isNotEmpty) {
+      await _write(_kUserId, userId);
+    }
+    if (fullName != null && fullName.isNotEmpty) {
+      await _write(_kFullName, fullName);
+    }
   }
 
   Future<String?> readAccessToken() => _read(_kAccessToken);
@@ -78,6 +88,8 @@ class SecureStorageService {
 
   Future<String?> readRole() => _read(_kRole);
   Future<String?> readSessionEmail() => _read(_kSessionEmail);
+  Future<String?> readUserId() => _read(_kUserId);
+  Future<String?> readFullName() => _read(_kFullName);
 
   Future<bool> hasSession() async {
     final token = await readAccessToken();
@@ -115,5 +127,7 @@ class SecureStorageService {
     await _delete(_kRefreshToken);
     await _delete(_kRole);
     await _delete(_kSessionEmail);
+    await _delete(_kUserId);
+    await _delete(_kFullName);
   }
 }

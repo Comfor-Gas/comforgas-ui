@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../models/auth_result.dart';
+import '../repositories/network_exception.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -116,7 +117,8 @@ class AuthApi {
           )
           .timeout(const Duration(seconds: 20));
     } catch (_) {
-      throw AuthException('No se pudo conectar con el servidor. Revisa tu conexión.');
+      // Sin señal: no es una sesión inválida, restoreSession la conserva.
+      throw NetworkException();
     }
 
     if (response.statusCode == 200 || response.statusCode == 201) {

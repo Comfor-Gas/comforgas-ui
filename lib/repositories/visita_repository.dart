@@ -249,7 +249,7 @@ class VisitaRepository {
               'fecha': formatDateOnly(fecha),
             }),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 180));
     } catch (_) {
       throw VisitaRepositoryException(
         'No se pudo conectar con el servidor. Revisa tu conexión.',
@@ -297,7 +297,7 @@ class VisitaRepository {
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode({'fecha': formatDateOnly(fecha)}),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 260));
     } catch (_) {
       throw VisitaRepositoryException(
         'No se pudo conectar con el servidor. Revisa tu conexión.',
